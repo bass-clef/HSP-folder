@@ -1,0 +1,74 @@
+	
+	
+	pos   0, 20 :ListView hwnd@hsp, hListView, 300, 100
+	if hListView == false :end
+	
+	ListViewInsertColumn hListView, "ABCDEFG", 0, 100
+	ListViewInsertColumn hListView, "HIJKLMNP", 1, 100
+	
+	
+	ListViewInsertItem hListView, "AB", 0, 0
+	ListViewInsertItem hListView, "HI", 0, 1
+	
+	stop
+	
+	
+	
+	#module __LISTVIEW__
+	#define	CF_TEXT				1
+	#define	WC_LISTVIEW			"SysListView32"	// リストビュークラス名
+	#define	LVS_REPORT			0x0001
+	#define	LVCF_FMT			0x0001
+	#define	LVCF_WIDTH			0x0002
+	#define	LVCF_TEXT			0x0004
+	#define	LVCF_SUBITEM		0x0008
+	#define	LVCFMT_LEFT			0x0000
+	#define	LVIF_TEXT			0x0001
+	#define	LVM_INSERTCOLUMN	0x101B			// 新しいカラムを追加
+	#define LVM_INSERTITEM		LVM_INSERTITEMA
+	#define LVM_INSERTITEMA		0x1007			// 新しいアイテムを追加
+	#define	LVM_SETITEM			0x1006			// 新しいサブアイテムを追加
+	#define	LVM_DELETEITEM		0x1008			// アイテム削除
+	
+	// リストビュー作成
+	#deffunc ListView int hWnd_, var hListView, int xSize, int ySize
+		wStyle = LVS_REPORT | WS_CHILD | WS_VISIBLE
+		winobj WC_LISTVIEW, "", 0x200, wStyle, xSize, ySize
+		ListViewID = stat
+		if ListViewID == -1 :return false
+		hListView = objinfo(ListViewID, 2)
+	return true
+	
+	// リストビューカラム(列)追加
+	#deffunc ListViewInsertColumn int hWnd_, str szColumnName, int iSubItem, int cx
+		dim lvc, 8	// LVCOLUMN
+		lvc.0	= LVCF_FMT | LVCF_WIDTH | LVCF_TEXT | LVCF_SUBITEM	// mask フラグ
+		lvc.1	= LVCFMT_LEFT			// fmt フォーマット
+		lvc.2	= cx					// cx ピクセルのカラムの幅
+		pszColumnName = szColumnName
+		lvc.3	= varptr(pszColumnName)	// pszText 列の名前
+		lvc.5	= iSubItem				// iSubItem サブの識別ＩＤ
+		sendmsg hWnd_, LVM_INSERTCOLUMN, iSubItem, varptr(lvc)
+	return
+	
+	// リストビューアイテム追加
+	#deffunc ListViewInsertItem int hWnd_, str szItemName, int iParentItem, int iSubItem
+		dim lvi, 13				// LVITEM
+		lvi.0	= LVIF_TEXT		// mask
+		lvi.1	= iParentItem	// iItem
+		lvi.2	= iSubItem		// iSubItem
+		pszItemName = szItemName
+		lvi.5	= varptr(pszItemName)	// pszText
+		if iSubItem > 0 {
+			sendmsg hWnd_, LVM_SETITEM, 0, varptr(lvi)
+		}elseif iSubItem == 0 {
+			sendmsg hWnd_, LVM_INSERTITEM, 0, varptr(lvi)
+		}
+	return
+	
+	// リストビューアイテム削除
+	#deffunc ListViewDeleteItem int hWnd_, int Index
+		sendmsg hWnd_, LVM_DELETEITEM, Index, 0
+	return
+	#global
+	

@@ -1,0 +1,61 @@
+	
+	#module
+	#uselib "EnumWindows.dll"
+	#cfunc	GetWindows		"GetWindows"		int, int
+	
+	#uselib "user32.dll"
+	#func	GetClassName	"GetClassNameA"		int, int, int
+	#cfunc	IsWindowVisible	"IsWindowVisible"	int
+	#cfunc	GetParent		"GetParent"			int
+	#cfunc	FindWindow		"FindWindowA"		sptr, sptr
+	#deffunc GetVisibleWnd array hwnds
+		dim wnd, 1000
+		i = 0
+		hProgramManager = FindWindow("Progman", "Program Manager")
+		repeat GetWindows(varptr(wnd), 1000)
+			if (IsWindowVisible(wnd.cnt) != 0) && (wnd.cnt != hwnd@hsp) {
+			if (GetParent(wnd.cnt) == NULL) && (wnd.cnt != hProgramManager) {
+				hwnds.i = wnd.cnt
+				i++
+			}}
+		loop
+	return i
+	
+	#defcfunc gclass int hwnd_
+		sdim cname, MAX_PATH+1
+		GetClassName hwnd_, varptr(cname), MAX_PATH
+	return cname
+	#global
+	
+	#uselib "winmm.dll"
+	#cfunc	timeGetTime		"timeGetTime"
+	
+	old = timeGetTime()
+	repeat
+		GetVisibleWnd wnds :wndlen = stat
+		redraw 0
+		colorwhite :boxf :color
+		pos 0, 0 :mes "起動中のアプリケーション"
+		repeat wndlen
+			mes gtext(wnds.cnt)
+		loop
+		redraw 1
+		
+		// FPS表示
+		now = timeGetTime()
+		av.c = (now-old)
+		title ""+ave+":"+av.c
+		old = now
+		c++
+		if c == 10 {
+			ave = 0
+			repeat 10
+				ave += av.cnt
+			loop
+			ave /= 10
+			c = 0
+			title ""+ave+":"+av.9
+		}
+		wait 1
+	loop
+	

@@ -1,0 +1,79 @@
+	
+	#include "hspext.as"
+	
+	sdim buf, 32000
+	sdim ln, 4096
+	sdim fname, 256
+	
+	screen 0, 300, 40
+	hMainWnd = hwnd()
+	title "java"
+	font msgothic, 14
+	
+	objsize ginfo(12), 20 :objmode 2
+	input fname
+	button gosub "Java ビルド/実行", *bilud
+	
+	onkey gosub *key
+	
+	screen 1, ginfo(20), ginfo(21), 8,,, 300, 300 :title "コンソール"
+	hSubWnd = hwnd()
+	objmode 2 :font msgothic, 14
+	mesbox buf, 300, 300, 5 :hEdit = objinfo(stat, 2)
+	oncmd gosub *resize, WM_SIZING
+	
+	gsel 0, 1
+	objsel 0
+	
+	stop
+	
+*key
+	if wparam == 13 :gosub *bilud
+	return
+	
+*resize
+	ssize winfo(12, hSubWnd), winfo(13, hSubWnd), hEdit
+	return
+	
+*command
+	title "コマンドプロンプト", hMainWnd
+	buf = ""
+	pipe "cls"
+	pipe fname
+	title buf, hEdit
+	title "Java", hMainWnd
+	return
+	
+*bilud
+	exist fname
+	if strsize == -1 :gosub *command :return
+	dir = getpath(fname, 32)
+	fname = getpath(fname, 11)
+	
+	pipe "cls"
+	chdir ""+dir
+	
+	title "Java デバッグ...", hMainWnd
+	pipe "javac \""+ fname +"\""
+	
+	title "Java 実行...", hMainWnd
+	if refstr == "" {
+		pipe "java \""+ getpath(fname, 1) +"\""
+		title "Java 正常終了", hMainWnd
+	}else {
+		title "Java 異常終了", hMainWnd
+	}
+	
+	title buf, hEdit
+	return
+	
+	#deffunc pipe str cmd
+		pipeexec buf, cmd, 1
+		if stat == 0 {
+			repeat
+				pipeget ln
+				if stat == 0 :break
+				wait 1
+			loop
+		}
+	return buf

@@ -1,0 +1,181 @@
+	
+	/**
+タスクバーの位置
+#include <windows.h>
+#include <stdio.h>
+
+APPBARDATA  tb;
+int         bstat;
+
+    tb.cbSize = sizeof(tb);
+    bstat = SHAppBarMessage (ABM_GETSTATE,&tb);  // 表示状態を求める
+    SHAppBarMessage (ABM_GETTASKBARPOS,&tb);     // 位置サイズを求める
+    printf ("left=%d, top=%d, bottom=%d, right=%d\n",
+            tb.rc.left, tb.rc.top, tb.rc.bottom, tb.rc.right);
+    printf ("AutoHide %s\n", bstat & ABS_AUTOHIDE ? "ON" : "OFF");
+    printf ("AlwaysOnTop %s\n", bstat & ABS_ALWAYSONTOP ? "ON" : "OFF");
+	/**/
+	
+	#packopt hide 0
+	#packopt name "moving now"
+	
+	#uselib "user32.dll"
+	#func	GetWindowRect	"GetWindowRect"		int, int
+	#cfunc	GetAncestor		"GetAncestor"		int, int
+	#func	SetTimer		"SetTimer"			int, int, int, int
+	#define GA_ROOT		2
+	
+	#define clsmes(%1) redraw 0 :colorwhite :boxf :color :pos 0, 0 :mes %1 :redraw 1
+	
+	#module __SIN__
+	// 0 : 遅い -> 早い -> 遅い
+	// 1 : 早い -> 遅い
+	#deffunc setsin double maxlp_, double sx_, double sy_, double ex, double ey, int type_
+		sx = sx_
+		sy = sy_
+		rx = sx-ex
+		ry = sy-ey
+		maxlp = maxlp_
+		PI2M = -1.570796
+		type = type_
+	return
+	#defcfunc sinx int count
+		if type == 0 :return sx-(sin(-M_PI/2.0+M_PI/maxlp * double(count))+1.0) / 2.0 * rx
+	return -1.0
+	#defcfunc siny int count
+		if type == 0 :return sy-(sin(-M_PI/2.0+M_PI/maxlp * double(count))+1.0) / 2.0 * ry
+	return -1.0
+	#global
+	
+	GetVisibleWnd wnds
+	wndmax = length(wnds)
+	
+	dim rc, wndmax, 4
+	sdim wndname,, wndmax
+	repeat wndmax
+		wndname(cnt) = gtext(wnds.cnt)
+		t = GetAncestor(wnds.cnt, GA_ROOT)
+		if t != NULL :wnds.cnt = t
+		dim trc, 4
+		GetWindowRect wnds.cnt, varptr(trc)
+		rc(cnt, 0) = trc(0)
+		rc(cnt, 1) = trc(1)
+	loop
+	
+	mov = 20
+	mcfmax = 15
+	mcf = 0
+	add = 0.0
+	
+	gmxold = gmx
+	gmyold = gmy
+	
+	onexit *exit
+	oncmd gosub *main, WM_TIMER
+	oncmd gosub *close, WM_CLOSE
+	SetTimer hwnd@hsp, 1000, 10, 0
+	stop
+	
+*close
+	oncmd 0
+	return
+	
+*main
+	gosub *calc
+	return
+	
+*exit
+	dialog "ウィンドウたちを初回認識時の場所に\n元に戻しますか？", 2, "mn", NULL
+	if stat == 6 {
+		repeat wndmax
+			smove rc(cnt, 0), rc(cnt, 1), wnds.cnt
+		loop
+	}
+	
+	end
+	
+*calc
+	gmx = ginfo(0)
+	gmy = ginfo(1)
+	
+	if add != 0.0 {
+		if mcfmax <= mcf {
+			mcf = -1
+			dim prc, wndmax, 4
+			
+			repeat wndmax
+				if iswin(wnds.cnt) {
+					dim trc, 4
+					GetWindowRect wnds.cnt, varptr(trc)
+					i = cnt
+					repeat 4 :prc(i, cnt) = trc.cnt :loop
+				}
+			loop
+			setsin 40, 0, 0, ginfo(20)*add, 0
+		}else :if mcf < 0 {
+			mcf--
+			xx = sinx(-mcf+1)
+			repeat wndmax
+				smove prc(cnt, 0)+xx, prc(cnt, 1), wnds.cnt
+			loop
+			if mcf < -40 :mcf = 0 :add = 0.0
+		}
+	}
+	if (0 <= mcf) && (mcf < mcfmax) {
+		if ginfo(20)-11 <= gmx :mcf++ :add = 1.0
+		if gmx < 10 :mcf++ :add = -1.0
+	}
+	
+	if getkey(17) & 0x8000 {
+		if flag == 0 {
+			if (gmx != gmxold) || (gmy != gmyold) {
+				if gmxold < gmx {		flag = 4	// 右へ
+				}else :if gmxold > gmx :flag = 1	// 左へ
+				if gmyold < gmy {		flag = 8	// 下へ
+				}else :if gmyold > gmy :flag = 2	// 上へ
+				gmxold = gmx
+				gmyold = gmy
+			}
+		}
+	}else :if 0 < flag {
+		xx = abs(gmxold-gmx)
+		yy = abs(gmxold-gmy)
+		if flag & 1 :if 
+	}
+	
+	redraw 0
+	colorwhite :boxf :color
+	pos 0, 0
+	mes "認識しているウィンドウ"
+	repeat wndmax
+		GetWindowRect wnds.cnt, varptr(trc)
+		mes strf("%d:%8d %5dx%5d %s", cnt, wnds.cnt, trc.0, trc.1, gtext(wnds.cnt))
+	loop
+	redraw 1
+	return
+	
+	#module
+	#uselib "EnumWindows.dll"
+	#cfunc	GetWindows		"GetWindows"		int, int
+	#uselib "user32.dll"
+	#cfunc	IsWindowVisible	"IsWindowVisible"	int
+	#func	GetClassName	"GetClassNameA"		int, sptr, int
+	#cfunc	IsIconic		"IsIconic"			int
+	#cfunc	GetWindow		"GetWindow"			int, int
+	#define	GW_OWNER		4
+	#deffunc GetVisibleWnd array hwnds
+		dim wnd, 1000
+		dim hwnds
+		i = 0
+		repeat GetWindows(varptr(wnd), 1000)
+			if (IsWindowVisible(wnd.cnt)) && (wnd.cnt != hwnd@hsp) && (IsIconic(wnd.cnt)==0) && (GetWindow(wnd.cnt, GW_OWNER)==NULL) {
+				sdim class, 64
+				GetClassName wnd.cnt, varptr(class), 63
+				if instr@hsp(class, 0, "Program") == -1 :if gtext(wnd.cnt) != "" {
+					hwnds.i = wnd.cnt
+					i++
+				}
+			}
+		loop
+	return
+	#global

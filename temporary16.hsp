@@ -1,0 +1,37 @@
+	
+	#include "vram sample.as"
+	
+	buffer 1
+	picload ""+dir_desktop+"\\test.png"
+	ximg = ginfo(12)
+	yimg = ginfo(13)
+	initmemvram
+	
+	gsel 0
+	initmainvram
+	
+	a1 = 1
+	a2 = 1
+	
+*main
+	redraw 0
+	color
+	boxf 0, 0, 200, 100
+	pos 0, 0
+//	vmcopy 0, 0, ximg, yimg, RGB(a1, a1, a1)
+	vacopy 0, 0, ximg/2, yimg, a1, a2
+	redraw 1
+	// sin( PI*2 / üŠú * Count ) * U•
+	a1 = sin(M_PI*2.0 / 120.0 * double(a2)) * 60.0 + 120.0
+	a2 = (a2+1)\120
+	/*
+	if getkey(37) :if 10 < a1 :a1 -= 10
+	if getkey(39) :if a1 < 254-10 :a1 += 10
+	
+	if getkey(38) :if 10 < a2 :a2 -= 10
+	if getkey(40) :if a2 < 254-10 :a2 += 10
+	*/
+	title ""+a1+" : "+a2
+	
+	wait 1
+	goto *main

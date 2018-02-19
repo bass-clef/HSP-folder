@@ -1,0 +1,598 @@
+	
+	// chess mini
+	
+	#define global ctype bkt2a(%1, %2, %3) ((%1 <= %2) && (%2 <= %3))
+	#define global ctype isntll(%1) (%1 != NULL)
+	
+	#define global tix 8
+	#define global tiy 8
+	#define global pw 30
+	#define global ph 30
+	#enum global	KING	= 1
+	#enum global	QUEEN
+	#enum global	ROOK
+	#enum global	BISHOP
+	#enum global	KNIGHT
+	#enum global	PAWN
+	#enum	IMG_BLACK = 5
+	#enum	IMG_WHITE
+	
+*init
+	sdim piece, tix*tiy
+	//25-67*cnt 25-188*2
+	dir = "D:\\Program Files\\HSP 3.31\\"
+	chdir dir
+	wcx = tix*pw :wcy = tiy*ph
+	dcw = ginfo(20) :dch = ginfo(21)
+	sel = -1
+	tern = 0
+	enept = 0 :mypt = 0
+	
+	buffer 1
+	picload "chess_piece.png"
+	
+	buffer 2, pw*5, ph
+	color 128, 128, 255
+	boxf 0, 0, pw, ph
+	color 170, 255, 255
+	boxf pw, 0, pw*2, ph
+	color 255, 170, 128
+	boxf pw*2, 0, pw*3, ph
+	color 170, 255, 170
+	boxf pw*3, 0, pw*4, ph
+	color 255, 170, 0
+	boxf pw*4, 0, pw*5, ph
+	
+	buffer IMG_BLACK, wcx, wcy
+	color :boxf
+	
+	buffer IMG_WHITE, wcx, wcy
+	colorwhite :boxf
+	
+*main
+	screen 0, wcx+100, wcy, 0, (dcw-wcx)/3, (dch-wcy)/3
+	title "chess mini"
+	
+	// initialize piece
+	pokes piece, 0, "35421453"
+	pokes piece, tix, "66666666"
+	pokes piece, tix*6, "CCCCCCCC"
+	pokes piece, tix*7, "9BA87AB9"
+	CalcPoint piece, enept, mypt
+	
+	oncmd gosub *WindowProc, WM_RBUTTONDOWN
+	oncmd gosub *WindowProc, WM_LBUTTONDOWN
+	oncmd gosub *WindowProc, WM_TIMER
+	
+	Draw
+	
+	stop
+*WindowProc
+	switch iparam
+	case WM_TIMER
+		EnemyCalc
+		swbreak
+	case WM_RBUTTONDOWN
+		sel = -1
+		if bkt2a(0, mousex, wcx-1) && bkt2a(0, mousey, wcy) {
+		}else {
+			// over client field
+			CalcField piece, 1
+			title "enemy field view"
+		}
+		Draw
+		swbreak
+	case WM_LBUTTONDOWN
+		if tern :swbreak
+		if promotion == -1 {
+			promotion = mousex/pw/2
+			swbreak
+		}elif bkt2a(0, mousex, wcx-1) && bkt2a(0, mousey, wcy) {
+			n = mousey/ph*tix + mousex/pw
+			repeat tix*tiy// reset
+				if n == cnt :continue
+				j = peek(piece, cnt)
+				if j & 0x20 :j -= 0x20
+				if j & 0x40 :j -= 0x40
+				if j & 0x80 :j -= 0x80
+				poke piece, cnt, j
+			loop
+			
+			// selected position
+			j = peek(piece, n) :f = 0
+			if j & 0x20 :j -= 0x20 :f += 0x20
+			if j & 0x40 :j -= 0x40 :f += 0x40
+			if j & 0x80 :j -= 0x80 :f += 0x80
+			if bkt2a(1, j, 0xC) && not(f & 0xA0) {// can selected
+				repeat 1
+				if (sel == n) || (j < 7) {
+					sel = -1 :title "chess mini"
+					break
+				}
+				sel = n	// select
+				i = -1	// white way
+				j-- :j = j\6 :j++
+	
+				// is types
+				CalcWithTypes piece, j, tern
+				loop
+			}else {
+				if sel != -1 {// selected
+					f = peek(piece, n)
+					if f & 0x80 {
+						j = peek(piece, sel)
+						poke piece, sel, 0
+						poke piece, n, j
+						if j & 0x20 :j -= 0x20
+						if j & 0x40 :j -= 0x40
+						if j & 0x80 :j -= 0x80
+						j--
+						if (j\6+1 == PAWN) && (n/tix == 0) {// promotion
+							title "promotion"
+							gmode 3, wcx, wcy, 128
+							pos 0, 0 :gcopy IMG_BLACK, 0, 0, wcx, wcy
+							gmode 4, pw, ph, 255
+							color 127, 127, 127
+							repeat 4
+								pos pw*cnt*2+pw/2, (wcy-ph)/2
+								gcopy 1, pw*(cnt+1), ph, pw, ph
+							loop
+							
+							promotion = -1
+							repeat
+								if promotion != -1 :break
+								wait 1
+							loop
+							poke piece, n, promotion+8
+						}
+					}
+					tern = 1
+				}elif f & 0x20 {
+					// field selecting
+					dim ary :arymax = 0
+					moveAny piece, fsp, fsmax
+				}else {
+					j = peek(piece, n)
+					if j & 0x20 :j -= 0x20
+					if j & 0x40 :j -= 0x40
+					if j & 0x80 :j -= 0x80
+					poke piece, n, j
+				}
+				title "chess mini"
+				sel = -1	// con't selected
+			}
+			
+			enept = 0 :mypt = 0
+			CalcPoint piece, enept, mypt
+			
+			if tern {
+				Draw
+				EnemyCalc
+				tern = 0
+			}
+		}else {
+			sel = -1		// over client field
+			CalcField piece
+			title "field select"
+		}
+		
+		Draw
+		swbreak
+	swend
+	return
+	
+	#deffunc Draw
+		redraw 0
+		// box field
+		for i, 0, tiy, 1
+			repeat tix
+				n = i*tix+cnt
+				// ”wŒi
+				if (n+i)\2 :color 200, 200, 200 :else :colorwhite
+				boxf cnt*pw, i*ph, cnt*pw+pw, i*ph+ph
+				
+				gmode 3, pw, ph, 128
+				if n == sel {
+					// ‘I‘ð‚µ‚Ä‚¢‚é‹î‚ÌêŠ
+					pos cnt*pw, i*ph :gcopy 2, 0, 0, pw, ph
+				}else {
+					j = peek(piece, n)
+					if ((j & 0x20) != 0) && ((j & 0x80) != 0) {
+						// “G‚ð“|‚¹‚éêŠ
+						pos cnt*pw, i*ph :gcopy 2, pw*2, 0, pw, ph
+					}elif ((j & 0x20) != 0) && ((j & 0x40) != 0) {
+						// “G‚ª“|‚¹‚éêŠ
+						pos cnt*pw, i*ph :gcopy 2, pw*2, 0, pw, ph
+					}elif j & 0x80 {
+						// ‘I‘ð‚µ‚Ä‚¢‚é‹î‚Ì“®‚¯‚éêŠ
+						pos cnt*pw, i*ph :gcopy 2, pw, 0, pw, ph
+					}else {
+						if j & 0x40 {
+							// “G‚Ì“®‚¯‚é”ÍˆÍ
+							pos cnt*pw, i*ph :gcopy 2, pw*4, 0, pw, ph
+						}
+						if j & 0x20 {
+							// Ž©•ª‚Ì“®‚¯‚é”ÍˆÍ
+							pos cnt*pw, i*ph :gcopy 2, pw*3, 0, pw, ph
+						}
+					}
+				}
+			loop
+		next
+		
+		// chess piece
+		font msgothic, 10
+		gmode 4, pw, ph, 255
+		color 127, 127, 127
+		for i, 0, tiy, 1
+			repeat tix
+				j = peek(piece, i*tix+cnt) :f = 0
+				if j & 0x20 :j -= 0x20 :f += 0x20
+				if j & 0x40 :j -= 0x40 :f += 0x40
+				if j & 0x80 :j -= 0x80 :f += 0x80
+				
+				if bkt2a(1, j, 0xC) {
+					j--
+					xx = j\6*pw
+					yy = j/6*ph
+					
+					pos cnt*pw, i*ph
+					gcopy 1, xx, yy, pw, ph
+				}
+				
+				pos cnt*pw, i*ph :bmes strf("%X+%d", f, j)	// do
+				pos cnt*pw, (i+1)*ph-10 :bmes strf("%02d", i*tix+cnt)// do
+			loop
+		next
+	
+		// menu
+		font msgothic, 16
+		colorwhite :boxf wcx, 0, wcx+100, wcy :color
+		pos wcx+5, 5 :mes "enemy "+enept
+		pos wcx+5, wcy/2+5 :mes "my "+mypt
+		redraw 1
+	return
+	
+	#deffunc EnemyCalc
+		sdim tree
+	return
+	
+	#module __CHESS__
+	#deffunc moveAny var piece, array ary, var arymax
+		sdim tmppiece, tix*tiy
+		memcpy tmppiece, piece, tix*tiy
+		
+	return
+	#defcfunc isCheck var piece
+		sdim tmppiece, tix*tiy
+		memcpy tmppiece, piece, tix*tiy
+		
+	return
+	
+	#deffunc CalcField var piece, int isenemy, local j
+		repeat tix*tiy
+			j = peek(piece, cnt)
+			if j & 0x20 :j -= 0x20
+			if j & 0x40 :j -= 0x40
+			if j & 0x80 :j -= 0x80
+			poke piece, cnt, j
+		loop
+		
+		repeat tix*tiy
+			j = peek(piece, cnt)
+			if j & 0x20 :j -= 0x20
+			if j & 0x40 :j -= 0x40
+			if j & 0x80 :j -= 0x80
+			if bkt2a(7-6*isenemy, j, 0xC-6*isenemy) {
+//				if isenemy :i@ = 1 :else :i@ = -1
+				n@ = cnt
+				j-- :j \= 6 :j++
+				CalcWithTypes piece, j, 0x20+isenemy*0x20, isenemy
+			}
+		loop
+	return
+	// Žw’è‚Ìƒ^ƒCƒv‚Ì‹î‚Ì“®‚¯‚é”ÍˆÍ‚ðŽæ“¾
+	#deffunc CalcWithTypes var piece, int type, int addmode, int isenemy
+		switch type
+		case KING
+			title "KING"
+			canKING piece, addmode, isenemy
+			swbreak
+		case QUEEN
+			title "QUEEN"
+			canQUEEN piece, addmode, isenemy
+			swbreak
+		case ROOK
+			title "ROOK"
+			canROOK piece, addmode, isenemy
+			swbreak
+		case BISHOP
+			title "BISHOP"
+			canBISHOP piece, addmode, isenemy
+			swbreak
+		case KNIGHT
+			title "KNIGHT"
+			canKNIGHT piece, addmode, isenemy
+			swbreak
+		case PAWN
+			title "PAWN"
+			canPAWN piece, addmode, isenemy
+			swbreak
+		swend
+	return
+	#deffunc CalcPoint var piece, var enept, var mypt
+		enemypt = 0
+		repeat tix*tiy
+			j = peek(piece, cnt)
+			if j & 0x20 :j -= 0x20
+			if j & 0x40 :j -= 0x40
+			if j & 0x80 :j -= 0x80
+			switch j
+			case  2 :enept += 9 :swbreak
+			case  3 :enept += 5 :swbreak
+			case  4 :enept += 3 :swbreak
+			case  5 :enept += 3 :swbreak
+			case  6 :enept += 1 :swbreak
+			case  8 :mypt += 9 :swbreak
+			case  9 :mypt += 5 :swbreak
+			case 10 :mypt += 3 :swbreak
+			case 11 :mypt += 3 :swbreak
+			case 12 :mypt += 1
+				if cnt/tix < 3 :mypt += (3-cnt/tix)*2
+			swbreak
+			swend
+		loop
+	return
+	#global
+	
+	#module __CHESS__KING__
+	#defcfunc getKINGpos var piece, int isenemy, local j, local i
+		i = -1
+		repeat tix*tiy
+			j == peek(piece, cnt)
+			if j & 0x20 :j -= 0x20
+			if j & 0x40 :j -= 0x40
+			if j & 0x80 :j -= 0x80
+			if isenemy {
+				if j == KING :i = cnt :break
+			}else {
+				if j == KING+6 :i = cnt :break
+			}
+		loop
+	return i
+	#deffunc canKING var piece, int addmode, int isenemy, local j, local i, local m, local l, local f, local xx, local yy
+		/* “G‚Ì“®‚¯‚é”ÍˆÍŒvŽZ*/
+		sdim tmppiece, tix*tiy
+		memcpy tmppiece, piece, tix*tiy
+		repeat tix*tiy// ƒtƒ‰ƒOƒNƒŠƒA
+			j = peek(tmppiece, cnt)
+			if j & 0x20 :j -= 0x20
+			if j & 0x40 :j -= 0x40
+			if j & 0x80 :j -= 0x80
+			poke tmppiece, cnt, j
+		loop
+		nold = n@
+		repeat tix*tiy// ƒtƒ‰ƒOŽæ“¾ (ƒLƒ“ƒOˆÈŠO)
+			j = peek(tmppiece, cnt)
+			if j & 0x20 :j -= 0x20
+			if j & 0x40 :j -= 0x40
+			if j & 0x80 :j -= 0x80
+			n@ = cnt
+			j-- :j \= 6 :j++
+			if not((j == 1) || (j == 7)) :CalcWithTypes tmppiece, j, 0x20+isenemy*0x20, isenemy
+		loop
+		n@ = nold
+		nold = -1
+		/**/
+		
+		// ƒLƒ“ƒOŽ©g‚Ì“®‚¯‚é”ÍˆÍŒvŽZ
+		for i, -1, 2, 1
+			for l, -1, 2, 1
+				xx = n@\tix
+				yy = n@/tix
+				if bkt2a(0, xx+l, tix-1) && bkt2a(0, yy+i, tiy-1) {
+					m = i*tix+n@+l
+					j = peek(tmppiece, m)
+					if isenemy {
+						if j & 0x40 :j -= 0x40
+					}else {
+						if j & 0x20 :j -= 0x20
+						if j & 0x80 :j -= 0x40
+					}
+					if not((j & 0x20) || (j & 0x40) || (j & 0x80)) {
+						if j == 0 {// áŠQ•¨‚Í‚È‚¢‚©H
+							if addmode :poke piece, m, addmode :else :poke piece, m, 0x80-isenemy*0x40
+						}else {
+							if bkt2a(1+isenemy*6, j, 6+isenemy*6) {
+								// “G‚ª‚¢‚½ê‡
+								poke piece, m, j+0xA0-isenemy*0x40
+							}
+							
+							if not(f & powf(2, cnt)) :f += int(powf(2, cnt))
+						}
+					}
+				}
+			next
+		next
+	return
+	#global
+	
+	#module __CHESS__QUEEN__
+	#deffunc canQUEEN var piece, int addmode, int isenemy
+		canROOK piece, addmode, isenemy
+		canBISHOP piece, addmode, isenemy
+	return
+	#global
+	
+	#module __CHESS__ROOK__
+	#deffunc canROOK var piece, int addmode, int isenemy, local f, local i, local m, local j, local xx, local yy
+		xx = n@\tix
+		yy = n@/tix
+		f = 0
+		repeat , 1
+			i = cnt
+			repeat 4
+				m = -1
+				if cnt == 0 :if not(f & 1) :if bkt2a(0, xx-i, tix-1) :m = yy*tix+(xx-i)
+				if cnt == 1 :if not(f & 2) :if bkt2a(0, xx+i, tix-1) :m = yy*tix+(xx+i)
+				if cnt == 2 :if not(f & 4) :if bkt2a(0, yy-i, tiy-1) :m = (yy-i)*tix+xx
+				if cnt == 3 :if not(f & 8) :if bkt2a(0, yy+i, tiy-1) :m = (yy+i)*tix+xx
+				if m != -1 {
+					j = peek(piece, m)
+					if j & 0x20 :j -= 0x20
+					if j & 0x40 :j -= 0x40
+					if j & 0x80 :j -= 0x80
+					if j == 0 {// áŠQ•¨‚Í‚È‚¢‚©H
+						if addmode :poke piece, m, addmode :else :poke piece, m, 0x80-isenemy*0x40
+					}else {
+						if bkt2a(1+isenemy*6, j, 6+isenemy*6) {
+							// “G‚ª‚¢‚½ê‡
+							poke piece, m, j+0xA0-isenemy*0x40
+						}
+						
+						if not(f & powf(2, cnt)) :f += int(powf(2, cnt))
+					}
+				}else :if not(f & powf(2, cnt)) :f += int(powf(2, cnt))
+			loop
+			if f == 15 :break
+		loop
+	return
+	#global
+	
+	#module __CHESS__BISHOP__
+	#deffunc canBISHOP var piece, int addmode, int isenemy, local f, local i, local m, local j, local xx, local yy
+		xx = n@\tix
+		yy = n@/tix
+		f = 0
+		repeat , 1
+			i = cnt
+			repeat 4
+				m = -1
+				if cnt == 0 :if not(f & 1) :if bkt2a(0, xx-i, tix-1) && bkt2a(0, yy-i, tiy-1) :m = (yy-i)*tix+(xx-i)
+				if cnt == 1 :if not(f & 2) :if bkt2a(0, xx+i, tix-1) && bkt2a(0, yy-i, tiy-1) :m = (yy-i)*tix+(xx+i)
+				if cnt == 2 :if not(f & 4) :if bkt2a(0, xx-i, tix-1) && bkt2a(0, yy+i, tiy-1) :m = (yy+i)*tix+(xx-i)
+				if cnt == 3 :if not(f & 8) :if bkt2a(0, xx+i, tix-1) && bkt2a(0, yy+i, tiy-1) :m = (yy+i)*tix+(xx+i)
+				if m != -1 {
+					j = peek(piece, m)
+					if j & 0x20 :j -= 0x20
+					if j & 0x40 :j -= 0x40
+					if j & 0x80 :j -= 0x80
+					if j == 0 {// áŠQ•¨‚Í‚È‚¢‚©H
+						if addmode :poke piece, m, addmode :else :poke piece, m, 0x80-isenemy*0x40
+					}else {
+						if bkt2a(1+isenemy*6, j, 6+isenemy*6) {
+							// “G‚ª‚¢‚½ê‡
+							poke piece, m, j+0xA0-isenemy*0x40
+						}
+						
+						if not(f & powf(2, cnt)) :f += int(powf(2, cnt))
+					}
+				}else :if not(f & powf(2, cnt)) :f += int(powf(2, cnt))
+			loop
+			if f == 15 :break
+		loop
+	return
+	#global
+	
+	#module __CHESS__KNIGHT__
+	#deffunc canKNIGHT var piece, int addmode, int isenemy, local f, local i, local m, local j, local b, local xx, local yy
+		repeat 4
+			if cnt\2 == 0 :i = -2 :else :i = -tix*2
+			if 1 < cnt :i = abs(i)
+			if cnt\2 == 0 :f = -tix :else :f = -1
+			
+			repeat 2
+				if cnt == 1 :f = abs(f)
+				xx = n@\tix
+				yy = n@/tix
+				if abs(i) < 3 {
+					b = (bkt2a(0, xx+i, tix-1) && bkt2a(0, yy+f/tix, tiy-1))
+				}else {
+					b = (bkt2a(0, xx+f, tix-1) && bkt2a(0, yy+i/tix, tiy-1))
+				}
+				
+				if b {
+					m = n@+i+f
+					j = peek(piece, m)
+					if j & 0x20 :j -= 0x20
+					if j & 0x40 :j -= 0x40
+					if j & 0x80 :j -= 0x80
+					if j == 0 {// áŠQ•¨‚Í‚È‚¢‚©H
+						if addmode :poke piece, m, addmode :else :poke piece, m, 0x80-isenemy*0x40
+					}elif bkt2a(1+isenemy*6, j, 6+isenemy*6) {// “G‚ª‚¢‚½ê‡
+						poke piece, m, j+0xA0-isenemy*0x40
+					}
+				}
+			loop
+		loop
+	return
+	#global
+	
+	#module __CHESS__PAWN__
+	#deffunc canPAWN var piece, int addmode, int isenemy, local i, local m, local j, local xx, local yy
+		if isenemy :i = 1 :else :i = -1
+		if bkt2a(0, n@+tix*i, tix*tiy) {// ‘Oi‚Å‚«‚é‚©H
+			// áŠQ•¨‚Í‚È‚¢‚©H
+			repeat 2, 1
+			m = n@+tix*i*cnt
+			j = peek(piece, m)
+			if j & 0x20 :j -= 0x20
+			if j & 0x40 :j -= 0x40
+			if j & 0x80 :j -= 0x80
+			if j == 0 :if addmode :poke piece, m, addmode :else :poke piece, m, 0x80-isenemy*0x40
+			
+			xx = m\tix
+			if bkt2a(0, xx-1, tix-1) {// ¶‘O
+				j = peek(piece, m-1)
+				if j & 0x20 :j -= 0x20
+				if j & 0x40 :j -= 0x40
+				if j & 0x80 :j -= 0x80
+				if bkt2a(1+isenemy*6, j, 6+isenemy*6) {// “G‚ª‚¢‚½ê‡
+					poke piece, m-1, j+0xA0-isenemy*0x40
+				}
+			}
+			if bkt2a(0, xx+1, tix-1) {// ‰E‘O
+				j = peek(piece, m+1)
+				if j & 0x20 :j -= 0x20
+				if j & 0x40 :j -= 0x40
+				if j & 0x80 :j -= 0x80
+				if bkt2a(1+isenemy*6, j, 6+isenemy*6) {// “G‚ª‚¢‚½ê‡
+					poke piece, m+1, j+0xA0-isenemy*0x40
+				}
+			}
+			
+			// Å‰‚Í‚Q•ài‚ß‚é
+			if cnt == 2 :break
+			if isenemy {// “Gw
+				if n@/tix == 1 :continue 2 :else :break
+			}else {// Ž©w
+				if n@/tix == 6 :continue 2 :else :break
+			}
+			loop
+		}
+	return
+	#global
+	
+	#module
+	#uselib "gdi32.dll"
+	#func	SetBkMode	"SetBkMode"		int, int
+	#define TRANSPARENT			1
+	#define OPAQUE				2
+	#deffunc backon
+		SetBkMode hdc@hsp, OPAQUE
+	return
+	#deffunc backoff
+		SetBkMode hdc@hsp, TRANSPARENT
+	return
+	#deffunc bmes str string
+		SetBkMode hdc@hsp, OPAQUE
+		mes string
+		SetBkMode hdc@hsp, TRANSPARENT
+	return
+	#deffunc pokes var buf, int index, str string
+		var = string
+		repeat strlen(var)
+			poke buf, index+cnt, int("$"+strmid(var, cnt, 1))
+		loop
+	return
+	#global

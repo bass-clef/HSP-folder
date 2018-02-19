@@ -1,0 +1,141 @@
+;***** タスクトレイの操作 (tasktray.hsp) *****
+
+	#module
+	;***** 必要となるAPIや定数の定義 *****
+	#uselib "kernel32.dll"
+	#func  GetModuleFileName "GetModuleFileNameA" int,var,int
+
+	#uselib "shell32.DLL"
+	#func  ExtractIconEx "ExtractIconExA" var,int,var,var,int
+	#func  Shell_NotifyIcon "Shell_NotifyIcon" int,var
+
+	#define  NIM_ADD		$00000000
+	#define  NIM_DELETE	$00000002
+	#define  NIM_MODIFY	$00000001
+	#define  NIF_ICON		$00000002
+	#define  NIF_MESSAGE	$00000001
+	#define  NIF_TIP		$00000004
+
+	;***** タスクトレイにアイコン格納 *****
+	#defcfunc tasktray str prm1
+
+	; prm1 :  tooltext (str) : 文字列 or 文字列型変数 (ツールチップ文字列)
+
+	tooltext = prm1 : if strlen(tooltext)==0 : tooltext=""
+
+	; 自分自身のファイル名を取得
+	sdim lpFileName,260
+	GetModuleFileName hModule,lpFileName,260
+	SelfName=lpFileName
+	icobig=0
+	ExtractIconEx SelfName,0,icobig,icosmall,1
+	hIcon=icosmall
+
+	; NOTIFYICONDATA 構造体
+	dim IcoData,22
+	IcoData(0) = 88
+	IcoData(1) = hwnd@hsp
+	IcoData(2) = 1
+	IcoData(3) = NIF_MESSAGE|NIF_ICON|NIF_TIP
+	IcoData(4) = $00001400	;NOTIFY_TRAYICON
+	IcoData(5) = hIcon
+	poke IcoData, 24, tooltext
+
+	; タスクトレイにアイコンを追加
+	Shell_NotifyIcon NIM_ADD,IcoData
+	return hIcon
+
+	;***** タスクトレイアイコンを削除 *****
+	#deffunc taskicoclr
+
+	; NOTIFYICONDATA 構造体
+	dim IcoData,22
+	IcoData(0) = 88
+	IcoData(1) = hwnd@hsp
+	IcoData(2) = 1
+	IcoData(3) = NIF_ICON
+	Shell_NotifyIcon NIM_DELETE,IcoData
+	return 0
+
+	;***** タスクトレイアイコンの変更 *****
+	#deffunc taskchengeico int prm1
+
+	; prm1 :  nhIcon (int) : 変更するスモールアイコンハンドル
+
+	nhIcon = prm1 : if nhIcon==0 : return -1
+
+	; NOTIFYICONDATA 構造体
+	dim IcoData,22
+	IcoData(0) = 88
+	IcoData(1) = hwnd@hsp
+	IcoData(2) = 1
+	IcoData(3) = NIF_ICON
+	IcoData(5) = nhIcon
+
+	; タスクトレイアイコンを変更
+	Shell_NotifyIcon NIM_MODIFY,IcoData
+	return 0
+
+	;***** タスクトレイのチップヘルプを変更 *****
+	#deffunc tasktooltip str prm1
+
+	; prm1 :  tooltext (str) : 文字列 or 文字列型変数 (ツールチップ文字列)
+
+	tooltext = prm1 : if strlen(tooltext) ==0 : tooltext=""
+
+	; NOTIFYICONDATA 構造体
+	dim IcoData,22
+	IcoData(0) = 88
+	IcoData(1) = hwnd@hsp
+	IcoData(2) = 1
+	IcoData(3) = NIF_TIP
+	poke IcoData, 24, tooltext
+
+	; タスクトレイのチップヘルプを変更
+	Shell_NotifyIcon NIM_MODIFY,IcoData
+	return 0
+	#global
+
+	;***** sample *****
+
+//	#define  WM_LBUTTONDOWN	$00000201
+	#define  NOTIFY_TRAYICON	$00001400
+
+	onexit *owari
+
+	;***** イベントハンドラ *****
+	oncmd gosub *OnMotificmd, NOTIFY_TRAYICON
+	objsize 200,26
+	button "タスクトレイに格納",*modecmd
+	stop
+
+;***** タスクトレイに格納（左クリックで復帰）*****
+*modecmd
+	gsel 0,-1
+	gosub *trayico
+stop
+
+;***** NOTIFY_TRAYICONを処理する *****
+*OnMotificmd
+	itemID=lparam
+		switch itemID
+			case WM_LBUTTONDOWN
+				gsel 0,2
+				gosub *icondel
+				swbreak
+		swend
+	return
+
+;***** タスクトレイに入れる *****
+*trayico
+	tooltext = "HSP Script Control"
+	hIcon=tasktray(tooltext)
+return
+
+;***** タスクトレイのアイコン削除 *****
+*icondel
+	taskicoclr
+	return
+
+*owari
+	end

@@ -1,0 +1,90 @@
+	
+	#uselib "user32.dll"
+	#cfunc	FindWindow			"FindWindowA"			sptr, sptr
+	
+	#uselib "kernel32.dll"
+	#cfunc	CreateFileMapping	"CreateFileMappingA"	int, int, int, int, int, int
+	#cfunc	MapViewOfFile		"MapViewOfFile"			int, int, int, int, int
+	#func	UnmapViewOfFile		"UnmapViewOfFile"		int
+	#func	CloseHandle			"CloseHandle"			int
+	
+	#define PAGE_READWRITE 4
+	#define FILE_MAP_WRITE 4
+	
+	#enum APP_CREATE	= WM_APP+10
+	#enum APP_WRITE
+	#enum APP_READ
+	
+	oncmd gosub *create, APP_CREATE
+	oncmd gosub *write, APP_WRITE
+	oncmd gosub *read, APP_READ
+	
+	titlename = "テストー"
+	
+	cmd = dir_cmdline
+	cmd = strtrim(cmd, 0, '\"')
+	exist cmd
+	if strsize != -1 {
+		// 多重してるか
+		title "多重してるか"
+		hOwn = FindWindow("hspwnd0", titlename)
+		if hOwn {
+			// 死ぬほう
+			title "死ぬほう"
+			size = strlen(cmd)+1
+			
+			// マップ作れと本家に命令
+			title "マップ作れと本家に命令"
+			sendmsg hOwn, APP_CREATE, hwnd@hsp, size
+			
+			// 戦闘待機
+			stop
+		}
+	}
+	
+	title titlename
+	
+	stop
+	
+*create
+	// 本家
+	hClone = wparam
+	size = lparam
+	mapname = "mapbyhsp"
+	
+	// マップ作成
+	title "マップ作成"
+	hmmap = CreateFileMappingA(-1, NULL, PAGE_READWRITE, 0, size, varptr(mapname))
+	address = MapViewOfFile(hmmap, FILE_MAP_WRITE, 0, 0, 0)
+	
+	// 遺言はいいのかと送信
+	title "遺言はいいのかと送信"
+	sendmsg hClone, APP_WRITE, address
+	return
+	
+*write
+	// 死ぬほう
+	title "死ぬほう"
+	address = wparam
+	dupptr map, address, size, 2
+	poke map, 0, cmd
+	
+	title "勝手に読めよと"
+	// たいした事は書いてない、勝手に読めよと送信
+	sendmsg hOwn, APP_READ
+	
+	end	// 自殺
+	return
+	
+*read
+	// 本家
+	title "あいつの遺言"
+	dupptr map, address, size, 2
+	title "read:"+strmid(map, 0, size-1)	// あいつの遺言
+	
+	// マップ開放
+	title "マップ開放"
+	UnmapViewOfFile address
+	CloseHandle hmmap
+	return
+	

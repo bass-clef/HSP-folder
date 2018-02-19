@@ -1,0 +1,130 @@
+	
+	// WindowsMove
+	
+	#uselib "GetLastErrorMessage.dll"
+	#func	MessageErrorBox		"MessageErrorBox"
+	#uselib "user32.dll"
+	#func	GetWindowRect		"GetWindowRect"		int, int
+	#cfunc	CreateWindowEx		"CreateWindowExA"	int, str, str, int, int, int, int, int, int, int, int, int
+	#func	GetClassName		"GetClassNameA"		int, int, int
+	#func	DestroyWindow		"DestroyWindow"		int
+	#func	SetParent			"SetParent"			int, int
+	#func	ShowWindow			"ShowWindow"		int, int
+	#func	SetLayered	"SetLayeredWindowAttributes"	int, int, int, int
+	
+	#define SW_SHOW		5
+	#define LWA_COLORKEY	0x0001
+	#define LWA_ALPHA		0x0002
+	
+	sdim classname, 256
+	gw = ginfo(20), ginfo(21)
+	gwh = gw.0/2, gw.1/2
+	gwq = gwh.0/8, gwh.1/8
+	mw = gwh.0+100, gwh.1+100
+	
+	screen 0, mw.0, mw.1, 0, (gw.0-mw.0)/2, (gw.1-mw.1)/2
+	title "WindowsMove"
+	oncmd gosub *WindowProc, WM_CLOSE
+	
+	color :boxf@hsp
+	DesktopSnapshot 50, 50, gwh.0, gwh.1
+	redraw 1
+	GetClassName hwnd@hsp, varptr(classname), 255
+	WatchWindows
+	
+	
+	stop
+	
+*WindowProc
+	if iparam == WM_CLOSE {
+		repeat length(hobj)
+			if hobj.cnt != NULL {
+				DestroyWindow hobj.cnt
+				hobj.cnt = NULL
+			}
+		loop
+	}
+	return
+	
+	// 可視ウィンドウのサンプル作成
+#deffunc WatchWindows
+	dim rc, 4
+	dim size, 2
+	zm = 2
+	
+	if stat == false :dialog "クラスが作成できませんでした" :end
+	GetVisibleWnd hwnds
+	
+	repeat length(hwnds)
+		if instr(gtext(hwnds.cnt), 0, "Program") == -1 {
+			GetWindowRect hwnds.cnt, varptr(rc)
+			size = (rc.2-rc.0)/zm, (rc.3-rc.1)/zm
+			pos rc.0/zm+50, rc.1/zm+50
+			hobj.cnt = CreateWindowEx(0, classname, gtext(hwnds.cnt), WS_OVERLAPPEDWINDOW, ginfo_cx, ginfo_cy, size.0, size.1, null, 0, hinstance, 0)
+			if hobj.cnt == 0 {
+				MessageErrorBox
+				break
+			}
+			ShowWindow hobj.cnt, SW_SHOW
+//			SetParent hobj.cnt, hwnd@hsp
+//			SetLayered hMWnd, RGB(126, 128, 128), 255, LWA_COLORKEY
+			await
+		}
+	loop
+	
+	return
+	
+	#module
+	#uselib "EnumWindows.dll"
+	#cfunc	GetWindows		"GetWindows"		int, int
+	#uselib "user32.dll"
+	#cfunc	IsWindowVisible	"IsWindowVisible"	int
+	
+	// 可視ウィンドウ列挙
+	#deffunc GetVisibleWnd array hwnds
+		dim wnd, 1000
+		i = 0
+		repeat GetWindows(varptr(wnd), 1000)
+			if (IsWindowVisible(wnd.cnt) != 0) && (wnd.cnt != hwnd@hsp) {
+				hwnds.i = wnd.cnt
+				i++
+			}
+		loop
+	return
+	#global
+	
+	#module
+	#uselib "user32.dll"
+	#cfunc	GetDesktopWindow		"GetDesktopWindow"
+	#cfunc	GetDC					"GetDC"						int
+	#func	ReleaseDC				"ReleaseDC"					int, int
+	#func	PaintDesktop			"PaintDesktop"				int
+	#cfunc	GetShellWindow			"GetShellWindow"
+	#uselib "gdi32.dll"
+	#func	StretchBlt				"StretchBlt"				int, int, int, int, int, int, int, int, int, int, int
+	#func	BitBlt					"BitBlt"					int, int, int, int, int, int, int, int, int
+	#cfunc	CreateCompatibleDC		"CreateCompatibleDC"		int
+	#cfunc	CreateCompatibleBitmap	"CreateCompatibleBitmap"	int, int, int
+	#func	SelectObject			"SelectObject"				int, int
+	#func	DeleteObject			"DeleteObject"				int
+	#func	DeleteDC				"DeleteDC"					int
+	
+	// デスクトップの壁紙を任意のサイズに変倍して描画
+	#deffunc DesktopSnapshot int cx, int cy, int px, int py
+		hmdc = CreateCompatibleDC(hdc@hsp)
+		hmbmp = CreateCompatibleBitmap(hdc@hsp, ginfo(20), ginfo(21))
+		SelectObject hmdc, hmbmp
+		
+		hdeskwnd = GetShellWindow()
+		hdeskdc = GetDC(hdeskwnd)
+		BitBlt hmdc, 0, 0, ginfo(20), ginfo(21), hdeskdc, 0, 0, SRCCOPY
+		ReleaseDC hdeskwnd, hdeskdc
+		
+		StretchBlt hdc@hsp, cx, cy, px, py, hmdc, 0, 0, ginfo(20), ginfo(21), SRCCOPY
+		
+		DeleteObject hmbmp
+		DeleteDC hmdc
+	return
+	#global
+	
+	

@@ -1,0 +1,527 @@
+	
+	// TETRIS
+	
+	// 12/25 更新 : [要更新]
+	// 回転時、上に行けるバグ [優先事項]
+	// 点数計算 関数[Calc]内
+	// GhostBlock 関数[[Draw]内 計算[Calc]内] gb座標変数[新規作成]
+	
+	// ＥＸＥ化する際はディレクトリ関連を要変更
+	// ・画像
+	// ・音
+	
+	// 著作物について
+	// ・回転音 壁スイッチ[http://taira-komori.jpn.org/machine01.html]
+	
+	#define	global	d	double
+	#define	global	pt	varptr
+	#define	global	mciopen(%1, %2 = 0, %3 = 500, %4 = "")	mciopen__ %1, %2, %3, %4
+	#define	global	mciplay(%1)	%tmci	%i = %1 :if vartype(%i) == 2 {mciplay_str %o }else {mciplay_int %o}
+	
+	#const	xField		10+2
+	#const	yField		20+4
+	#const	zField		xField * yField
+	#const	xFieldm		xField-1
+	#const	yFieldm		yField-1
+	
+	#const	zSize		15
+	#const	xFieldSize	zSize*xField
+	#const	yFieldSize	zSize*yField
+	
+	#const	vx			100
+	#const	vy			0
+	#const	mwx			440
+	#const	mwy			384
+	
+	Init	// 初期化
+	
+	screen 0, mwx, mwy, 0, (dwx-mwx)/2, (dwy-mwy)/2
+	title "line tetris"
+	oncmd gosub *WindowProc, WM_KEYDOWN
+	oncmd gosub *WindowProc, WM_KEYUP
+	oncmd gosub *WindowProc, WM_TIMER
+	oncmd gosub *WindowProc, WM_CLOSE
+	font msgothic, 7
+	
+	tetset 29
+	Draw 7
+	
+	stop
+*WindowProc
+	if iparam == WM_CLOSE {
+		oncmd 0
+	}elseif iparam == WM_TIMER {
+		if wparam == 1000 {
+			// 自動降下
+			Calc 4
+			Timer_ yFieldm
+		}
+	}elseif iparam == WM_KEYDOWN {
+		if r > 0 :r-- :return
+		if 226 == wparam {// [\]
+			Calc 6, 1
+			r = 3
+		}elseif 17 == wparam {// ctrl
+			Calc 5, 1
+			r = 3
+		}elseif 37 <= wparam && wparam <= 40 {// left up right down
+			// 任意降下
+			Calc wparam-36, 1
+		}
+	}elseif iparam == WM_KEYUP {
+		r = 0
+	}
+	return
+	
+	#deffunc Calc int way, int user
+		if way < 5 {
+			TetMove way, user
+		}else {
+			TetRota way, user
+			mciplay se_rota
+		}
+		GhostBlock
+		if stat < 0 {
+			// 点数計算
+			
+		}
+		
+		Draw 3
+	return
+	
+	#deffunc Draw int DrawMode
+		redraw 0
+		if DrawMode & 4 {// 背景
+			// 背景画像
+			gcopy 1, 0, 0, sImg.0, sImg.1
+			// フィールドの線 (外側)
+			color RR(clr(0)), BB(clr(0)), BB(clr(0))
+			boxf@hsp vx-1, vy+zSize*2-1, vx+zSize*10+zSize*2, vy+zSize*20+zSize*4
+			color :boxf@hsp vx, vy+zSize*2, vx+zSize*10+zSize*2-1, vy+zSize*20+zSize*4-1
+			redraw 1
+		}
+		if DrawMode & 2 {// 子フィールド
+			
+		}
+		if DrawMode & 1 {
+			// フィールドの線 (内側)
+			color RR(clr(0)), BB(clr(0)), BB(clr(0))
+			color :boxf@hsp vx+zSize, vy+zSize*2, vx+zSize*xFieldm-1, vy+zSize*yField-1
+			repeat length(gb)	// ゴーストブロック
+				if gb.cnt != 0 {
+					n = LOWORD(gb.cnt)
+					xx = vx + n\xField*zSize
+					yy = vy + n/xField*zSize
+					j = clr( (HIWORD(gb.cnt)-1)\ttm+1 )
+					color RR(j)/2, GG(j)/2, BB(j)/2
+					tetbox xx, xx+zSize-1, yy, xx, xx+zSize-1, yy+zSize-1
+				}
+			loop
+			
+			color 255, 255, 255// テトリミノ
+			for i, 2, yField, 1 :repeat xField
+				xx = vx + cnt*zSize
+				yy = vy + i*zSize
+				n = i*xField+cnt
+				
+//				colorwhite	// do debug
+//				pos xx+2, yy :mes n// do debug
+//				pos xx+2, ginfo_cy-1 :mes tet(n)// do debug
+//				pos xx+2, yy+1 :mes tet(n)// do debug
+				
+				if tet(n) > 0 {//
+					j = clr( (tet(n)-1)\ttm+1 )
+					color RR(j), GG(j), BB(j)
+					tetbox xx, xx+zSize-1, yy, xx, xx+zSize-1, yy+zSize-1
+					tetbox xx+1, xx+zSize-2, yy+1, xx+1, xx+zSize-2, yy+zSize-2
+				}elseif (tet(n) == -1) {
+					color RR(clr(0)), GG(clr(0)), BB(clr(0))
+					tetbox xx, xx+zSize-1, yy, xx, xx+zSize-1, yy+zSize-1
+				}
+			loop :next
+			redraw 1, vx, vy+zSize*2, xFieldSize, yFieldSize
+		}
+	return
+	
+	#deffunc Init
+		// システム
+		randomize 2
+		
+		// オブジェクト
+		dim tet, zField	// Tetrimino
+		gameover = 0
+		dwx = ginfo(20)
+		dwy = ginfo(21)
+		level = 0
+		lmax = 20	// Level Max
+		clr = 0xFF8080, 0xFFFF00, 0xFFFF, 0xFF00, 0xFF, 0xFF0000, 0x80FF, 0xFF00FF
+		tm = 10			// Tetrimino Type Max
+		// -1:Block 0:Null 1-7:User 8-9:Sys 10~:Block
+		ttm = tm-1		// Tetrimino Type Max Minus
+		utm = 7			// User use Tetrimino Max
+		//mode@TETRIS = 1	// __do__
+		
+		for i, 0, yField, 1 :repeat xField
+			if (cnt == 0 || i == 0 || cnt == xFieldm || i == yFieldm) {
+				tet(i*xField+cnt) = -1
+			}else :tet(i*xField+cnt) = 0
+		loop :next
+	
+		// 画像
+		buffer 1
+		picload "C:\\Users\\Hiro\\Desktop\\crystal.bmp"
+		sImg = d(ginfo(12)), d(ginfo(13))
+	
+		// 音
+		mciini
+		mciopen "C:\\Users\\Hiro\\Desktop\\Switch1.mp3", 161, 100 :se_rota = stat
+	return
+	
+	#deffunc Exit onexit
+		mci "close se_rota"
+	return
+	
+	#module __TIMER__
+	#uselib "user32.dll"
+	#func	SetTimer	"SetTimer"		int, int, int, int
+	#func	KillTimer	"KillTimer"		int, int
+	
+	#deffunc _Timer onexit
+		if hTWnd != NULL :KillTimer hTWnd, 1000
+		hTWnd = NULL
+	return
+	
+	#deffunc Timer int hWnd_, int ms
+		if hTWnd != NULL :KillTimer hTWnd, 1000
+		hTWnd = hWnd_
+		SetTimer hWnd_, 1000, (sin(deg2rad(180.0/d(lmax@) * d(level@+11)))+1)*700.0, 0
+		timercount = 0
+	return
+	
+	#deffunc aTimer int f
+		if hTWnd == NULL :return
+		if f {SetTimer hTWnd, 1000, (sin(deg2rad(180.0/d(lmax@) * d(10+11)))+1)*700.0, 0
+		}else:SetTimer hTWnd, 1000, (sin(deg2rad(180.0/d(lmax@) * d(level@+11)))+1)*700.0, 0
+	return
+	
+	#deffunc Timer_ int timermax
+		timercount ++
+	return
+	#global
+	
+	#module TETRIS
+	// ゴーストブロック推測
+	#deffunc GhostBlock
+		// 落下時の場所の推測
+		t = 0 :tmax = 0
+		repeat zField@	// 復元用
+			if 0 < tet@(cnt) && tet@(cnt) < tm@ :t.tmax = MAKEWORD(cnt, tet@(cnt)) :tmax++
+		loop
+		
+		TetMove 2, -1	// 落下させる
+		
+		gb@ = 0 :gbmax = 0
+		repeat zField@
+			if 0 < tet@(cnt) && tet@(cnt) < tm@ {
+				gb@.gbmax = MAKEWORD(cnt, tet@(cnt)) :gbmax++
+				tet@(cnt) = 0
+			}
+		loop
+		
+		repeat gbmax
+			tet@( LOWORD( gb@(cnt) ) ) = 0
+		loop
+		repeat tmax	// 場所復元
+			tet@( LOWORD( t(cnt) ) ) = HIWORD( t(cnt) )
+		loop
+	return
+	
+	// テトリミノ回転
+	#deffunc TetRota int way, int user
+		if 5 <= way && way <= 6 {
+			// 回転対象のテトリミノ捕捉
+			sx = xField@ :ex = -1
+			sy = yField@ :ey = -1
+			rt = 0 :rtmax = 0	// Rotation Tetrimino
+			for i, 0, yFieldm@, 1 :repeat xFieldm@-1, 1
+				n = i*xField@+cnt
+				if 0 < tet@.n && tet@.n < tm@ {
+					if cnt < sx :sx = cnt
+					if cnt > ex :ex = cnt
+					if i < sy :sy = i
+					if i > ey :ey = i
+				}
+			loop :next
+			
+			// 回収
+			df = 0
+			*ReCollect
+			cx = ex-sx+1
+			cy = ey-sy+1
+			j = 0 :dim r, cx*cy :rmax = 0
+			for i, 0, yFieldm@, 1 :repeat xFieldm@-1, 1
+					if sx <= cnt && cnt <= ex && sy <= i && i <= ey {
+						n = i*xField@+cnt
+						if tet@.n == -1 || ttm@ < tet@.n :df = 1 :j = 1 :break
+						r.rmax = tet@.n
+						rmax ++
+					}
+				loop
+				if j == 1 :_break
+			next
+			if j :sy-- :ey-- :if sy :goto *ReCollect :else :return
+			cxm = cx-1
+			cym = cy-1
+			
+			// 削除
+			for i, 0, yFieldm@, 1 :repeat xFieldm@-1, 1
+				if sx <= cnt && cnt <= ex && sy <= i && i <= ey {
+					n = i*xField@+cnt
+					if 0 < tet@.n && tet@.n < tm@ :tet@.n = 0
+				}
+			loop :next
+			
+			// 検査
+			j = sy*xField@ + sx
+			n = 1
+			e = 0
+			if way == 5 :if cx == 3 || cy == 3 :if rotac == 0 :e = 1 :elseif rotac == 1 :e = -1+xField@ :elseif rotac == 2 :e = -xField@
+			if way == 6 :if cx == 3 || cy == 3 :if rotac == 0 :e = 0// :elseif rotac == 1 :e = 0-xField@
+			for i, 0, cy, 1
+				repeat cx
+					if way == 5 :nn = j+ e+ cnt*xField@+(cym-i)	// 左回転
+					if way == 6 :nn = j+ e+ (cym-cnt)*xField@+i	// 右回転
+					if 0 < r(i*cx+cnt) && r(i*cx+cnt) < tm@ :if tet@(nn) < 0 || ttm@ < tet@(nn) :n = 0 :break
+				loop
+				if n == 0 :_break
+			next
+			
+			// 移動
+			if n {
+				for i, 0, cy, 1
+					repeat cx
+						n = i*cx+cnt		// 移動前
+//						if way == 5 :n = cnt*cx+(cym-i)
+//						if way == 6 :n = (cym-cnt)*cx+i
+						
+						if way == 5 :nn = j+ e+ cnt*xField@+(cym-i)	// 左回転
+						if way == 6 :nn = j+ e+ (cym-cnt)*xField@+i	// 右回転
+//						nn = j + i*xField@+cnt
+						
+						if 0 < r(n) && r(n) < tm@ :tet@(nn) = r(n)
+						if (tet@(nn+xField@) == -1) || ttm@ < tet@(nn+xField@) :df = 1
+					loop
+				next
+				if df {aTimer 1 :dfed = 1
+				}else :if dfed :aTimer 0 :dfed = 0
+				if way == 5 :rotac = (rotac + 1)\4
+				if way == 6 :rotac = c(rotac-1 < 0, 3, rotac-1)
+				title ""+rotac
+			}else {
+				for i, 0, cy, 1
+					repeat cx
+						n = i*cx+cnt		// 移動前
+						nn = j + i*xField@+cnt
+						tet@(nn) = r(n)
+					loop
+				next
+			}
+		}
+	return
+	
+	// テトリミノ移動
+	#deffunc TetMove int way, int user
+		if way == 2 {
+			HardDrop = 1
+			repeat// 急降下
+				TetMove 4, user
+				if e :break
+			loop
+			HardDrop = 0
+			return 2
+		}
+		
+		df = 0 :j = 0 :m = 0 :e = 0	// m:Moving e:Next
+		for i, 0, yFieldm@, 1 :repeat xFieldm@, 1
+			n = i*xField@+cnt
+			if way == 1 {nn = n-1// 左
+			}elseif way == 3 {nn = n+1// 右
+			}elseif way == 4 :nn = n+xField@	// 下
+			
+			if 0 < tet@.n && tet@.n < tm@ {
+				j++
+				if (tet@(nn) == -1) || (tet@(nn) > ttm@) {
+					if way == 4 :e++
+				}else :m++
+				if user :if tet@(n+xField@) == -1 || ttm@ < tet@(n+xField@) :df = 1
+			}
+		loop :next
+		if user :if df :if way == 4 :return way
+		
+		if e {// テトリミノの何所かが, すでにあるテトリミノに触れた
+			if user == -1 :return way	// システムからの呼び出し
+			*reviewtofix
+			for i, 1, yFieldm@, 1
+				j = 1 :type = -1
+				repeat xFieldm@, 1	// 表示状態から固定状態へ (色が同じのだけ)
+					n = i*xField@+cnt
+					if 0 < tet@.n && tet@.n < tm@ :if type == tet@.n || type == -1 {
+							type = tet@.n :tet@.n += ttm@
+						}else :type = -2 :break
+					if 0 == tet@.n :j = 0
+				loop
+				if type == -2 :_break
+				if j {// 段消し
+					for j, i, 1, -1
+						repeat xFieldm@-1, 1
+							n = j*xField@+cnt
+							nn = n-xField@
+							tet@.n = tet@(nn)
+							tet@(nn) = 0
+						loop
+					next
+				}
+			next
+	
+			df = 1	// All delete flag
+			repeat zField@
+				if 0 < tet@(n) && tet@(n) < tm@ :df = 0 :break
+			loop
+			if df {
+				tetset 29// 新しいテトリミノ作成
+				if stat :gameover = 1// 作成できない場合終了フラグ
+			}else {
+				repeat
+					tetmove 4, 1
+					Draw 3
+					if e :break
+				loop
+				goto *reviewtofix
+			}
+		}elseif j == m {// 現在浮遊中のテトリミノの下は何もない
+			df = 0	// DownFlag
+			if way == 3 {// 右
+				for i, yFieldm@, 0, -1 :for j, xFieldm@, 0, -1
+					n = i*xField@+j
+					if 0 < tet@.n && tet@.n < tm@ {
+						nn = n+1
+						tet@(n+1) = tet@.n
+						tet@.n = 0
+						if (tet@(nn+xField@) == -1) || ttm@ < tet@(nn+xField@) :df = 1
+					}
+				next :next
+			}else {
+				for i, yFieldm@, 0, -1 :for j, 0, xField@, 1
+					n = i*xField@+j
+					if 0 < tet@.n && tet@.n < tm@ {
+						if way == 4 :nn = n+xField@	// 下
+						if way == 1 :nn = n-1	// 左
+						tet@(nn) = tet@.n
+						tet@.n = 0
+						if (tet@(nn+xField@) == -1) || ttm@ < tet@(nn+xField@) :df = 1
+					}
+				next :next
+			}
+			if user != -1 {
+				if df {aTimer 1 :dfed = 1
+				}else :if dfed :aTimer 0 :dfed = 0
+			}
+		}
+	return j
+	
+	// テトリミノ配置
+	#define	tc@TETRIS	TetCreate@TETRIS()
+	#deffunc TetSet int index
+		rotac = 0
+		i = 0
+		type = index/xField@*xField@	// type:x列切捨て
+		repeat xField@
+			i = type+cnt+xField@
+			if tet@(i) > ttm@ :i = 1 :break
+			i = 0
+		loop
+		if i :i = index-xField@ :else :i = index
+		
+		type = rnd(utm@)+1
+		if type == 1 {// [I] 型
+			if (tet@(i-1) || tet@(i) || tet@(i+1) || tet@(i+2)) :return 1
+			tet@(i-1) = tc, tc, tc, tc
+		}elseif type == 2 {// [O]
+			if (tet@(i) || tet@(i+1) || tet@(i+xField@) || tet@(i+1+xField@)) :return 1
+			tet@(i) = tc, tc
+			tet@(i+xField@) = tc, tc
+		}elseif type == 3 {// [S]
+			if (tet@(i+1) || tet@(i+2) || tet@(i+xField@) || tet@(i+1+xField@)) :return 1
+			tet@(i+1) = tc, tc
+			tet@(i+xField@) = tc, tc
+		}elseif type == 4 {// [Z]
+			if (tet@(i) || tet@(i+1) || tet@(i+1+xField@) || tet@(i+2+xField@)) :return 1
+			tet@(i) = tc, tc
+			tet@(i+xField@+1) = tc, tc
+		}elseif type == 5 {// [J]
+			i += xField@
+			if (tet@(i-xField@) || tet@(i) || tet@(i+1) || tet@(i+2)) :return 1
+			tet@(i-xField@) = tc
+			tet@(i) = tc, tc, tc
+		}elseif type == 6 {// [L]
+			i += xField@
+			if (tet@(i+2-xField@) || tet@(i) || tet@(i+1) || tet@(i+2)) :return 1
+			tet@(i-xField@+2) = tc
+			tet@(i) = tc, tc, tc
+		}elseif type == 7 {// [T]
+			i += xField@
+			if (tet@(i+1-xField@) || tet@(i) || tet@(i+1) || tet@(i+2)) :return 1
+			tet@(i-xField@+1) = tc
+			tet@(i) = tc, tc, tc
+		}
+		
+		// 下へ移動までの時間 (ms)
+		Timer hwnd@hsp
+	return 0
+	
+	// テトリミノ作成
+	#defcfunc TetCreate@TETRIS
+		if mode :return rnd(utm@)+1
+	return type
+	
+	// 横倒れ専用 x左上, x右上, y上, x左下, x右下, y下
+	#deffunc TetBox int x1_, int x2_, int yTop, int x3_, int x4_, int yBottom
+		line@hsp x1_, yTop, x3_, yBottom
+		line@hsp x2_, yTop
+		line@hsp x4_, yBottom
+		line@hsp x3_, yBottom
+	return
+	#global
+	
+	#module
+	#deffunc mciopen__ str filename, int startpos, int volume, str aliasname
+		if aliasname == "" :alias = "mci_"+mcic :else :alias = aliasname
+		mci "open \""+filename+"\" alias "+alias
+		mci "setaudio "+alias+" volume to "+volume
+		mcii.mcic = startpos
+		mcis.mcic = alias
+		void mcic
+		mcic ++
+	return alias
+	#deffunc mciplay_int int aliasnumber
+		mci "play mci_"+aliasnumber+" from "+mcii.aliasnumber+" notify"
+	return
+	#deffunc mciplay_str str aliasname
+		i = 0
+		repeat mcic
+			if mcis.cnt == aliasname :i = mcii.cnt
+		loop
+		mci "play "+aliasname+" from "+i+" notify"
+	return
+	#deffunc mciini
+		repeat mcic
+			mci "close "+mcis.cnt
+		loop
+		mcic = 0
+		dim mcii :sdim mcis
+		oncmd gosub *mciProc__, WM_NOTIFY
+	return
+	
+	*mciProc__
+	return
+	#global

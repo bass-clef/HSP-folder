@@ -1,0 +1,494 @@
+	
+	// 時計
+	
+	#packopt name "clockex"
+	#packopt hide 1
+	
+	#uselib "user32.dll"
+	#func	TrackPopupMenu	"TrackPopupMenu"				int, int, int, int, int, int, sptr
+	#func	SetTimer		"SetTimer"						int, int, int, int
+	#func	KillTimer		"KillTimer"						int, int
+	#func	SetLayered		"SetLayeredWindowAttributes"	int, int, int, int
+	
+	#module
+	#defcfunc getdowtostr
+		switch gettime(2)
+		case 0 :str_ = "Sunday" :swbreak
+		case 1 :str_ = "Monday" :swbreak
+		case 2 :str_ = "Tuesday" :swbreak
+		case 3 :str_ = "Wednesday" :swbreak
+		case 4 :str_ = "Thursday" :swbreak
+		case 5 :str_ = "Friday" :swbreak
+		case 6 :str_ = "Saturday" :swbreak
+		swend
+	return str_
+	#global
+	
+	#define LWA_COLORKEY	0x0001
+	#define LWA_ALPHA		0x0002
+	#define	ES_UPPERCASE	0x0008
+	#define	ES_NUMBER		0x2000
+	#define	ctype	CTGetFlag(%1)	peek(%1, 0)
+	#define	ctype	CTGetHour(%1)	peek(%1, 1)
+	#define	ctype	CTGetMinute(%1)	peek(%1, 2)
+	#define	ctype	CTGetSecond(%1)	peek(%1, 3)
+	#define	ctype	CTSetAll(%1, %2, %3, %4)	(%1|| %2 << 8 || %3 << 16 || %4 << 24)
+	#define	CTSetFlag(%1, %2)		poke %1, 0, %2
+	#define	CTSetHour(%1, %2)		poke %1, 1, %2
+	#define	CTSetMinute(%1, %2)		poke %1, 2, %2
+	#define	CTSetSecond(%1, %2)		poke %1, 3, %2
+	#enum	global			MI_QUIT = 10
+	#enum	global			MI_OPT
+	#enum	global			MI_BVIEW
+//	#enum	global			MI_MOUSE
+	
+	#undef con
+	#module
+	#defcfunc con int c, int x, int y
+		if c :return x
+	return y
+	#global
+	#define d	double
+	#define gt	gettime
+	
+	#include "a2d.hsp"
+	
+	ddim tx, 3
+	ddim ty, 3
+	ddim a, 3
+	aa_ = 0.0
+	w = 100, 100
+	wh = d(w.0/2), d(w.1/2)
+	fs = 14
+	fsh = fs/2
+	xl = wh.0/3, wh.0/3*2, wh.0-5, wh.0/4*3
+	yl = wh.1/3, wh.1/3*2, wh.1-5, wh.1/4*3
+	
+	dim coclr, 3
+	switch gettime(2)
+	case 0 :coclr = 255, 128, 128 :swbreak	// 日
+	case 1 :coclr = 170, 254 :swbreak	// 月
+	case 2 :coclr = 170, 128, 254 :swbreak	// 火
+	case 3 :coclr = 0, 254 :swbreak	// 水
+	case 4 :coclr = 254, 127 :swbreak	// 木
+	case 5 :coclr = 0, 128, 254 :swbreak	// 金
+	case 6 :coclr = 0, 128, 0 :swbreak	// 土
+	swend
+	ctf = 0		// CountTimerFlag
+	repeat 3
+		tsclr.cnt = con(coclr.cnt+175 >= 255, 254, coclr.cnt+175)
+		txclr.cnt = con(coclr.cnt+51 >= 255, 254, coclr.cnt+51)
+		bkclr.cnt = coclr.cnt/7
+	loop
+	
+	alCreateImage 0, w.0, w.1
+	bgscr 0, w.0, w.1, 0, 2, 1 :wait 5
+	title "colorclock"
+	hMWnd = hwnd@hsp :hMDC = hdc@hsp
+	slong hMWnd, GWL_EXSTYLE, WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_WINDOWEDGE
+	gsel 0, 2
+	SetLayered hMWnd, RGB(255, 255, 255), 175, LWA_COLORKEY | LWA_ALPHA
+	PopupMenuIni hMWnd, hMenu
+	oncmd gosub *WindowProc, WM_MOVING
+	oncmd gosub *WindowProc, WM_MOVE
+	oncmd gosub *WindowProc, WM_SIZING
+	oncmd gosub *WindowProc, WM_SIZE
+	oncmd gosub *WindowProc, WM_LBUTTONDOWN
+	oncmd gosub *WindowProc, WM_RBUTTONDOWN
+	oncmd gosub *WindowProc, WM_TIMER
+	oncmd gosub *WindowProc, WM_DESTROY
+	onerror *error
+	
+	color txclr.0, txclr.1, txclr.2
+	usepen ps_solid, 2
+	font msgothic, fs
+	alFont msgothic, fs
+	
+	SetTimer hMWnd, 1000, 16, 0
+	
+	stop
+	
+#deffunc Calc
+	t = gt(4), gt(5), gt(6), gt(7)
+	a = d(360/12*t.0)+360.0/12.0/60.0*d(t.1), d(360/60*t.1), 360.0/60000.0*d(t.2*1000+t.3)
+	repeat 3
+		aa_ = deg2rad(a.cnt - 90.0)
+		tx.cnt = cos(aa_) * xl.cnt
+		ty.cnt = sin(aa_) * yl.cnt
+	loop
+	time = strf("%d:%02d %d", t.0, t.1, t.2)
+	if CTGetFlag(ctf) :if (t.0 == CTGetHour(ctf)) && (t.1 == CTGetMinute(ctf)) && (t.2 == CTGetSecond(ctf)) {
+		CTSetFlag ctf, 0
+		
+	}
+	return
+	
+#deffunc Draw
+	gsel 0
+	redraw 0
+	// [背面]
+	alColor 255, 255, 255 :alDrawRect 0, 0, w.0, w.1
+	
+	alPenWidth 1
+	alColor bkclr.2, bkclr.1, bkclr.0
+	alFillEllip 1, 1, w.0-2, w.1-2
+	
+	alPenWidth 3
+	alColor txclr.2, txclr.1, txclr.0
+	alDrawEllip 2, 2, w.0-4, w.1-4
+//	boxf 1, 1, w.0-1, w.1-1, 0
+	
+	// [前面]
+	
+	// 点
+	alColor txclr.2, txclr.1, txclr.0
+	repeat 12
+		aa_ = deg2rad(360/12 * cnt+1)
+		alSetPixel cos(aa_)*xl.3+wh.0, sin(aa_)*yl.3+wh.1, ARGB(255, ginfo_r, ginfo_g, ginfo_b)
+	loop
+	
+	// 針
+	repeat 3
+		alPenWidth 3-cnt
+		alDrawLine wh.0+tx.cnt, wh.1+ty.cnt, wh.0, wh.1
+	loop
+	if CTGetFlag(ctf) {
+		// タイマー
+		alColor tsclr.0, tsclr.2, tsclr.1
+	//	alColor 255-txclr.2, 255-txclr.1, 255-txclr.0
+		t = CTGetHour(ctf), CTGetMinute(ctf), CTGetSecond(ctf)
+		a = d(360/12*t.0)+360.0/12.0/60.0*d(t.1), d(360/60*t.1), 360.0/60.0*d(t.2)
+		repeat 3
+			aa_ = deg2rad(a.cnt - 90.0)
+			tx.cnt = cos(aa_) * xl.cnt
+			ty.cnt = sin(aa_) * yl.cnt
+			alDrawLine wh.0+tx.cnt, wh.1+ty.cnt, wh.0, wh.1
+		loop
+	}
+	
+	// [最前面]
+	alColor coclr.2, coclr.1, coclr.0
+//	alDrawEllip wh.0, wh.0, 4, 4
+	
+	alColor tsclr.2, tsclr.1, tsclr.0
+	alPenWidth 1
+//	pos (w.0-strlen(time)*fsh)/2, wh.1+(wh.1-fs)/2 :mes time
+	years = ""+gettime(0)
+	alDrawText years, (w.0-strlen(years)*fsh)/2-fsh/2, wh.1-(wh.1-fs)/2-fs, w.0, fs, 0, 0
+	months = ""+gettime(1)+"月"+gettime(3)+"日"
+	alDrawText months, (w.0-strlen(months)*fsh)/2-fsh/2, wh.1-(wh.1-fs)/2, w.0, fs, 0, 0
+	
+	alDrawText time, (w.0-strlen(time)*fsh)/2-fsh/2, wh.1+(wh.1-fs)/2, w.0, fs, 0, 0
+	str_ = getdowtostr()
+	alDrawText str_, (w.0-strlen(str_)*fsh)/2-fsh/2, wh.1+(wh.1-fs)/3-(wh.1-fs)/5, w.0, fs, 0, 0
+	
+	alCopyImageToScreen 0, 0
+	redraw 1
+	return
+	
+*error
+	oncmd 0 :onclick 0 :onerror 0 :onkey 0
+	HSPErrorDialog
+	end
+	end
+	
+*WindowProc
+	if iparam == WM_DESTROY {
+		KillTimer hMWnd, 1000
+	}elseif iparam == WM_TIMER {
+		gsel 0, 2
+		Calc
+		Draw
+	}elseif iparam == WM_SIZING {
+		width w.0, w.1 :return -1
+	}elseif iparam == WM_SIZE {
+		width w.0, w.1 :return -1
+	}elseif iparam == WM_LBUTTONDOWN {
+		sendmsg hMWnd, WM_NCLBUTTONDOWN, 2
+	}elseif iparam == WM_RBUTTONDOWN {
+		fuFlag = 0x1100
+		TrackPopupMenu hMenu, fuFlag, ginfo(0), ginfo(1), 0, hMWnd, 0
+		switch stat
+		case MI_OPT
+			oncmd 0
+			objsize 200, 100
+			dialog "1", 64, "ClockEx - option"
+			id = stat
+			gsel id
+			hDlgWnd = hwnd@hsp
+			objsize 85, 20
+			pos  10, ginfo(13)-30 :button gosub "設定", *Option_Okay
+			pos 105, ginfo(13)-30 :button gosub "戻る", *Option_Cancel
+			objsize 80, 20
+			pos 110, 10 :button gosub "色の選択...", *SelectBaseColor
+			pos 110, 40 :button gosub "タイマーセット", *SetCountTimer :hButton = objinfo(stat, 2)
+			sendmsg hButton, 0x00F4, 0x3
+			sendmsg hButton, 0x00F1, CTGetFlag(ctf)
+			
+			// 要 トラックバー作成
+			
+			objmode 2 :font msgothic, 14
+			ms = strf("%02X%02X%02X", coclr.0, coclr.1, coclr.2)
+			pos 11, 13 :mes "#"
+			pos 17, 12 :input ms, 48, 20, 0, 0 :hColorEdit = objinfo(stat, 2)
+			slong hColorEdit, -16, glong(hColorEdit, -16)|ES_UPPERCASE
+			ms = ""
+			pos 11, 40 :input ms, 22, 20, 2 :hHour = objinfo(stat, 2)
+			pos 35, 42 :mes ":"
+			pos 44, 40 :input ms, 22, 20, 2 :hMinu = objinfo(stat, 2)
+			pos 77, 40 :input ms, 22, 20, 2 :hSeco = objinfo(stat, 2)
+			
+			slong hHour, -16, glong(hHour, -16)|ES_NUMBER
+			slong hMinu, -16, glong(hMinu, -16)|ES_NUMBER
+			slong hSeco, -16, glong(hSeco, -16)|ES_NUMBER
+			title ""+CTGetHour(ctf), hHour
+			title ""+CTGetMinute(ctf), hMinu
+			title ""+CTGetSecond(ctf), hSeco
+			
+			objsel 0
+			dlgfor
+				coclr.0 = int("$"+strmid(gtext(hColorEdit), 0, 2))
+				coclr.1 = int("$"+strmid(gtext(hColorEdit), 2, 2))
+				coclr.2 = int("$"+strmid(gtext(hColorEdit), 4, 2))
+				if coclr.0 == 255 :coclr.0 = 254 :title strf("%02X%02X%02X", coclr.0, coclr.1, coclr.2), hColorEdit
+				if coclr.1 == 255 :coclr.1 = 254 :title strf("%02X%02X%02X", coclr.0, coclr.1, coclr.2), hColorEdit
+				if coclr.2 == 255 :coclr.2 = 254 :title strf("%02X%02X%02X", coclr.0, coclr.1, coclr.2), hColorEdit
+				gsel id
+				redraw 0
+				color :boxf@hsp 70, 12, 100, 27
+				color coclr.0, coclr.1, coclr.2
+				boxf@hsp 71, 13, 99, 26
+				redraw 1
+				wait 5
+			loop
+			goto *Option_End
+			
+			*SetCountTimer
+				sendmsg hButton, 0x00F0
+//				CTSetFlag ctf, stat
+				ctflag = stat
+			return
+			
+			*SelectBaseColor
+				dialog "", 35
+				if stat :title strf("%02X%02X%02X", ginfo_r, ginfo_g, ginfo_b), hColorEdit
+			return
+			
+			*Option_Okay
+				repeat 3
+					tsclr.cnt = con(coclr.cnt+175 >= 255, 254, coclr.cnt+175)
+					txclr.cnt = con(coclr.cnt+51 >= 255, 254, coclr.cnt+51)
+					bkclr.cnt = coclr.cnt/7
+				loop
+				color txclr.0, txclr.1, txclr.2
+				usepen ps_solid, 2
+				ctf = CTSetAll(CTGetFlag(ctflag), int(gtext(hHour)), int(gtext(hMinu)), int(gtext(hSeco)))
+			
+			*Option_Cancel
+				dlgdel
+			return
+			
+			*Option_End
+			
+			gsel 0
+			oncmd 1
+			swbreak
+		case MI_QUIT
+			wait 10
+			end :end
+		swend
+	}
+	
+	return
+	
+	#module
+	#uselib "gdi32.dll"
+	#cfunc	CreatePen		"CreatePen"		int, int, int
+	#cfunc	ExtCreatePen	"ExtCreatePen"	int, int, int, int, int
+	#func	DeleteObject	"DeleteObject"	int
+	#func	SelectObject	"SelectObject"	int, int
+	#func	LineTo			"LineTo"		int, int, int
+	#func	MoveToEx		"MoveToEx"		int, int, int, int
+	
+	#define	global	PS_SOLID            0
+	#define	global	PS_DASH             1       /* -------  */
+	#define	global	PS_DOT              2       /* .......  */
+	#define	global	PS_DASHDOT          3       /* _._._._  */
+	#define	global	PS_DASHDOTDOT       4       /* _.._.._  */
+	#define	global	PS_NULL             5
+	#define	global	PS_INSIDEFRAME      6
+	#define	global	PS_USERSTYLE        7
+	#define	global	PS_ALTERNATE        8
+	#define	global	PS_STYLE_MASK       0x0000000F
+	#define	global	PS_ENDCAP_ROUND     0x00000000
+	#define	global	PS_ENDCAP_SQUARE    0x00000100
+	#define	global	PS_ENDCAP_FLAT      0x00000200
+	#define	global	PS_ENDCAP_MASK      0x00000F00
+	#define	global	PS_JOIN_ROUND       0x00000000
+	#define	global	PS_JOIN_BEVEL       0x00001000
+	#define	global	PS_JOIN_MITER       0x00002000
+	#define	global	PS_JOIN_MASK        0x0000F000
+	#define	global	PS_COSMETIC         0x00000000
+	#define	global	PS_GEOMETRIC        0x00010000
+	#define	global	PS_TYPE_MASK        0x000F0000
+	
+	#define	BS_SOLID            0
+	#define	BS_NULL             1
+	#define	BS_HOLLOW           BS_NULL
+	#define	BS_HATCHED          2
+	#define	BS_PATTERN          3
+	#define	BS_INDEXED          4
+	#define	BS_DIBPATTERN       5
+	#define	BS_DIBPATTERNPT     6
+	#define	BS_PATTERN8X8       7
+	#define	BS_DIBPATTERN8X8    8
+	#define	BS_MONOPATTERN      9
+
+	#define LOGBRUSH(%1)	dim %1, 3
+	
+	// ペン削除
+	#deffunc DeletePen onexit
+		if hPen != NULL :DeleteObject hPen :hPen = NULL
+	return
+	
+	// ペンの作成・使用
+	#deffunc UsePen int fnPenStyle, int nWidth
+		if hPen != NULL :DeleteObject hPen
+		hPen = CreatePen(fnPenStyle, nWidth, RGB(ginfo_r, ginfo_g, ginfo_b))
+//		LOGBRUSH lbr
+//		lbr = BS_SOLID, RGB(ginfo_r, ginfo_g, ginfo_b), 0
+//		hPen = ExtCreatePen(fnPenStyle /*| PS_GEOMETRIC*/ | PS_JOIN_BEVEL | PS_ENDCAP_ROUND, nWidth, varptr(lbr), 0, 0)
+		SelectObject hdc@hsp, hPen
+	return
+	
+	// 選択されているペンで線の描画
+	#deffunc wLine int ex, int ey, int sx, int sy
+		MoveToEx hdc@hsp, sx, sy
+		LineTo hdc@hsp, ex, ey
+	return
+	#global
+	
+	#module
+	#uselib "user32.dll"
+	#cfunc	CreateMenu				"CreateMenu"
+	#cfunc	CreatePopupMenu			"CreatePopupMenu"
+	#func	InsertMenuItem			"InsertMenuItemA"	int, int, int, var
+	#func	SetMenuItemInfo			"SetMenuItemInfoA"	int, int, int, var
+	#func	SetMenu					"SetMenu"			int, int
+	#func	GetClientRect			"GetClientRect"		int, int
+	
+	#enum	cbSize = 0
+	#enum	fMask
+	#enum	fType
+	#enum	fState
+	#enum	wID
+	#enum	hSubMenu
+	#enum	hbmpChecked
+	#enum	hbmpUnchecked
+	#enum	dwItemData
+	#enum	dwTypeData
+	#enum	cch
+	#enum	hbmpItem
+	
+	//メニュー作成
+	#deffunc PopupMenuIni int hWnd_, var hMenu
+		hMenu = CreatePopupMenu()
+		if hMenu == 0 :return FALSE
+		AddMenuItem hMenu, "--時計--", MI_BVIEW, 0, "__MenuDisabled__"
+		AddMenuItem hMenu, "設定 (&O)", MI_OPT, 0, "設定を変更します"
+		AddMenuItem hMenu, "", 0, 0, ""
+		AddMenuItem hMenu, "終了 (&Q)", MI_QUIT, 0, "終了します"
+		
+	return TRUE
+	// メニューアイテム追加
+	#deffunc AddMenuItem int hMenu, str ItemName, int nId, int hSMenu, str ItemDate
+		dim mii, 12	//MENUITEMINFO
+		
+		mii.cbSize		= 48		//sizeof(MENUITEMINFO)
+		mii.fMask		= $32		//MIIM_TYPE | MIIM_ID | MIIM_DATA
+		mii.wID			= nId
+		dwItemDate		= ItemDate
+		mii.dwItemData	= varptr(dwItemDate)
+	
+		if ItemDate == "__MenuDisabled__" {
+			mii.fMask	|= $1		//MIIM_STATE
+			mii.fState	= $3
+			mii.fType	= 0			//MFT_STRING
+			dwTypeDate	= ItemName
+			mii.dwTypeData	= varptr(dwTypeDate)
+		}elseif ItemName != "" {			// NULL = セパレーター
+			mii.fType	= 0			//MFT_STRING
+			dwTypeDate	= ItemName
+			mii.dwTypeData	= varptr(dwTypeDate)
+		}else :mii.fType	= $800	//MFT_SEPARATOR
+		
+		if hSMenu != NULL {			// サブメニュー
+			mii.fMask	   |= $4	//MIIM_SUBMENU
+			mii.hSubMenu	= hSMenu
+		}
+		
+		InsertMenuItem hMenu, nId, FALSE, mii
+	return
+	
+	// メニューアイテム変更
+	#deffunc ChangeMenuItem int hMenu, int nId, int uState, str ItemName
+		dim mii, 12	//MENUITEMINFO
+		
+		mii.cbSize = 48
+		mii.fMask  = $3	//MIIM_ID | MIIM_STATE
+		mii.fState = uState
+		mii.wID    = nId
+		
+		if ItemName != "" {
+			mii.fMask	   |= $10	//MIIM_TYPE
+			mii.fType		= 0
+			dwTypeDate		= ItemName
+			mii.dwTypeData	= varptr(dwTypeDate)
+		}
+	
+		SetMenuItemInfo hMenu, nId, FALSE, mii
+	return
+	#global
+	
+	#module
+	// 色の離れている場所をあいまいにする
+	#deffunc between int mar
+		for i, 0, ginfo(13)-1, 1
+			repeat ginfo(12)-1
+				// 左右
+				pget@hsp cnt, i
+				clr = ginfo_r ,ginfo_g, ginfo_b
+				pget@hsp cnt+1, i
+				clr2 = ginfo_r, ginfo_g, ginfo_b
+				if abs(clr.0-clr2.0) > mar {
+					color (clr.0+clr2.0)/2, (clr.1+clr2.1)/2, (clr.2+clr2.2)/2
+					pset@hsp cnt, i
+				}elseif abs(clr.1-clr2.1) > mar {
+					color (clr.0+clr2.0)/2, (clr.1+clr2.1)/2, (clr.2+clr2.2)/2
+					pset@hsp cnt, i
+				}elseif abs(clr.2-clr2.2) > mar {
+					color (clr.0+clr2.0)/2, (clr.1+clr2.1)/2, (clr.2+clr2.2)/2
+					pset@hsp cnt, i
+				}
+	
+				// 上下
+				pget@hsp cnt, i+1
+				clr2 = ginfo_r, ginfo_g, ginfo_b
+				if abs(clr.0-clr2.0) > mar {
+					color (clr.0+clr2.0)/2, (clr.1+clr2.1)/2, (clr.2+clr2.2)/2
+					pset@hsp cnt, i
+				}elseif abs(clr.1-clr2.1) > mar {
+					color (clr.0+clr2.0)/2, (clr.1+clr2.1)/2, (clr.2+clr2.2)/2
+					pset@hsp cnt, i
+				}elseif abs(clr.2-clr2.2) > mar {
+					color (clr.0+clr2.0)/2, (clr.1+clr2.1)/2, (clr.2+clr2.2)/2
+					pset@hsp cnt, i
+				}
+				
+				await
+			loop
+		next
+	return
+	#global
+	
+	

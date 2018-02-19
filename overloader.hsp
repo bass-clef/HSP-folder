@@ -1,0 +1,391 @@
+	
+	/**
+	 * オーバーローダー
+	 *
+	 * ・再読み込みで同名の関数を別名として(型の数などによって)作成し、
+	 * 　define で共通の関数を作成する
+	 * ・元の関数はコメントアウトする
+	 *
+	 * ・引数の一番長い関数にあわせなければならない
+	 * ・配列、参照渡し ができない
+	 *
+	 * デフォルト引数に使用される値
+	 * int : INT_MAX
+	 * str : "__[関数名]__"
+	 * double : DOUBLE_MAX
+	 *
+	 * 対象関数 #deffunc, #defcfunc
+	 */
+	
+	/**
+	 * セレクタジェネレータ
+	 *
+	 * ・再読み込みで2文字以上の変数のセレクタを生成
+	 *
+	 * * not array *
+	 *
+	 * // setter
+	 * #deffunc set[Name] [Type] _[Name]_
+	 *  [Name] = _[Name]_
+	 * return
+	 * // getter
+	 * #defcfunc get[Name]
+	 * return [Name]
+	 *
+	 * * array *
+	 *
+	 * // setter
+	 * #deffunc set[Name] [Type] _[Name]_, int _[ParamNum]_
+	 *  [Name](_[ParamNum]_) = _[Name]_
+	 * return
+	 * // getter
+	 * #defcfunc get[Name] int _[ParamNum]_
+	 * return [Name](_[ParamNum]_)
+	 */
+	
+	
+	// 文字列ディバイダー
+	#include "StringTypeDevider.as"
+	#include "hsedsdk.as"
+	
+	initTypes
+	// エスケープシーケンス
+	addType T_THROUGHT :id = stat
+	setInvalidStatus id, PREV_TOKEN, sstr(0x80)+sstr(0x9F)+sstr(0xE0)+sstr(0xFE)
+	addTypePrms id, TF_NEXT | TF_LOCK | TF_INTERRUPT, "\\\\"
+	addTypePrms id, TF_LAST | TF_LASTDELETE, sstr(1)+sstr(255)
+
+	// White Space [空白, タブ, 改行, コメント]
+	addType T_WS :id = stat		// 改行
+	addTypePrms id, TF_NEXT, ""+sstr(0xD)+sstr(0xD)
+	addTypePrms id, TF_LAST, ""+sstr(0xA)+sstr(0xA)
+	addType _T('/') :id = stat		// コメント
+	addTypePrms id, TF_NEXT, "//"
+	addTypePrms id, TF_NEXT | TF_LOCK, "**"
+	addTypePrms id, TF_NEXT | TF_LOOP | TF_LABEL, sstr(1)+sstr('*'-1)+sstr('*'+1)+sstr(255)
+	addTypePrms id, TF_NEXT, "**"
+	addTypePrms id, TF_LAST | TF_UMGOTOLABEL, "//"
+	addType _T('_') :id = stat		// コメント
+	addTypePrms id, TF_NEXT, "//"
+	addTypePrms id, TF_NEXT | TF_LOCK, "//"
+	addTypePrms id, TF_NEXT | TF_LOOP | TF_LABEL, sstr(1)+sstr(0xC)+sstr(0xE)+sstr(255)
+	addTypePrms id, TF_NEXT, ""+sstr(0xD)+sstr(0xD)
+	addTypePrms id, TF_LAST | TF_UMGOTOLABEL, ""+sstr(0xA)+sstr(0xA)
+	
+	addType T_STR :id = stat
+	addTypePrms id, TF_NEXT, "{{"
+	addTypePrms id, TF_NEXT | TF_LOCK, "\"\""
+	addTypePrms id, TF_NEXT | TF_LOOP | TF_LABEL, sstr(1)+sstr('\"'-1)+sstr('\"'+1)+sstr(255)
+	addTypePrms id, TF_NEXT, "\"\""
+	addTypePrms id, TF_LAST | TF_UMGOTOLABEL, "}}"
+	addType T_STR :id = stat
+	addTypePrms id, TF_NEXT | TF_LOCK, "\"\""
+	addTypePrms id, TF_NEXT | TF_LOOP, sstr(1)+sstr('\"'-1)+sstr('\"'+1)+sstr(255)
+	addTypePrms id, TF_LAST, "\"\""
+	addType T_STR :id = stat
+	addTypePrms id, TF_NEXT | TF_LOCK, "''"
+	addTypePrms id, TF_NEXT | TF_LOOP, sstr(1)+sstr('\''-1)+sstr('\''+1)+sstr(255)
+	addTypePrms id, TF_LAST, "''"
+	
+	// ID [hoge, abc]
+	addType T_ID :id = stat		// hoge foo_
+	setInvalidStatus id, PREV_TOKEN, "09AZaz"
+	setValidStatus id, NOW_TOKEN, sstr(1)+sstr('A'-1)+sstr('Z'+1)+sstr('_'-1)+sstr('_'+1)+sstr('a'-1)+sstr('z'+1)+sstr(255)
+	addTypePrms id, TF_NEXT | TF_LOOP | TF_MAYBELAST, "azAZ__"
+	addTypePrms id, TF_LOOP | TF_MAYBELAST, "azAZ09__"
+	
+	/**/
+	gosub *initfind
+	
+	sdim buf
+	objsize ginfo(12), 20
+	pos 0, 0
+	button gosub "overloader", *overloader
+	button gosub "selector generate", *selector
+	mesbox buf, ginfo(12), ginfo(13)-60, 5, 0 :editId = stat
+	
+	
+	stop
+	
+*initfind
+	finding = 1
+	hsed_exist
+	if stat == 0 :dialog "ＨＳＰエディタが起動していません。", 0, gtext(hwnd) :return
+	hsed_getver var, 2
+	if stat == 0 {
+		split var, "ver", prm
+		var = int(double(prm.1)*100)
+		if var < 300 :dialog "バージョンが対応していません。\nvar 3.xx 以上で起動してください。" :return
+		dir_HSPEdit = "C:\\hsp"+var+"\\"
+	}else {
+		dialog "バージョンの取得に失敗しました。", 0, gtext(hwnd)
+		return
+	}
+	dir_common = ""+strtrim(dir_HSPEdit, 2, '\\')+"\\common\\"
+	finding = 0
+	return
+	
+*findHspFile
+	// 現在編集中のファイル取得
+	sdim actfile
+	hsed_getacttabid idTab
+	if stat == 0 {
+		hsed_getpath actfile, idTab
+	}else :if stat == 1 {
+		dialog "ＨＳＰＳＥのアクティブなタブが見つかりません。", 0, gtext(hwnd)
+		return -1
+	}
+	
+	exist actfile :size = strsize
+	if size <= 0 :return -1
+	sdim buf, size+1
+	bload actfile, buf, size
+	objprm editId, buf
+	bsave actfile+".back", buf, size
+	objprm editId, buf
+	return 0
+	
+*selector
+	gosub *findHspFile
+	if stat == -1 :return 
+	
+	addType _T('=') :id = stat
+	addTypePrms id, TF_NEXT, "  "
+	addTypePrms id, TF_NEXT, "=="
+	addTypePrms id, TF_LAST, "  "
+	addType _T('#') :id = stat
+	addTypePrms id, TF_LAST, "##"
+	
+	devideStringType buf, prms, types, bases
+	/**
+	logmes "\n-------------------------------------------------------"
+	repeat length(types)
+	loop
+	/**/
+	logmes "\n-------------------------------------------------------"
+	
+	sdim variableName
+	variableCount = 0
+	crlf = 0
+	shapeFlag = -1
+	for i, 0, length(types), 1
+		if types.i == T_WS :crlf++
+		if types.i == _T('/') {
+			notesel@hsp prms.i
+			crlf += notemax-1
+		}
+		if types.i == _T('_') {
+			notesel@hsp prms.i
+			crlf += notemax
+		}
+//		logmes ""+ i +" : base("+bases.i+") prm["+ prms.i +"] type("+ types.i +")"
+		
+		if shapeFlag == -1 {
+			if types.i == _T('#') :shapeFlag = -2
+		}
+		if shapeFlag == -2 {
+			if types(i+1) == T_ID {
+				if getpath(prms.i, 16) == "module" {
+					logmes "line ("+(crlf+1)+") in @"+prms(i+1)
+				}
+				if getpath(prms.i, 16) == "global" {
+					logmes "line ("+(crlf+1)+") out @"+prms(i+1)
+				}
+			}else {
+				if getpath(prms.i, 16) == "module" {
+					logmes "line ("+(crlf+1)+") in unnamed module"
+				}
+				if getpath(prms.i, 16) == "global" {
+					logmes "line ("+(crlf+1)+") out unnamed module"
+				}
+			}
+			
+			shapeFlag = -1
+		}
+		
+		if types.i == _T('=') {
+			if types(i-1) == T_ID :if 1 < strlen(prms(i-1)) {
+				f = -1
+				repeat variableCount
+					if variableName.cnt == prms(i-1) :f = cnt :break
+				loop
+				if f != -1 :_continue
+				variableName.variableCount = prms(i-1)
+				variableCount++
+				logmes "line("+(crlf+1)+") ["+prms(i-1)+"]"
+			}
+		}
+	next
+	
+	return
+	
+*overloader
+	gosub *findHspFile
+	if stat == -1 :return 
+	
+	addType _T('#') :id = stat
+	addTypePrms id, TF_LAST, "##"
+	typeList = "deffunc", "defcfunc"
+	
+	devideStringType buf, prms, types, bases
+	/**
+	logmes "\n-------------------------------------------------------"
+	repeat length(types)
+		logmes ""+ cnt +" : base("+bases.cnt+") prm["+ prms.cnt +"] type("+ types.cnt +")"
+	loop
+	/**/
+	logmes "\n-------------------------------------------------------"
+	
+	sdim functionName
+	sdim functionType
+	dim functionParamLength	// 引数の長さ
+	sdim functionParamType	// vartypeの数値
+	dim functionLine		// 関数の位置
+	functionCount = 0
+	
+	crlf = 0
+	f = -2
+	for i, 0, length(types), 1
+		if types.i == T_WS :crlf++
+		if types.i == _T('/') {
+			notesel@hsp prms.i
+			crlf += notemax-1
+		}
+		if types.i == _T('_') {
+			notesel@hsp prms.i
+			crlf += notemax
+		}
+		
+		if f == -2 {
+			if types.i == _T('#') :f = -1
+			_continue
+		}
+		if f == -1 {
+			repeat length(typeList)
+				if typeList.cnt == prms.i :f = cnt :break
+			loop
+			if f == -1 :_continue
+			logmes "line["+(crlf+1)+"]"
+			logmes "#"+typeList.f+" "+prms(i+1)
+			functionName.functionCount = prms(i+1)
+			functionLine.functionCount = crlf
+			functionType.functionCount = prms.i
+			functionParamLength.functionCount = 0
+			repeat 100
+				if types(i+2+cnt*2) == T_WS :break
+				logmes "prm["+cnt+"] "+prms(i+2+cnt*2)+" : "+prms(i+3+cnt*2)+""
+				memexpand functionParamType.functionCount, functionParamLength.functionCount+2
+				poke functionParamType.functionCount, functionParamLength.functionCount, typeOf(prms(i+2+cnt*2))
+				functionParamLength.functionCount++
+			loop
+			functionCount++
+			f = -2
+		}
+	next
+	
+	addLine = 0
+	sdim generated :generatedCount = 0
+	notesel@hsp buf
+	for i, 0, functionCount, 1
+		f = -1
+		repeat generatedCount
+			if generated.cnt == functionName.i :f = cnt :break
+		loop
+		if f != -1 :_continue
+		
+		definitionDivideWord = "#define global "+functionName.cnt+"("
+		
+		generate = 0
+		maxParamLength = 0
+		repeat functionCount
+			if i == cnt || functionName.i != functionName.cnt || functionType.i != functionType.cnt {
+				continue
+			}
+			if maxParamLength < functionParamLength.cnt :maxParamLength = functionParamLength.cnt
+			generate++
+		loop
+		if generate == 0 :_continue
+		
+		generated.generatedCount = functionName.i
+		logmes "overload ["+generated.generatedCount+"]"
+		generatedCount++
+		
+		temporaryVar = ""
+		repeat maxParamLength
+			definitionDivideWord += "%"+(cnt+1)
+			temporaryVar += ""+functionName.i+"_"+(cnt+1)+" = %"+(cnt+1)+" :"
+			if cnt < maxParamLength-1 {
+				definitionDivideWord += ", "
+			}
+		loop
+		definitionDivideWord += ") "+temporaryVar
+		generateFunctionOption i
+		
+		generate = 0
+		repeat functionCount
+			if i == cnt || functionName.i != functionName.cnt || functionType.i != functionType.cnt {
+				continue
+			}
+			
+			definitionDivideWord += " else :"
+			j = cnt
+			generateFunctionOption cnt
+		loop
+		noteadd "\t"+definitionDivideWord, 0, 0
+		noteadd "\t", 0, 0
+		addLine += 2
+	next
+	
+	objprm editId, buf
+	if generatedCount {
+		bsave actfile, buf, strlen(buf)
+		generatedFunctionName = ""
+		repeat generatedCount
+			generatedFunctionName += ""+generated.cnt+","
+		loop
+		dialog "関数の書き換えをしました\n"+generatedFunctionName, 0, gtext(hwnd)
+	}
+	
+	return
+	
+	#deffunc generateFunctionOption int parent
+		afterFunctionName = ""+functionName.parent+"_"
+		paramList = ""
+		repeat functionParamLength.parent
+			definitionDivideWord += "if vartype(\""+typeToString(peek(functionParamType.parent, cnt))+"\") == vartype("+functionName.parent+"_"+(cnt+1)+")"
+			afterFunctionName += typeToString(peek(functionParamType.parent, cnt))
+			paramList += "%"+(cnt+1)
+			if cnt < functionParamLength.parent-1 {
+				afterFunctionName += "_"
+				definitionDivideWord += " && "
+				paramList += ", "
+			}
+		loop
+		definitionDivideWord += "{ "+afterFunctionName+" "+paramList+" }"
+	
+		sdim lineBuf
+		noteget@hsp lineBuf, functionLine.parent+addLine
+		base = instr(lineBuf, 0, functionName.parent)
+		prev_ = strmid(lineBuf, 0, base)
+		next_ = strmid(lineBuf, base+strlen(functionName.parent), INT_MAX)
+		noteadd prev_+afterFunctionName+next_, functionLine.parent+addLine, 1
+	return
+
+
+	#module
+	#defcfunc typeOf str p1
+		if p1 == "str" :return 2
+		if p1 == "double" :return 3
+		if p1 == "int" :return 4
+		if p1 == "var" :return 5
+		if p1 == "array" :return 6
+		test = 0
+	return
+	#defcfunc typeToString int p1
+		if p1 == 2 :return "str"
+		if p1 == 3 :return "double"
+		if p1 == 4 :return "int"
+		if p1 == 5 :return "var"
+		if p1 == 6 :return "array"
+	return
+	#global

@@ -1,0 +1,39 @@
+	
+	// 参考にしたサイト : http://win32lab.com/tips/tips13.html
+	
+	#uselib "shell32.dll"
+	#func	DragAcceptFiles		"DragAcceptFiles"	int, int
+	#func	DragQueryFile		"DragQueryFile"		int, int, int, int
+	#func	DragFinish			"DragFinish"		int
+	
+	#ifndef WM_DROPFILES
+	#define WM_DROPFILES 0x233
+	#endif
+	
+	mes hwnd
+	DragAcceptFiles hwnd, 1
+	
+	oncmd gosub *dropfiles, WM_DROPFILES
+	
+	stop
+	
+*dropfiles
+	hDrop = wparam
+	mes "受信開始 : "+hDrop
+	
+	DragQueryFile hDrop, -1, NULL, 0
+	nfiles = stat
+	
+	sdim filesname, MAX_PATH, nfiles
+	repeat nfiles
+		DragQueryFile hDrop, cnt, varptr(filesname.cnt), MAX_PATH
+	loop
+	DragFinish hDrop
+	
+	mes "受信ファイル数 "+nfiles
+	repeat nfiles
+		mes "["+filesname.cnt+"]"
+	loop
+	
+	return
+	

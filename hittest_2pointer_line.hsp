@@ -1,0 +1,34 @@
+	
+	// 線上の判定のサンプル
+	
+	// 加算が大きい銃などの当たり判定に使用する
+	
+	#include "mathex.as"
+	
+	x = 50, 200
+	y = 50, 50
+	r = 25
+	
+*main
+	
+	redraw 0
+	
+	hit = pointerOnLine(x.0, y.0, x.1, y.1, mousex, mousey, r)
+	
+	colorwhite :boxf :color
+	
+	pos 0, 0 :mes hit
+	
+	repeat 2
+		circle x.cnt-r, y.cnt-r, x.cnt+r, y.cnt+r
+	loop
+	
+	line x.0, y.0, x.1, y.1
+	
+	pset mousex, mousey
+	
+	redraw 1
+	
+	wait 1
+	goto *main
+	

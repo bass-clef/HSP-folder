@@ -1,0 +1,55 @@
+	
+	
+	
+	#module
+	#deffunc makeKey int id, int x, int y, int wdh, int hgt, str s1, str s2, str s3, str s4
+		pos x, y :gcopy id, 0, 0, wdh, hgt
+		pos x+ 4, y+ 4 :mes s1
+		pos x+ 4, y+17 :mes s2
+		pos x+17, y+ 4 :mes s3
+		pos x+17, y+17 :mes s4
+	return
+	
+	#deffunc makeKeyBoard
+		sizeNormal = 32
+		sizeSmall = sizeNormal/2
+		key1 = "ÅI","\"","Åî","Åê","Åì","Åï"," '","(" ,")" ,"Å@","ÅÅ","Å`","Åb", "Çp","Çv","Çd","Çq","Çs","Çx","Çt","Çh","Çn","Ço","`"  ,"Åo" , "Ç`","Çr","Çc","Çe","Çf","Çg","Çi","Çj","Çk","Å{","Åñ","Åp", "Çy","Çw","Çb","Çu","Ça","Çm","Çl","ÅÉ","ÅÑ","ÅH","ÅQ"
+		key2 = "ÇP","ÇQ","ÇR","ÇS","ÇT","ÇU","ÇV","ÇW","ÇX","ÇO","Å|","ÅO","Åè", "Å@","Å@","Å@","Å@","Å@","Å@","Å@","Å@","Å@","Å@","Åó" ,"Åm" , "Å@","Å@","Å@","Å@","Å@","Å@","Å@","Å@","Å@","ÅG","ÅF","Ån", "Å@","Å@","Å@","Å@","Å@","Å@","Å@"," ,"," .","Å^","Å_"
+		key3 = "Å@","Å@","Çü","Ç£","Ç•","Çß","Ç·","Ç„","ÇÂ","Ç","Å@","Å@","Å@", "Å@","Å@","Å@","Å@","Å@","Å@","Å@","Å@","Å@","Å@","Å@" ,"Åu" , "Å@","Å@","Å@","Å@","Å@","Å@","Å@","Å@","Å@","Å@","Å@","Åv", "Ç¡","Å@","Å@","Å@","Å@","Å@","Å@","ÅA","ÅB","ÅE","Å@"
+		key4 = "Ç ","Ç”","Ç†","Ç§","Ç¶","Ç®","Ç‚","Ç‰","ÇÊ","ÇÌ","ÇŸ","Ç÷","Å[", "ÇΩ","Çƒ","Ç¢","Ç∑","Ç©","ÇÒ","Ç»","Ç…","ÇÁ","Çπ"," ÅJ"," ÅK", "Çø","Ç∆","Çµ","ÇÕ","Ç´","Ç≠","Ç‹","ÇÃ","ÇË","ÇÍ","ÇØ","Çﬁ", "Ç¬","Ç≥","Çª","Ç–","Ç±","Ç›","Ç‡","ÇÀ","ÇÈ","Çﬂ","ÇÎ"
+		
+		buffer 1, sizeNormal, sizeNormal
+		color :boxf 0, 0, sizeNormal, sizeNormal
+		colorwhite :boxf 0, 0, sizeNormal, sizeNormal, 0
+		
+		bgscr 2, sizeNormal*13, sizeNormal*4+sizeSmall
+		font msgothic, 10
+		redraw 0
+		colorwhite
+		repeat 13
+			makeKey 1, cnt*sizeNormal, 0, sizeNormal, sizeSmall, " F", "", ""+(cnt+1), ""
+		loop
+		repeat 13
+			makeKey 1, cnt*sizeNormal, sizeSmall, sizeNormal, sizeNormal, key1.cnt, key2.cnt, key3.cnt, key4.cnt
+		loop
+		repeat 12*2, 13
+			makeKey 1, ((cnt-13)\12)*sizeNormal, sizeSmall+sizeNormal+sizeNormal*((cnt-13)/12), sizeNormal, sizeNormal, key1.cnt, key2.cnt, key3.cnt, key4.cnt
+		loop
+		repeat 11, 13+12*2
+			makeKey 1, ((cnt-13)\12)*sizeNormal, sizeSmall+sizeNormal+sizeNormal*((cnt-13)/12), sizeNormal, sizeNormal, key1.cnt, key2.cnt, key3.cnt, key4.cnt
+		loop
+		
+		redraw 1
+	return
+	#global
+	
+	makeKeyBoard
+	
+	gsel 0
+	color 200, 200, 255
+	boxf
+	
+	stop
+	
+	
+	

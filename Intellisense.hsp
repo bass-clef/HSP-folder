@@ -1,0 +1,75 @@
+	
+	/*
+	
+	HSP Script Editor 補助ツール
+	
+	*/
+	
+	/*
+	[仕様]
+	
+	・変数,関数,ラベル,文字列の補完
+	・クリップボードの監視および変換
+		・改行の追加
+		・置換
+		・
+	・ステータスバーへの表示
+	*/
+	
+	#include "StringTypeDevider.as"
+	
+	initModule
+	
+	sdim buf
+	sdim dst
+	
+	objsize ginfo(12), 20
+	button gosub "find", *key
+	mesbox buf,, ginfo(13)/2-20, 5, 0
+	mesbox dst,, ginfo(13)/2-20, 5, 0 :dstId = stat
+	
+	stop
+*key
+	devideStringType buf, paramList, typeList, baseList
+	title "completed "+length(paramList)
+	
+	sdim dst
+	sortstr paramList, 0
+	repeat length(paramList)
+		dst += paramList.cnt +"\n"
+	loop
+	objprm dstId, dst
+	
+	return
+	
+	
+#deffunc initModule
+	
+	initTypes
+	// 改行
+	addType T_WS :id = stat
+	addTypePrms id, TF_NEXT, ""+sstr(0xD)+sstr(0xD)
+	addTypePrms id, TF_LAST, ""+sstr(0xA)+sstr(0xA)
+	// ID [hoge, abc]
+	addType T_ID :id = stat		// hoge foo_
+	setInvalidStatus id, PREV_TOKEN, "09AZaz"
+	setValidStatus id, NOW_TOKEN, sstr(1)+sstr('A'-1)+sstr('Z'+1)+sstr('_'-1)+sstr('_'+1)+sstr('a'-1)+sstr('z'+1)+sstr(255)
+	addTypePrms id, TF_NEXT | TF_LOOP | TF_MAYBELAST, "azAZ__"
+	addTypePrms id, TF_LOOP | TF_MAYBELAST, "azAZ09__"
+	
+	return
+
+// キャレットのある行の行番号を取得
+#deffunc hsed_getcaretline var ret, int nFootyID
+	hsed_capture
+	if stat : return 1
+	sendmsg hIF@hsedsdk, _HSED_GETCARETLINE@hsedsdk, nFootyID
+	if stat <= 0 : return 1 : else : ret = stat : return 0
+//
+// 行のはじめを1として、指定した位置にキャレットの位置を変更
+#deffunc hsed_setcaretpos int nFootyID, int nCaretpos
+	hsed_capture
+	if stat : return 1
+	sendmsg hIF@hsedsdk, _HSED_SETCARETPOS@hsedsdk, nFootyID, nCaretpos
+	return
+//

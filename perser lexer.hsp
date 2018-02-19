@@ -1,0 +1,750 @@
+	
+	
+	// とりあえず簡単な式を計算できるように、
+	// 初期サポート演算子を廃止
+	
+	// 文法規則
+	// ・セミコロン[;]を強制
+	
+	#enum	global	T_ETC	= 0	// その他
+	#enum	global	T_ID		// 識別子
+	#enum	global	T_WS		// 空白予定
+	#enum	global	T_OPE		// 演算子
+	#enum	global	T_NUM		// 数字
+	#enum	global	T_STR		// 文字リテラル
+	#enum	global	T_FUN		// 関数
+	
+//	#ifdef _debug
+//	#define __def__
+//	#endif
+	
+/*
+	#ifdef __def__
+	buf = {"var a = 0, b, c[4+5];
+b += 1 || 0 == 1 - 1 + 4 % 3 / 1 * 5 ^ 2;
+c[2]->abc.def = "Foo";
+c[3] = c[1]++ + (((c[0] + 4)-1)*5)--;
+value func piyo() { if (c[3]) { c[4] = 'Bar'; } }
+"}
+*/
+
+/*
+buf = {"
+var => "x &|, &|x && ;",
+class => "x { ... }",
+
+if => "( ?... ) {@ ... }@",
+for => "( x ; ?... ; ... ) {@ ... }@",
+while => "( ?... ) {@ ... }@";
+"}
+*/
+	
+/*
+	font msgothic, 14
+	objmode 2, 0
+	mesbox buf, ginfo(12), ginfo(13)-20, 5, 0
+	objsize ginfo(12), 20
+	button "jump", *main
+	stop
+*main
+	
+	#endif
+*/
+	
+//	#ifndef __def__
+	#packopt hide	1
+	#packopt name	"objecter"
+	flagmax = -1
+	fname = dir_cmdline
+	split fname, "/", tprm
+	if 1 < length(tprm) {
+		fname = strtrim(tprm.0, 0, ' ')
+		flagmax = int(tprm.1)
+	}
+//	fname = dir_desktop+"\\like_.param"
+	
+	exist fname
+	if strsize == -1 {
+		//dialog "ファイルがないです。\n"+fname
+		end
+	}
+	size = strsize
+	sdim buf, size+1
+	bload fname, buf, size
+	fname = getpath(fname, 32)+getpath(fname, 9)+".object"
+//	#endif
+	
+/*
+	#ifdef _debug
+		objprm 0, buf
+	#endif
+*/
+	
+	operator = ";",",","+=","-=","*=","/=","%=","<<=",">>=","&=","^=","|=","=","||","&&","|","^","&","!=","==","<=",">=","-","+","%","/","*","!","~","--","++","}","{","]","[",")","(","->",".","...","//","#","=>","+=>"
+	extword = "\n\t !\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~"
+	delword = "/**/", "//\n"
+	ope_len = length(operator)
+	
+	// Lexer 区切り文字, 元のbuf, 出力prm, 出力prmtype, 除外用区切り文字
+	if flagmax\2 == 0 {
+		Lexer extword, buf, prm, prmtype, delword, operator
+		len = stat
+		flagmax--
+	}
+	
+/**
+	if len < 0 {
+		if len == -1 :dialog "ファイルの終端にエスケープシーケンスが来ています。"
+		if len == -2 :dialog "文字空間の終端が見つかりません。"
+		if len == -3 :dialog "コメントの終端が見つかりません。"
+		goto *main_end
+	}
+/**/
+	
+	// Perser prm, prmtype
+	if 0 <= len {
+		if flagmax\2 == 1 {
+			Perser prm, prmtype, operator
+			len = stat
+			flagmax--
+		}else {
+			// 空白予定を削除
+			dim tprm
+			i = 0
+			repeat len
+				logmes "_prm ("+cnt+") => ["+prm.cnt+"]"
+				if prmtype.cnt != T_WS :tprm.i = prm.cnt :i++
+			loop
+			len = i
+			dim prm
+			repeat len
+				prm.cnt = tprm.cnt
+				logmes "prm ("+cnt+") => ["+prm.cnt+"]"
+			loop
+		}
+	}
+	
+/**
+	if len < 0 {
+		if len == -1 :dialog "\n括弧の始まりが見つかりませんでした。("+refstr+")"
+		goto *main_end
+	}
+/**/
+/*
+	#ifdef __def__
+	buf += "\n\n-------- -------- [Parameters] -------- --------\n\n"
+	repeat length(prm)
+//		mes "["+prm.cnt+"]["+prmtype.cnt+"]"//+peek(prm.cnt, 0)+"]"
+
+		buf += "["+cnt+"]["+prm.cnt+"]["+prmtype.cnt+"]\n"
+		if prm.cnt == "," :buf += "\n"
+		if prm.cnt == ";" || prm.cnt == "{" || prm.cnt == "}" :buf += "\n\n"
+	loop
+	#endif
+	
+	// トークンに番号を与えて区別化 -> 仮想コードへ
+	// ・そのさい無定義は無視
+	// +0	バイト数	4byte
+	// +4	keyword数	4byte
+	// IDの割振方法 : 予約keyword(演算子など) -> 無定義keyword(数字,文字列)
+	// typedef var	// 型の定義
+	
+	keyword = "typedef"
+	repeat ope_len
+		keyword.length(keyword) = operator.cnt
+	loop
+	
+	kw_len = length(keyword)
+	len = length(prm)
+	dim prm_ID, len :IDmax = 0
+	for n, 0, len, 1
+		// 予約されている数値を読み込み
+		i = -1
+		repeat kw_len
+			if prm.n == keyword.cnt :prm_ID.n = cnt :i = cnt :break
+		loop
+		if i == -1 {
+			if prmtype.n == T_ID {
+				// 変数なら新しくIDを発行しない
+				repeat len
+					if prm.n == prm.cnt :i = prm_ID.cnt :break
+				loop
+				if i == 0 :i = -1
+			}
+			if i == -1 :i = kw_len+IDmax
+			prm_ID.n = i
+			if i == kw_len+IDmax :IDmax++
+		}
+	next
+	
+	#ifdef __def__
+	buf += "\n\n-------- -------- [Identifier] -------- --------\n\n"
+	repeat len
+		buf += "["+prm_ID.cnt+"] ["+prm.cnt+"]\n"
+	loop
+	
+	*main_end
+	pos 0, 0 :objprm 0, buf
+	
+	#endif
+*/
+	
+	*main_end
+	if 0 <= len {
+		// ファイルに書きこみ
+		// :ファイル構造:
+		// +0	総prm数		.4byte
+		// +4	タイプ		.1byte
+		// +9	バイト数	.4byte
+		// +13	値			.バイト数
+		sdim fbuf :index = 4
+		lpoke fbuf, 0, len
+		repeat len
+			prm_len = strlen(prm.cnt)
+			memexpand fbuf, index+1+4+prm_len+1
+			poke fbuf, index, prmtype.cnt			:index++
+			lpoke fbuf, index, prm_len				:index += 4
+			memcpy fbuf, prm.cnt, prm_len, index, 0	:index += prm_len
+		loop
+		
+//		#ifdef __def__
+//		dialog "obj", 17, ""
+//		if stat != 0 :fname = refstr
+//		#endif
+		bsave fname, fbuf, index
+	}else {
+		bsave fname, len, 4
+	}
+	
+	end
+//	stop
+	
+	#module
+	// 字句解析
+	// Lexer 区切り文字, 元のbuf, 出力prm, 出力prmtype, 除外用区切り文字
+	#deffunc Lexer var extword, var buf, array prm, array prmtype, array delword, array operator
+		len = strlen(buf)
+		i = 0
+		
+		// 区切り文字
+		extlen = strlen(extword)
+	
+		// パラメータ
+		sdim prm
+		prmlen = 0
+		prmindex = 1
+		
+		while i < len
+			token = peek(buf, i)
+			i++
+			
+			// 区切り文字
+			j = -1
+			repeat extlen
+				if peek(extword, cnt) == token :j = cnt :break
+			loop
+			if j == -1 :_continue
+			
+			// トークン抜き出し
+			strtoken = strmid(buf, prmindex-1, i-prmindex)
+			if strtoken != "" {
+				prm.prmlen = strtoken
+				prmlen++
+			}
+			
+			// 区切り文字
+			memexpand prm.prmlen, 2
+			poke prm.prmlen, 0, token
+			poke prm.prmlen, 1, 0
+			prmlen++
+			
+			prmindex = i+1
+		wend
+		
+		Lexer_ex prm, delword
+		if stat < 0 :return stat
+		if length(prm) < 2 :return
+		Lexer_ex2 prm, prmtype
+		if stat < 0 :return stat
+		
+		// 復号演算子変更チェック
+		// 後置,前置,複合 演算子に対応するためあらかじめキーワードの順序を列挙
+		len = length(prm)
+		
+		sdim dbope
+		dim max
+		ope_len = length(operator)
+		i = 0
+		repeat ope_len
+			m = strlen(operator.cnt)
+			if 1 < m {
+				dbope.i = operator.cnt
+				max.i = m
+				i++
+			}
+		loop
+		
+		dbope_len = length(dbope)
+		dim flag, dbope_len
+		repeat len
+//			if prmtype.cnt == T_WS :continue
+			token = peek(prm.cnt, 0)
+			n = -1
+			// 演算子判定
+			repeat dbope_len
+				if token == peek(dbope.cnt, flag.cnt) {
+					flag.cnt++
+					if max.cnt <= flag.cnt :n = cnt :break
+				}else :flag.cnt = 0
+			loop
+			
+			if 0 <= n {
+				logmes "change ["+prm.cnt+"] ["+operator.n+"]"
+				j = cnt
+				repeat max.n-1
+					prm(j-cnt) = ""
+					prmtype(j-cnt) = T_WS
+				loop
+				prm(cnt-max.n+1) = dbope.n
+			}
+		loop
+	return stat
+	#global
+	
+	#module
+	// エスケープシーケンス, 文字列リテラル, コメント を判別
+	#deffunc Lexer_ex array prm, array delword
+		// 1.[\]の次が特殊文字だろうが無視する
+		// 2.コメント予定を無視
+		// 3.["]と[']を組になっている中間同士を結合
+		
+		len = length(prm)
+		
+		// 除外予定 区切り文字
+		dellen = length(delword)
+		dim dels :delsmax = 0
+		dim delf, dellen
+		dim delmax, dellen
+		repeat dellen
+			delmax.cnt = strlen(delword.cnt)
+			dels.cnt = delmax.cnt/2
+		loop
+		
+		// 文字列予定 区切り文字
+		speword = "\"\"", "''"
+		spelen = length(speword)
+		spe = ""
+		
+		esc = 0
+		del = -1
+		i = 0
+		for i, 0, len, 1
+			// 1.
+			if esc :esc--
+			if esc == 0 :if prm.i == "\\" {
+				prm.i = ""
+				esc = 2
+				_continue
+			}
+	
+			// 2.
+			logmes "ex1 "+i+"["+prm.i+"]"
+			repeat dellen
+				if del != -1 :if cnt != del :continue del
+				
+				if peek(prm.i, 0) == peek(delword.cnt, delf.cnt) {
+					delf.cnt++
+					if delmax.cnt <= delf.cnt {
+						del = -1
+						dim delf, dellen
+						logmes "out comment"
+					}else :if dels.cnt == delf.cnt {
+						del = cnt
+						repeat dels.cnt
+							prm(i-cnt) = ""
+						loop
+						logmes "into comment"
+						break
+					}
+				}
+				if del != -1 :break
+			loop
+			if del != -1 :prm.i = "" :_continue
+			
+			// 3.
+			j = cnt
+			repeat spelen
+				if spe != "" {
+					if spe != strmid(speword.cnt, 0, 1) :continue
+					
+					if (esc == 0 && peek(prm.i, 0) == peek(speword.cnt, 1)) {
+						// トークン追加を終了
+						prm.i = strtoken+strmid(speword.cnt, 1, 1)
+						spe = ""
+					}else {
+						// トークンに追加
+						strtoken += prm.i
+						prm.i = ""
+					}
+					j = -1
+					break
+				}else :if peek(prm.i, 0) == peek(speword.cnt, 0) {
+					// トークン追加を開始
+					strtoken = strmid(speword.cnt, 0, 1)
+					spe = strmid(speword.cnt, 0, 1)
+					prm.i = ""
+					j = -1
+					break
+				}
+			loop
+			if j == -1 :_continue
+		next
+		if esc			:return -1
+		if spe != ""	:return -2
+		if del != -1	:return -3
+		
+		// 空白トークンを削除
+		dim tprm
+		i = 0
+		repeat len
+			logmes "_prm ("+cnt+") => ["+prm.cnt+"]"
+			if prm.cnt != "" :tprm.i = prm.cnt :i++
+		loop
+		len = i
+		dim prm
+		repeat len
+			prm.cnt = tprm.cnt
+			logmes "prm ("+cnt+") => ["+prm.cnt+"]"
+		loop
+	return len
+	#global
+	
+	
+	#module
+	// トークンの種類を判別
+	#deffunc Lexer_ex2 array prm, array prmtype
+		// 1.識別子 判定
+		ID1 = "az", "AZ", "_"
+		ID2 = "az", "AZ", "_", "09"
+		ID1_len = 3
+		ID2_len = 4
+		
+		// 2.空白文字 判定
+		WS = " ", "\t", ""+spestr(0xA), ""+spestr(0xD)
+		WS_len = 4
+		
+		// 3.数字
+		NUM = "09"
+		NUM_len = 1
+		
+		// 4.文字列リテラル
+		STR1 = "\"", "'"
+		STR2 = ""+spestr(1)+spestr(255)
+		STR3 = "\"", "'"
+		STR1_len = 2
+		STR2_len = 1
+		STR3_len = 2
+		
+		// 5.それ以外はその他
+		
+		// 判定
+		dim prmtype, length(prm)
+		
+		repeat length(prm)
+			len = strlen(prm.cnt)
+			i = cnt
+			// トークンの識別条件を判定
+			// 1.
+			j = 0
+			repeat len
+				token = peek(prm.i, cnt)
+				if cnt {j += IsType(ID2, ID2_len, token)
+				}else :	j += IsType(ID1, ID1_len, token)
+			loop
+			if j == 0 :prmtype.cnt = T_ID :continue
+			
+			// 2.
+			j = 0
+			repeat len
+				j += IsType(WS, WS_len, peek(prm.i, cnt))
+			loop
+			if j == 0 :prmtype.cnt = T_WS :continue
+			
+			// 3.
+			j = 0
+			repeat len
+				j += IsType(NUM, NUM_len, peek(prm.i, cnt))
+			loop
+			if j == 0 :prmtype.cnt = T_NUM :continue
+			
+			// 4.
+			j = 0
+			repeat len
+				if cnt {
+					if cnt == len-1 {	j += IsType(STR2, STR2_len, token)
+					}else :				j += IsType(STR3, STR3_len, token)
+				}else :	j += IsType(STR1, STR1_len, token)
+			loop
+			if j == 0 :prmtype.cnt = T_STR :continue
+			
+			prmtype.cnt = T_ETC
+		loop
+	return length(prm)
+	#global
+	
+	#module
+	// 文字列の構成を判定
+	#defcfunc IsType array typeary_, int len_, int token_
+		j = 1
+		repeat len_
+			n = peek(typeary_.cnt, 1)
+			if n {	// 2Byte判定
+				nif = ((peek(typeary_.cnt, 0) <= token_) && (token_ <= n))
+			}else {	// 1Byte判定
+				nif = (token_ == peek(typeary_.cnt, 0))
+			}
+			if nif :j = 0 :break
+		loop
+	return j
+	#global
+	
+	
+	#include "vector.as"
+	#module
+	// Perser prm, prmtype
+	#deffunc Perser array prm, array prmtype, array operator
+		/*
+		// 変換前
+		var hoge = 0 , foo , bar = "ABC" '+' "DEF" + + 4 , piyo ;
+		// 変換後
+		0 "ABC" '+' "DEF" 4 piyo , + + = bar , foo , = hoge var
+		
+		1.番号のみに変換
+		var hoge = 0 , foo ,  bar =  "ABC" '+' "DEF" +  +  4  ,  piyo ;
+		0   2    4 6 9 11  12 14  19 21    23  25    26 27 29 30 32
+		
+		2-1.数字と文字列リテラルだけ脇以外
+		// ・変数,関数,定数,その他 などは全て演算子として扱う
+		// ・T_WSは無視
+		// ・式区切りは セミコロン[;]
+		*/
+		
+		len = length(prm)
+		
+		// 復号演算子変更チェック
+		// 後置,前置,複合 演算子に対応するためあらかじめキーワードの順序を列挙
+		/*
+		sdim dbope
+		dim max
+		ope_len = length(operator)
+		i = 0
+		repeat ope_len
+			m = strlen(operator.cnt)
+			if 1 < m {
+				dbope.i = operator.cnt
+				max.i = m
+				i++
+			}
+		loop
+		
+		dbope_len = length(dbope)
+		dim flag, dbope_len
+		repeat len
+//			if prmtype.cnt == T_WS :continue
+			token = peek(prm.cnt, 0)
+			n = -1
+			// 演算子判定
+			repeat dbope_len
+				if token == peek(dbope.cnt, flag.cnt) {
+					flag.cnt++
+					if max.cnt <= flag.cnt :n = cnt :break
+				}else :flag.cnt = 0
+			loop
+			
+			if 0 <= n {
+				logmes "change ["+prm.cnt+"] ["+operator.n+"]"
+				j = cnt
+				repeat max.n-1
+					prm(j-cnt) = ""
+					prmtype(j-cnt) = T_WS
+				loop
+				prm(cnt-max.n+1) = dbope.n
+			}
+		loop
+		*/
+		
+		// 1.
+		// 式を数える
+		max = 0
+		dim submax
+		alsubmax = 0
+		repeat len
+			if prmtype.cnt != T_WS {
+				submax.max++
+				if prm.cnt == ";" || prm.cnt == "," || prm.cnt == "{" || prm.cnt == "}" {
+					if alsubmax < submax.max :alsubmax = submax.max
+					max++
+				}
+			}
+		loop
+//		max = 1
+		
+		// 2.
+		// 式に分割
+		i = 0 :j = 0
+		dim tree, max, alsubmax
+		repeat len
+			if prmtype.cnt != T_WS {
+				tree(j, i) = cnt
+				logmes "["+j+","+i+"] => ["+cnt+"]("+prm.cnt+")"
+				i++
+				if submax.j <= i :j++ :i = 0 :logmes ""
+			}
+		loop
+		logmes ""
+		
+		// 3.
+		// 逆ポーに変換
+		// 演算子の優先順位 -1:識別子 0-:operator[num]
+		
+		// 優先演算子 括弧
+		OPEEX = "{}","[]","()"
+		OPEEX_len = 3
+		dim opeex_stack, OPEEX_len :osmax = 0
+		
+		vUsing stack
+		error = 0
+		
+		repeat max
+			j = cnt
+			i = 0
+			dim tprm :tmax = 0
+			repeat
+				token = tree(j, i)
+				i++
+				logmes "Check("+i+"]["+token+")["+prm.token+"]["+(prm.token == "(")+"]"
+				
+				if submax.j <= i {
+					// スタックが空になるまでプル
+					while vSize()
+						tprm.tmax = vBack()
+						tmax++
+						vPop
+					wend
+					break
+				}
+				
+				// T_NUM | T_STR チェック
+				if prmtype.token == T_NUM || prmtype.token == T_STR || prmtype.token == T_ID {
+					tprm.tmax = token
+					tmax++
+					continue
+				}
+				
+				// 優先演算子 チェック
+				// 終わり チェック
+				n = -1
+				repeat OPEEX_len
+					if prm.token == strmid(OPEEX.cnt, 1, 1) :n = cnt :break
+				loop
+				if n != -1 {
+					logmes "Backets End"
+					repeat vSize()
+						logmes "("+cnt+")["+prm.vAt(cnt)+"]"
+					loop
+					vPush token
+					
+					while vSize()
+						back = vBack()
+						vPop
+						tprm.tmax = back
+						tmax++
+						if prm.back == strmid(OPEEX.n, 0, 1) :_break
+					wend
+					if prm.back != strmid(OPEEX.n, 0, 1) {
+						error = -1
+						void "Prm:"+i+""
+						break
+					}
+					osmax--
+					continue
+				}
+				
+				// 始まりチェック
+				n = -1
+				repeat OPEEX_len
+					if prm.token == strmid(OPEEX.cnt, 0, 1) :n = cnt :break
+				loop
+				if n != -1 {
+					logmes "Backets Begin"
+					vPush token
+					opeex_stack.osmax = n
+					osmax++
+					continue
+				}
+				
+				
+				*EmptyStack
+				await
+				if vSize() {
+					// stackのbackよりtokenの演算子の優先順位が低いか
+					// 演算子の優先順位探索
+					n = INT_MAX
+					back = vBack()
+					
+					l = -1
+					repeat OPEEX_len
+						if prm.back == strmid(OPEEX.cnt, 0, 1) :l = cnt :break
+					loop
+					if l == -1 {
+						repeat ope_len	// backの演算子の順位
+							if prm.back == operator.cnt :n = cnt :break
+						loop
+						m = INT_MAX
+						repeat ope_len	// tokenの演算子の順位
+							if prm.token == operator.cnt :m = cnt :break
+						loop
+					}
+					if m < n && l == -1 {
+						// back > token
+						tprm.tmax = back
+						tmax++
+						vPop
+						goto *EmptyStack
+					}else :vPush token
+				}else :vPush token
+			loop
+//			if error < 0 :break
+			
+			// 移し変え
+			repeat tmax
+				tree(j, cnt) = tprm.cnt
+			loop
+			tree(j, tmax) = tree(j, submax.j-1)
+			submax.j = tmax+1
+		loop
+		if error < 0 :return error
+		
+		// prmを入れ替え
+		dim tprm
+		dim tprmtype
+		i = 0
+		repeat max
+			j = cnt
+			repeat submax.j
+				n = tree(j, cnt)
+				tprm.i = prm.n
+				tprmtype.i = prmtype.n
+				i++
+			loop
+		loop
+		dim prm
+		dim prmtype
+		repeat i
+			prm.cnt = tprm.cnt
+			prmtype.cnt = tprmtype.cnt
+		loop
+	return i
+	#global
+	
+	

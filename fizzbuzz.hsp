@@ -1,0 +1,1 @@
+for i,1,100:m="":if i\3=0{m="Fizz"}if i\5=0{m+="Buzz"}if m=""{m=i}mes m:next

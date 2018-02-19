@@ -1,0 +1,741 @@
+	
+	#packopt hide 0
+	#packopt name "Numer0n"
+	
+	#uselib "user32.dll"
+	#cfunc	GetDC					"GetDC"					int
+	#func	ReleaseDC				"ReleaseDC"				int, int
+	#cfunc	GetWindowDC				"GetWindowDC"			int
+	#uselib "gdi32.dll"
+	#func	BitBlt					"BitBlt"				int, int, int, int, int, int, int, int, int
+	#func	DeleteDC				"DeleteDC"				int
+	#func	DeleteObject			"DeleteObject"			int
+	#func	SelectObject			"SelectObject"			int, int
+	#cfunc	CreateCompatibleDC		"CreateCompatibleDC"	int
+	#cfunc	CreateCompatibleBitmap	"CreateCompatibleBitmap"int, int, int
+	
+	#include "hspsock.as"
+	#define	MY_PORT			28946
+	
+	#define XSIZE			100
+	#define YSIZE			150
+	#define N_MMAX			10
+	
+	#define BS_MULTILINE	0x2000
+	#define	MM_MCINOTIFY	0x03B9
+	#define bmulti			%tbutton_multiline %i = objinfo(stat, 2) :slong %p, GWL_STYLE, glong(%o, GWL_STYLE) | BS_MULTILINE
+	
+	#enum SC_NEXT = 1
+	
+	gosub *startinit
+	
+*main
+	gosub *connect
+	gosub *init
+	gosub *draw
+	if online {
+		gosub *conline
+	}else {
+		repeat :if scbreakf == 2 { break } :wait 10 :loop
+	}
+	goto *main
+	
+*error
+	oncmd 0 :onkey 0 :onclick 0
+	dialog "error\nnumber :"+wparam+"\nline :"+lparam, 0, "Numer0n"
+	goto *exit
+	
+*sockerror
+	dialog "通信が出来ませんでした", 1, "Numer0n", NULL
+	
+*exit
+	if breakf == 1 :sockclose
+	mci_c "push"
+	mci_c "shime"
+	mci_c "okey"
+	mci_c "lose"
+	mci_c "win"
+	end :end
+	
+*startinit
+	gsel 0, -1// do
+	sdim buf
+	N_MAX = 2 :number = 1
+	E_MAX = N_MAX
+	online = 0
+	
+	objsize 300, 160
+	dialog "", 64, "環境"
+	objmode 2 :font msgothic, 16 :objsize 150, 25
+	pos 50, 70 :mes "番号："
+	pos 100, 66 :combox number, 0, "２個\n３個\n４個\n５個\n６個\n７個\n８個"
+	objsize 200, 25
+	pos 50, 20 :combox online, 0, "オフライン - 一人用\nオンライン - 対戦"
+	pos 50, 120 :button gosub "決定", *apply
+	dlgfor :wait 1 :loop
+	goto *startinit2
+	
+	*apply
+		deldialog
+		N_MAX += number
+		E_MAX = N_MAX
+	return
+*startinit2
+	if dir != "" :return
+	
+	//dir = ""+dir_exe+"\\"
+	dir = "D:\\Program Files\\HSP 3.31\\"//do
+	mci_o ""+dir+"push.wav", "s_push"
+	if stat == -1 :dialog "file of sound was not read", 0, "", NULL :goto *exit
+	mci_o ""+dir+"chime.wav", "s_chime"
+	if stat == -1 :dialog "file of sound was not read" :goto *exit
+	mci_o ""+dir+"okey.wav", "s_okey"
+	if stat == -1 :dialog "file of sound was not read" :goto *exit
+	mci_o ""+dir+"win.wav", "s_win"
+	if stat == -1 :dialog "file of sound was not read" :goto *exit
+	mci_o ""+dir+"lose.wav", "s_lose"
+	if stat == -1 :dialog "file of sound was not read" :goto *exit
+	
+	mci_f 1, 1000
+	
+	onexit *exit
+	onerror *error
+	
+	return
+	
+*connect
+	if online {
+		if ip != "" :goto *break___
+		ipget :ipadd = refstr
+		ip = ""
+		iptoname ipadd, buf
+		objsize 300, 200
+		dialog "", 64, "対戦相手のパスワードを入力してください"
+		objmode 2 :font msgothic, 16 :objsize 200, 25
+		pos 30,  10 :mes "入力ボックスには\n自分のパスワードが入っています"
+		pos 15,  60 :mes "相手のパスワードを入力してください"
+		pos 30,  80 :mesbox buf, 240, 40
+		pos 50, 130 :combox com, 0, "クライアント\nホスト"
+		pos 50, 160:button gosub "決定", *okey
+		dlgfor :wait 1 :loop
+		goto *break__
+		
+		*okey
+			ip = nametoip(buf)
+			deldialog
+		return
+		
+		*break__
+		if ip == "" :online = 0 :goto *break___
+		if com {// host
+			sockmake 0, MY_PORT
+			if stat :dialog "Socket error", 1, "Numer0n", NULL :end
+			breakf = 0
+		}else :breakf = -1
+		gsel 0, -1
+		objsize 400, 50
+		dialog "", 64, "Numer0n" :pos 50, 15
+		if com {mes "クライアントからの通信を待っています..."
+		} else :mes "サーバーに接続しています..."
+		dlgfor
+			if com {
+				sockwait 0
+				if stat > 1 :breakf = -1 :break
+				if stat == 0 :breakf = 1
+				if breakf :deldialog
+			}else {
+				sockopen 0, ip, MY_PORT
+				if stat == 0 :breakf = 0
+				if stat != 4 :breakf = stat
+				if breakf != -1 :deldialog
+			}
+			wait 1
+		loop
+		if com {
+			if breakf == -1 {
+			}elif breakf == 0 :online = 0
+		}else {
+			if breakf != 0 :if breakf == -1 {online = 0 :breakf = 0 }else {
+				switch breakf
+				case 1 :dialog "TCP/IPがWindowsにインストールされていません。" :swbreak
+				case 2 :dialog "Socketの初期化に失敗しました。" :swbreak
+				case 3 :dialog "名前が正しくありません。" :swbreak
+				swend
+				goto *exit
+			}
+		}
+	
+		*break___
+		if breakf == -1 :goto *sockerror
+	}
+	return
+
+*init
+	randomize
+	dim num, E_MAX :nc = 0
+	repeat E_MAX :num.cnt = -1 :loop
+	dim bID, 12
+	dim dst, 0
+	sdim atk, 20, 1 :sdim atk_e, 20, 1
+	atkc = 0 :atkc_e = 0
+	fsize =  XSIZE/13*2
+	fsh = fsize/2
+	scry = 0
+	scbreakf = 0
+	
+	if E_MAX <= 10 :setrnd 10 :else :setrnd 100
+	sdim tnum
+	sdim enetum
+	sdim mytnum
+	if online == 0 :repeat E_MAX :tnum += str(grnd()) :loop
+	
+	if (wx == 0) && (wy == 0) {
+		gosub *windowinit
+		void 11 :gosub *Jump
+	}
+	return
+	
+*windowinit
+	wx = E_MAX*XSIZE +fsh*15 +fsh*(N_MAX*2-1)
+	if online :ef = fsh*15 +fsh*(E_MAX*2-1)+2 :wx += ef
+	wy = YSIZE*2
+	if (wpx == 0) && (wpy == 0) {
+		wpx = (ginfo(20)-wx)/2
+		wpy = (ginfo(21)-wy)/2
+	}else {
+		wpx = ginfo(4)
+		wpy = ginfo(5)
+	}
+	screen 0, wx, wy, 0, wpx, wpy
+	title "Numer0n"
+	onkey gosub *key
+	oncmd gosub *WindowProc, MM_MCINOTIFY
+	oncmd gosub *WindowProc, WM_RBUTTONDOWN
+	font msgothic, fsize
+	setmainwindow 0
+	
+	objmode 2
+	xx = XSIZE*E_MAX/3+1
+	yy = YSIZE/4+1
+	objsize xx, yy
+	repeat 9
+		pos cnt\3*xx, (cnt/3)*(yy)+YSIZE+1
+		button gosub str(cnt+1), *Jump
+	loop
+	objsize xx, yy-1
+	yy = yy*3+YSIZE
+	pos   xx, yy :button gosub "0", *Jump :bmulti
+	pos    0, yy :button gosub "CALL / 攻撃", *Jump :hApply = objinfo(stat, 2) :bmulti
+	pos xx*2, yy :button gosub "RESET / 削除", *Jump :bmulti
+	return
+	
+*draw
+	if (fsize != XSIZE/13*2) {
+		fchange = fsize
+		fsize = XSIZE/13*2
+		fsh = fsize/2
+		font msgothic, fsize
+	}
+	redraw 0
+	color :boxf :colorwhite
+	if online {
+		line XSIZE*E_MAX, ginfo(13), XSIZE*E_MAX, 0
+		line XSIZE*E_MAX, fsize+2, ginfo(12), fsize+2
+		repeat E_MAX
+			boxf cnt*XSIZE, 0, cnt*XSIZE+XSIZE, YSIZE, 0
+			if num >= 0 {
+				pos 5+cnt*XSIZE, 5 :mesnum num.cnt, XSIZE-10, (YSIZE-10)/2, 10
+			}
+		loop
+		xx = XSIZE*E_MAX
+		pos xx, 0 :mes " Number"+lpstr(' ', E_MAX*2-2)+"EAT BYTE"
+		repeat atkc
+			pos xx, cnt*fsize+20 :mes atk.cnt
+		loop
+	
+		xx += ef :line XSIZE*E_MAX+ef, ginfo(13), XSIZE*E_MAX+ef, 0
+		
+		pos xx, 0 :mes " Enemy "+lpstr(' ', N_MAX*2-2)+"EAT BYTE"
+		repeat atkc_e
+			pos xx, cnt*fsize+20 :mes atk_e.cnt
+		loop
+	}else {
+		// N_MAX -> E_MAX
+		line XSIZE*E_MAX, ginfo(13), XSIZE*E_MAX, 0
+		line XSIZE*E_MAX, fsize+2, ginfo(12), fsize+2
+		repeat E_MAX
+			boxf cnt*XSIZE, 0, cnt*XSIZE+XSIZE, YSIZE, 0
+			if num >= 0 {
+				pos 5+cnt*XSIZE, 5 :mesnum num.cnt, XSIZE-10, (YSIZE-10)/2, 10
+			}
+		loop
+		xx = XSIZE*E_MAX
+		pos xx, 0 :mes " Number"+lpstr(' ', E_MAX*2-2)+"EAT BYTE"
+		repeat atkc
+			pos xx, cnt*fsize+20 :mes atk.cnt
+		loop
+	}
+	redraw 1
+	if fchange {
+		fchange = 0
+		fsize = fchange
+		fsh = fsize/2
+		font msgothic, fsize
+	}
+	return
+	
+*conline
+	if com {title "Numer0n - host"
+	} else :title "Numer0n - client"
+	mci_p "s_okey"
+	Menu "おｋ", "自分の番号を入力してください"
+	gosub *draw
+	repeat :if scbreakf { break } :wait 1 :loop
+	mytnum = tnum
+	mci_p "s_okey"
+	Menu "concheck", "相手の番号の入力を待っています..."
+	repeat N_MMAX+1 :poke tnum, cnt, ' ' :loop
+	sockgetb tnum, 0, N_MMAX+1, 0 :i = 0
+	repeat N_MMAX :if ('0' <= peek(tnum, cnt)) && (peek(tnum, cnt) <= '9') { i++ } :loop
+	if i != N_MAX {
+		mci_p "s_okey"
+		Menu "\n続行\n番号の数を変更する\n対戦を中止", "相手と番号の数が違います\n自分 : "+N_MAX+"\n相手 : "+i
+		if stat == 2 {
+			mytnumold = mytnum :enetnumold = tnum
+			E_MAX = i :N_MAXOLD = N_MAX
+			gosub *init
+			gosub *windowinit
+			N_MAX = N_MAXOLD
+			mytnum = mytnumold :enetnum = enetnumold
+			tnum = enetnum
+		}elif stat == 3 {
+			wait 10
+			if (N_MAX == 6) || (E_MAX == 6) :buf = "\nＭＡＸ～"
+			Menu "終わる\n２個\n３個\n４個\n５個\n６個\nＭＡＸ～", "オプション"
+			if stat == 1 :goto *exit
+			if stat == 7 {Menu "終わる\n７個\n８個\n９個\n１０個\nＭＭＡＸ", "オプション"
+				if stat == 1 :goto *exit :else :N_MAXOLD = stat+5 :E_MAX = N_MAXOLD
+			}else :N_MAXOLD = stat :E_MAX = N_MAXOLD
+			gosub *init
+			gosub *windowinit
+			N_MAX = N_MAXOLD
+			scbreakf = 2
+			return
+		}elif stat == 4 {
+			gosub *startinit
+			gosub *init
+			scbreakf = 2
+			return
+		}
+	}else :enetnum = tnum
+	if com {title "Numer0n - host  My Number "+mytnum
+	} else :title "Numer0n - client  My Number "+mytnum
+	wait 1
+	
+	if com {// host
+		sdim j, 64
+		i = rnd(2)
+		if i == 0 :wait 1 :poke j, 0, SC_NEXT :sockputb j, 0, N_MAX+1, 0
+		repeat
+			if scbreakf == 2 :break
+			if i {// 攻撃
+				tnum = enetnum
+				mci_p "s_chime"
+				menu "おｋ", "あなたの攻撃です"
+				scbreakf = 0
+				repeat :if scbreakf { break } :wait 1 :loop
+				i = 0
+			}else {// 待機
+				tnum = mytnum
+				mci_p "s_okey"
+				menu "concheck", "相手の攻撃を待っています..."
+				sdim j, 64
+				sockgetb j, 0, N_MAX+1, 0
+				if peek(j, 0) != SC_NEXT {
+					getscnum j, num, N_MAX// 相手コール番号取得
+					attack atk_e, atkc_e, N_MAX
+					gosub *draw
+					void 11 :gosub *Jump
+				}
+				i = 1
+			}
+		loop
+	}else {// client
+		repeat
+			if scbreakf == 2 :break
+			// 待機
+			tnum = mytnum
+			mci_p "s_okey"
+			menu "concheck", "相手の攻撃を待っています..."
+			sdim j, 64
+			sockgetb j, 0, N_MAX+1, 0
+		
+			if peek(j, 0) != SC_NEXT {
+				getscnum j, num, N_MAX// 相手コール番号取得
+				attack atk_e, atkc_e, N_MAX
+				gosub *draw
+				void 11 :gosub *Jump
+			}
+			if scbreakf == 2 :break
+			// 攻撃
+			tnum = enetnum
+			mci_p "s_chime"
+			menu "おｋ", "あなたの攻撃です"
+			scbreakf = 0
+			repeat :if scbreakf { break } :wait 1 :loop
+		loop
+	}
+	return
+	
+*Jump
+	jump_flag = 1
+	if stat < 10 {
+		if nc < E_MAX {
+			nnum = (stat+1)\10
+			mci_p "s_push"
+			repeat E_MAX :if (num.cnt == nnum){ nnum = -1 :break } :loop
+			if nnum >= 0 :num.nc = nnum :nc++
+		}
+	}else {
+		nnum = stat
+		if (nnum == 10) && (nc == E_MAX) :attack atk, atkc, E_MAX
+		if scbreakf == 2 :return
+		nc = 0
+		repeat E_MAX :num.cnt = -1 :loop
+	}
+	gosub *draw
+	jump_flag = 0
+	return
+	
+*key
+	if jump_flag :return
+	if wparam == 13 {void 10 :gosub *Jump
+	}elif ((wparam == 46) || (wparam == 8)) {
+		void 11 :gosub *Jump
+	}elif (('0' <= wparam) && (wparam <= '9')) {
+		void wparam-'0'-1 :gosub *Jump
+	}else {
+		Menu "おｋ", "EAT  …… 場所と数字があっている\nBYTE …… 数字だけがあっている"
+	}
+	return
+
+*WindowProc
+	if iparam == MM_MCINOTIFY {
+		menuwc = 1
+	}elif iparam == WM_RBUTTONDOWN {
+		Menu "続ける\n新しい番号でする\n終わる", "オプション"
+		if stat == 3 {goto *exit
+		}elif stat == 2 :scbreakf = 2
+	}
+	return
+	
+#deffunc attack array atk_, var atkc_, int num_max
+	if online {
+		i = 0
+		repeat num_max :if num.cnt < 0 {i = 1 :break} :loop
+		if i :goto *sockerror
+		if tnum == "" {
+			sdim tnum
+			repeat num_max :tnum += ""+num.cnt :loop
+			sockputb tnum, 0, num_max+1, 0
+			scbreakf = 1
+			return 0
+		}
+	}
+	dim cont, num_max
+	eat = 0 :byte = 0
+	repeat num_max// eat check
+		if (peek(tnum, cnt)-'0') == num.cnt :eat++ :cont.cnt = 1
+	loop
+	repeat num_max// byte check
+		i = instr(tnum, 0, str(num.cnt))
+		if i != -1 {
+			if cont.i :i = -1
+			if i >= 0 :byte++
+		}
+	loop
+	
+	if eat == num_max {
+		if online {
+			if varptr(atkc_) == varptr(atkc_e) {
+				mci_p "s_lose"
+			}else {
+				mci_p "s_win"
+			}
+			buf = ""
+			repeat num_max
+				buf += strf("%d", num.cnt)
+			loop
+			sockputb buf, 0, num_max+1, 0
+		}else :mci_p "s_win"
+		atk_.atkc_ = "  "
+		repeat num_max
+			atk_.atkc_ += strf("%2d", num.cnt)
+			buf += strf("%2d", num.cnt)
+		loop
+		atk_.atkc_ += strf("    %d - %d", eat, byte)
+		atkc_++
+		gosub *draw
+		fsize *= 2 :fsh = fsize/2 :font msgothic, fsize
+		Menu "count 50", "\n\nNumer0n !!"
+		fsize = XSIZE/13*2 :fsh = fsize/2
+		font msgothic, fsize
+		mci_p "s_okey"
+		Menu "新しい番号で続ける\n環境を変える\n終わる", "オプション"
+		if stat == 1 {
+			wait 10 :buf = ""
+			if (N_MAX == 6) || (E_MAX == 6) :buf = "\nＭＡＸ～"
+			Menu "終わる\n２個\n３個\n４個\n５個\n６個"+buf, "オプション"
+			if stat == 1 :goto *exit
+			if stat == 7 {Menu "終わる\n７個\n８個\n９個\n１０個\nＭＭＡＸ", "オプション"
+				if stat == 1 :goto *exit :else :E_MAX = stat+5 :N_MAX = E_MAX
+			}else :E_MAX = stat :N_MAX = E_MAX
+			wx = 0 :wy = 0
+			if online :ip = "" :sockclose 0 :gsel 0, -1
+		}elif stat == 2 {
+			if online :sockclose 0
+			gosub *startinit
+		}elif stat == 3 :goto *exit
+		scbreakf = 2
+	}else {
+		mci_p "s_okey"
+		if online {
+			if varptr(atkc_) == varptr(atkc_e) {
+				buf = "Enemy call Number\n"
+			}else {
+				buf = ""
+				repeat num_max
+					buf += strf("%d", num.cnt)
+				loop
+				sockputb buf, 0, num_max+1, 0
+				buf = "My call Number\n"
+			}
+		}else :buf = "My call Number\n"
+		atk_.atkc_ = "  "
+		repeat num_max
+			atk_.atkc_ += strf("%2d", num.cnt)
+			buf += strf("%2d", num.cnt)
+		loop
+		atk_.atkc_ += strf("    %d - %d", eat, byte)
+		buf += strf(" \n\n%d  EAT\n%d BYTE", eat, byte)
+		Menu "\n\nおｋ", buf
+		atkc_++
+		scbreakf = 1
+	}
+	return 0
+	
+#deffunc delmemdc onexit
+	if hMDC == NULL :return
+	DeleteObject hMBmp
+	DeleteDC hMDC
+	return
+	
+#deffunc makememDC
+	if hMDC != NULL :delmemdc
+	hMDC = CreateCompatibleDC(hMainDC)
+	hMBmp = CreateCompatibleBitmap(hMainDC, ginfo(12), ginfo(13))
+	SelectObject hMDC, hMBmp
+	return
+	
+#deffunc menu str string, str tit
+	gosub *draw
+	hMainDC = GetDC(hwnd@hsp)
+	makememDC
+	BitBlt hMDC, 0, 0, ginfo(12), ginfo(13), hMainDC, 0, 0, SRCCOPY
+	ReleaseDC hwnd@hsp, hMainDC
+	
+	objalshde 12, 0
+	buf = string
+	if strmid(buf, 0, 5) == "count" {
+		menuwc = int(strmid(buf, 6, strlen(buf)-6))*10
+	}else :menuwc = -10
+	
+	sel = 0 :mx_old = -1 :my_old = -1
+	wait 1
+	repeat
+		if menuwc < 0 { if menuwc != -10 {break} }else :menuwc--
+		if ginfo_act == 0 :if getkey(1) :if sel :break
+		if cnt\10 :wait 1 :continue
+		redraw 0
+		color :boxf 
+		BitBlt hdc@hsp, 0, 0, ginfo(12), ginfo(13), hMDC, 0, 0, SRCCOPY
+		color :aboxf 0, 0, ginfo(12), ginfo(13), 60 :colorwhite
+	
+		sel = 0 :str_ = tit
+		notesel@hsp str_
+		repeat notemax
+			cx = (ginfo(12)-strlen(noteget(cnt))*fsh)/2
+			cy = (ginfo(13)-fsize)/4
+			pos cx, cnt*fsize+cy-fsize
+			mes noteget(cnt)
+		loop
+		
+		if buf != "" {
+			if buf == "concheck" {
+				sockcheck 0
+				if stat == 0 :break
+				if stat == 2 :goto *sockerror
+			}elif strmid(buf, 0, 6) != "count " {
+				notesel@hsp buf
+				repeat notemax
+					if noteget(cnt) == "" :continue
+					cx = (ginfo(12)-strlen(noteget(cnt))*fsh)/2
+					cy = (ginfo(13)-fsize*notemax)/2+fsize*cnt*2
+					if ((cy-fsize <= mousey) && (mousey <= cy)) {
+						line cx-5, cy-2, cx+strlen(noteget(cnt))*fsh, cy-2
+						pos cx-1, cy-fsize-3 :sel = cnt+1
+					}else :pos cx, cy-fsize
+					mes noteget(cnt)
+				loop
+			}
+		}
+		
+		redraw 1
+		wait 1
+	loop
+	
+	objalshde 12, 1
+	gosub *draw
+	wait 1
+	return sel
+	
+	#deffunc concheck
+		repeat
+			sockcheck 0
+			if stat == 0 :break
+			if stat == 2 :goto *sockerror
+			wait 1
+		loop
+	return
+	#deffunc objalenable int enable
+		repeat 12 :objenable cnt, enable :loop
+	return
+	
+	#module
+	#uselib "user32.dll"
+	#func	ShowWindow	"ShowWindow"	int, int
+	#define SW_HIDE	0
+	#define SW_SHOW 5
+	#deffunc objalshde int objmax, int show
+		repeat objmax
+			if show {ShowWindow objinfo(cnt, 2), SW_SHOW
+			} else  :ShowWindow objinfo(cnt, 2), SW_HIDE
+		loop
+	return
+	#deffunc getscnum str nstr, array num, int num_max
+		nvar = nstr
+		repeat num_max
+			num.cnt = peek(nvar, cnt)-'0'
+		loop
+	return
+	#global
+	
+	#module __MCI__ 
+	#deffunc mci_f int flag, int volume
+		mci_flag = flag :vlm = volume
+	return
+	#deffunc mci_o str file, str alias
+		mci_flag = 1 :vlm = 1000
+		mci "open \""+file+"\" alias "+alias
+	return stat
+	#deffunc mci_p str alias
+		if mci_flag {
+			mci "setaudio "+alias+" volume to "+vlm
+			mci "play "+alias+" from 0"
+		}
+	return stat
+	#deffunc mci_c str alias
+		mci_flag = 0
+		mci "close "+alias
+	return stat
+	#global
+	
+	#module
+	#deffunc iptoname str ip__, var buf
+		ip_ = ip__
+		split ip_, ".", ip
+		int_ = 0
+		repeat 4 :poke int_, cnt, int(ip.cnt) :loop
+		// 0 -> 2 : 1 -> 0 : 2 -> 3 : 3 -> 1
+		buf = cnvbase(int_)
+	return
+	#defcfunc nametoip str ip__
+		ip_ = int(cnvbase_(ip__))
+	return ""+peek(ip_, 0)+"."+peek(ip_, 1)+"."+peek(ip_, 2)+"."+peek(ip_, 3)
+	#global
+	
+	#module __2BYTEBASE__
+	#defcfunc cnvbase int prm
+		sdim buf, 128 :ans = prm :str_ = ""
+		str_ = "あいうえおかがきぎくぐけげこごさざしじすずせぜそぞただちぢつづてでとどなにぬねのぱはばひびふぶへべほぼまみむめもやゆよらりるれろわ"
+		repeat
+			if ans == 0 :break
+			rem = (ans \ 65)
+			ans = ans / 65
+			buf = strmid(str_, rem*2, 2) + buf
+		loop
+	return buf
+	#defcfunc cnvbase_ str string
+		ans = 0.0 :i = strlen(string)/2-1
+		var_ = string
+		str_ = "あいうえおかがきぎくぐけげこごさざしじすずせぜそぞただちぢつづてでとどなにぬねのぱはばひびふぶへべほぼまみむめもやゆよらりるれろわ"
+		repeat i+1
+			rem = strmid@hsp(var_, cnt*2, 2)
+			ans += (instr(str_, 0, rem)/2)*powf(65, i)
+			i--
+		loop
+	return ans
+	#global
+	
+	#module
+	#deffunc setrnd int maxnum
+		sdim nums
+		repeat maxnum :nums += ""+cnt+"\n" :loop
+		maxn = maxnum
+	return
+	#defcfunc grnd
+		notesel@hsp nums
+		if notemax == 0 :setrnd maxn :notesel@hsp nums
+		i = rnd(notemax)
+		num = int(noteget(i))
+		notedel@hsp i
+	return num
+	#defcfunc modrnd
+	return nums
+	#global
+	
+	#module
+	#defcfunc lpstr int byte, int lp
+		sdim str_, lp
+		repeat lp
+			poke str_, cnt, byte
+		loop
+	return str_
+	
+	#deffunc mesnum int num, int sx, int sy, int size
+		lin = 0
+		switch num
+		case 0 :lin = 127-8		:swbreak
+		case 1 :lin = 18		:swbreak
+		case 2 :lin = 127-34	:swbreak
+		case 3 :lin = 127-18	:swbreak
+		case 4 :lin = 127-81	:swbreak
+		case 5 :lin = 127-20	:swbreak
+		case 6 :lin = 127-4		:swbreak
+		case 7 :lin = 39		:swbreak
+		case 8 :lin = 127		:swbreak
+		case 9 :lin = 127-16	:swbreak
+		swend
+
+		cx = ginfo_cx :cy = ginfo_cy
+		bx = cx+sx :by = cy+sy :ey = by+sy
+		hs = size/2
+		if lin &  1 :boxf cx, cy, bx, cy+size	// 上
+		if lin &  2 :boxf cx, cy, cx+size, by	// 左上
+		if lin &  4 :boxf bx-size, cy, bx, by	// 右上
+		if lin &  8 :boxf cx, by-hs, bx, by+hs	// 間中
+		if lin & 16 :boxf cx, by, cx+size, ey	// 左下
+		if lin & 32 :boxf bx-size, by, bx, ey	// 右下
+		if lin & 64 :boxf cx, ey-size, bx, ey	// 下
+	return
+	#global

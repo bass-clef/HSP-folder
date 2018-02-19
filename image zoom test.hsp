@@ -1,0 +1,106 @@
+	
+	// 複数枚超解像
+	
+	// 一枚超解像
+	
+	// フーリエ化処理と逆転
+	
+	
+	
+	// アンシャープマスキング
+	#uselib "gdi32.dll"
+	#cfunc	GetPixel		"GetPixel"		int, int, int
+	#func	SetPixel		"SetPixel"		int, int, int, int
+	
+	z = 2			// 拡大度
+	q = 255 / 255	// 四捨五入
+	mar = 200		// 切捨て
+	
+	dialog "bmp;*.gif;*.jpg;*.ico;*.png;*.psd;*.tga", 16, "画像ファイル"
+	if stat == 0 :end :else :fName = refstr
+	
+	buffer 1
+	picload fName
+	himgdc = hdc@hsp
+	img = ginfo(12), ginfo(13)
+	img2 = img.0*z, img.1*z
+	clr = 0 :dim clred, img.0
+	
+	buffer 2, img2.0, img2.1
+	for i, 0, img.1, 1
+		repeat img.0
+			clr = GetPixel(himgdc, cnt, i)
+			xx = cnt*z :yy = i*z
+			if cnt > 0 {
+				clred = GetPixel(himgdc, cnt-1, i)
+				r = RR(clr) + RR(clred)
+				g = GG(clr) + GG(clred)
+				b = BB(clr) + BB(clred)
+				if not(r >= mar*2 && g >= mar*2 && b >= mar*2) {
+					SetPixel hdc@hsp, xx, yy, RGB(r/2/q*q, g/2/q*q, b/2/q*q)
+				}else {
+					SetPixel hdc@hsp, xx, yy, clr
+				}
+			}else {
+				SetPixel hdc@hsp, xx, yy, clr
+			}
+			if cnt > 0 {// x-1
+				clred = GetPixel(himgdc, cnt-1, i)
+				r = RR(clr) + RR(clred)
+				g = GG(clr) + GG(clred)
+				b = BB(clr) + BB(clred)
+				if not(r >= mar*2 && g >= mar*2 && b >= mar*2) {
+					SetPixel hdc@hsp, xx-1, yy, RGB(r/2/q*q, g/2/q*q, b/2/q*q)
+				}else {
+					SetPixel hdc@hsp, xx-1, yy, clr
+				}
+			}
+			if i > 0 {// y-1
+				clred = GetPixel(himgdc, cnt, i-1)
+				r = RR(clr) + RR(clred)
+				g = GG(clr) + GG(clred)
+				b = BB(clr) + BB(clred)
+				if not(r >= mar*2 && g >= mar*2 && b >= mar*2) {
+					SetPixel hdc@hsp, xx, yy-1, RGB(r/2/q*q, g/2/q*q, b/2/q*q)
+				}else {
+					SetPixel hdc@hsp, xx, yy-1, clr
+				}
+			}
+			if cnt > 0 && i > 0 {// x-1, y-1
+				clred = GetPixel(himgdc, cnt, i-1)
+				r = RR(clr) + RR(clred)
+				g = GG(clr) + GG(clred)
+				b = BB(clr) + BB(clred)
+				clred = GetPixel(himgdc, cnt-1, i)
+				r += RR(clred)
+				g += GG(clred)
+				b += BB(clred)
+				clred = GetPixel(himgdc, cnt-1, i-1)
+				r += RR(clred)
+				g += GG(clred)
+				b += BB(clred)
+				if not(r >= mar*4 && g >= mar*4 && b >= mar*4) {
+					SetPixel hdc@hsp, xx-1, yy-1, RGB(r/4/q*q, g/4/q*q, b/4/q*q)
+				}else {
+					SetPixel hdc@hsp, xx-1, yy-1, clr
+				}
+			}
+
+		loop
+		
+	next
+	img3 = ginfo(12), ginfo(13)
+	
+	gsel 0, 1
+	font msgothic, 14
+	pos  0,  0 :mes "["+img.0+"x"+img.1+"]:["+img2.0+"x"+img2.1+"]"
+	color :boxf 9, 14, img2.0+11, img2.1+16, 0
+	pos 10, 15 :gcopy 2, 0, 0, img2.0, img2.1
+	
+	
+	dialog "bmp", 17
+	if stat {
+		bgscr 1, img2.0, img2.1
+		pos 0, 0 :gcopy 2, 0, 0, img2.0, img2.1
+		bmpsave refstr
+	}

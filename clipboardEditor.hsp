@@ -1,0 +1,67 @@
+	
+	
+	/**
+	 * クリップボード整形ソフト
+	 *
+	 * @author Humi
+	 * @e-mail music_love_d0_0b@yahoo.co.jp
+	 */
+	
+	
+	/*
+	仕様
+	:機能:
+	・Redo, Undo
+	・区切り分け
+	・オートインデント
+	
+	:操作方法:
+	-Trigger : Ctrl+Ctrl
+	 ・Z : 元に戻す
+	 ・Y : やり直し
+	 ・R : 置換
+	 ・E : 文字指定で区切って連結
+	 ・O : オートインデント
+	*/
+	
+	
+	#uselib "user32.dll"
+	#func	SetClipboardViewer		"SetClipboardViewer"	int
+	#func	ChangeClipboardChain	"ChangeClipboardChain"	int, int
+	
+	#include "keys.as"
+	
+	
+	initKeys
+	registoryKey 17, 1, 10
+	
+	
+	
+	oncmd gosub *destroy, WM_DESTROY
+	oncmd gosub *changecbchain, WM_CHANGECBCHAIN
+	oncmd gosub *changedclipboard, WM_DRAWCLIPBOARD
+	
+	SetClipboardViewer hwnd :hViewerNextWnd = stat
+	
+	
+*main
+	
+	wait 1
+	goto *main
+	
+*destroy
+	ChangeClipboardChain hwnd, hViewerNextWnd
+	return
+	
+*changecbchain
+	if wparam == hViewerNextWnd {
+		hViewerNextWnd = lparam
+	}else :if hViewerNextWnd {
+		sendmsg hViewerNextWnd, iparam, wparam, lparam
+	}
+	return
+	
+*changedclipboard
+	sendmsg hViewerNextWnd, iparam, wparam, lparam
+	return
+	

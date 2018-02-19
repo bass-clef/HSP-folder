@@ -1,0 +1,42 @@
+	
+	#packopt name "black"
+	#packopt hide 1
+	
+	#define HWND_BROADCAST	-1
+	#define SC_MONITORPOWER	0xF170
+	#define MONITOR_OFF		2
+	#define MONITOR_ON		-1
+	
+	#uselib "user32.dll"
+	#func	SetTimer	"SetTimer"		int, int, int, int
+	#func	KillTimer	"KillTimer"		int, int
+	
+	bgscr 0, ginfo(20), ginfo(21), 0, 0, 0
+	title "black"
+	color :boxf
+	color 60, 60, 60 :mes "左クリックで移動/右クリックで削除"
+	
+	onclick gosub *click
+	oncmd gosub *timer, WM_TIMER
+	
+	SetTimer hwnd, 1000, 10000, 0
+	
+	stop
+	
+*timer
+	sendmsg HWND_BROADCAST, WM_SYSCOMMAND, SC_MONITORPOWER, MONITOR_OFF
+	KillTimer hwnd, 1000
+	return
+	
+*click
+	if 1 == wparam {
+		KillTimer hwnd, 1000
+		sendmsg hwnd, WM_NCLBUTTONDOWN, 2
+		SetTimer hwnd, 1000, 10000, 0
+	}
+	if 2 == wparam {
+		KillTimer hwnd, 1000
+		wait 10
+		end
+	}
+	return

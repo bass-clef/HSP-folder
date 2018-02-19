@@ -1,0 +1,50 @@
+	
+	#include "hgimg3.as"
+	
+	screen 0, 150, 150
+	hgini
+	
+	// tex
+	// texload "image.ext"
+	// texID = stat
+	// setuv 0, 0, ginfo(12), ginfo(13)
+	
+	// plate
+	dim white, 9
+	setcolor 255, 255, 255
+	addsplate whiteplate, 0, 3, 3
+	repeat 9
+		regobj white(cnt), whiteplate
+		setpos white(cnt), -3.3f+3.2f*(cnt\3), -3.3f+3.2f*(cnt/3), 30
+		setang white(cnt), M_PI/180.0*45.0
+	loop
+	
+	
+	// camera
+	cammode CAM_MODE_NORMAL
+//	setdir HGOBJ_CAMERA,,, 10.0
+	
+	// Light
+	getpos HGOBJ_CAMERA, x, y, z
+    setang HGOBJ_LIGHT, x, y, z
+    setscale HGOBJ_LIGHT, 255, 255, 255
+    
+	onexit *exit
+	
+*main
+	
+	clscolor $00AAFF
+	
+	stick@hsp ky, 15
+    if ky & 1 :addang HGOBJ_CAMERA,, -0.05 
+    if ky & 2 :addang HGOBJ_CAMERA, -0.05 
+    if ky & 4 :addang HGOBJ_CAMERA,, 0.05 
+    if ky & 8 :addang HGOBJ_CAMERA, 0.05 
+	
+	hgdraw
+	hgsync 10
+	goto *main
+	
+*exit
+	hgbye
+	end

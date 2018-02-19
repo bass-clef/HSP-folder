@@ -1,0 +1,52 @@
+	
+	// gchar ‚ª‚Å‚«‚È‚¢Œ
+	
+	
+	#uselib "Pointer.dll"
+	#cfunc	strptr		"GetPointer"	str
+	
+	#module __VARIABLE__
+	#uselib "calculate.dll"
+	#cfunc	global	createchar	"createchar"	int
+	#func	global	deletechar	"deletechar"
+	#func	global	getpeek		"getpeek"		sptr, int
+	#uselib "kernel32.dll"
+	#func	global	lstrcpynA	"lstrcpynA"		var, str, int
+	// ì¬
+	#defcfunc char int byte
+	return createchar(byte)
+	// íœ
+	#deffunc dchar
+		deletechar
+	return
+	#deffunc schar var var, str buf, int byte
+		lstrcpynA var, buf, byte
+	return
+	// “Ç‚İæ‚è
+	#defcfunc gchar int add, int byte
+		dupptr ptr, add, byte, 2
+	return ptr
+	#global
+	
+	vi = 0
+	dim var
+	
+	var.vi = char(10)	// varjable information struct
+	type = 2
+	name_add = strptr("xxx")
+	contents = -1
+	
+	sdim s, 10
+	poke s, 0, type				// variable type	1byte
+	lpoke s, 1, name_add		// name address		4byte
+	lpoke s, 5, contents		// contents 		4byte
+	poke s, 9, 0				// null
+	
+	schar var.vi, s, 10
+	
+	sdim s
+	s = gchar(var.vi, 10)
+	mes s
+	
+	
+	

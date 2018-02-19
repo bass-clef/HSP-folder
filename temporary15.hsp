@@ -1,0 +1,59 @@
+	
+	#include "hspext.as"
+	
+	#module
+	// n進数交互変換
+	#deffunc setBaseTable str wordtable_
+		table_ = wordtable_
+	return
+	#defcfunc nBase int prm_, int base_, int negative_
+		dst_ = prm_ :rem_ = 0
+		sdim buf_, 128
+		
+		repeat
+			if (dst_ == 0) :break
+			rem_ = dst_ \ base_
+			if (rem_ >= 128) :break
+			buf_ = strmid(table_, abs(rem_) ,1) + buf_
+			dst_ = dst_ / base_
+		loop
+		if buf_ == "" :return strmid(table_, 0, 1)
+		if negative_ :if prm_ < 0 :return strmid(table_, strlen(table_)-1, 1)+buf_
+	return buf_
+	#defcfunc nBase_ str string, int base, int negative_
+		buf = string
+		len = strlen(buf)
+		if negative_ {
+			if peek(buf, 0) == peek(table_, strlen(table_)-1) {
+				m = -1.0
+				len--
+				buf = strmid(buf, 1, len)
+			}else :m = 1.0
+		}
+		dst = 0.0
+		i = len-1
+		repeat len
+			n = instr(table_, 0, strmid(buf, cnt, 1))
+			if n == -1 :dst = -1 :break
+			dst += n*powf(base, i)
+			i--
+		loop
+		if negative_ :return dst*m
+	return dst
+	#global
+	
+	setBaseTable "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜｦﾝ"
+	// 最初2byteに大きさ 3byte:3文字ずつ　0:x座標 1:y座標 2:3:extra
+	// extra:4byteは[makelong]-[loword]-[hiword]で分割
+	// 座標は
+	x = 0x80000000
+	
+	mes makelong(nBase_("000", 108), nBase_("2ﾊi", 108))
+	mes x
+	
+	sdim buf
+	buf += ""+strf("%03s", nBase(loword(x), 108, 1))
+	buf += ""+strf("%03s", nBase(hiword(x), 108, 1))
+	clipset buf
+	
+	

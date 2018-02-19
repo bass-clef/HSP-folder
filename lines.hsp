@@ -1,0 +1,192 @@
+	
+	// lines
+	
+	max = 2
+	ptx = ginfo(12)/4 :ptx.1 = ptx.0*3
+	pty = ginfo(13)/2 :pty.1 = pty.0
+	ptn = 1, -1
+	ptf = 1, 1
+	range = 10.0
+	
+	
+	gsel 0, -1
+	screen 1, ginfo(20), ginfo(21), 0,,, 640, 480
+	title "lines"
+	font msgothic, 12
+	
+	#enum	CHK_TEXT	0
+	#enum	CHK_DOT
+	#enum	CHK_CIRCLE
+	#enum	CHK_LINE
+	#enum	CHK_EXLINE
+	#enum	CHK_ROUND
+	
+	objmode 2
+	objsize 100, 14
+	text = "数字の表示", "点の表示", "円の表示", "線の表示", "補助線の表示", "四捨五入"
+	chk3 = 0, 0, 1, 0, 0, 1
+	chkinit = 1, 1, 1, 1, 0, 1
+	chkmax = length(text)
+	pos 5, 20
+	repeat chkmax
+		chkbox text.cnt, chk.cnt
+		if cnt == 0 :chkbeginid = stat
+		if chk3.cnt :sendmsg objinfo(stat, 2), 0xF4, 0x06
+		sendmsg objinfo(chkBeginID+cnt, 2), 0xF1, chkinit.cnt
+		chk.cnt = chkinit.cnt
+	loop
+	
+*main
+	Calc
+	Draw
+	
+	wait 1
+	goto *main
+	
+#deffunc Calc
+
+	mx = mousex
+	my = mousey
+	if (mx == -1) || (my == -1) :return
+	
+	if flag == 0 {
+		if getkey(1) & 0x8000 :flag = -1
+		if getkey(2) & 0x8000 :flag = -2
+	}
+	if flag < 0 {
+		id = -1
+		repeat 1
+			repeat max	// 点付近か？
+				if range >= dftp(mx, my, ptx.cnt, pty.cnt) :id = cnt :break
+			loop
+			if id != -1 {
+				if flag == -1 :flag = 1
+				if flag == -2 :flag = 3
+				break
+			}
+			
+			i = 0
+			rmin = range
+			repeat max-1	// 線付近か？
+				if (ptx.i == ptx(ptn.i)) && (pty.i == pty(ptn.i)) :i = ptn.i :continue
+				r = (dbbsl(ptx.i, pty.i, ptx(ptn.i), pty(ptn.i), mx, my))
+				if range >= r {
+					if range >= abs( ( dftp(ptx.i, pty.i, mx, my) + dftp(mx, my, ptx(ptn.i), pty(ptn.i)) ) - dftp(ptx.i, pty.i, ptx(ptn.i), pty(ptn.i)) ) {
+						if r < rmin :rmin = r :id = i
+					}
+				}
+				i = ptn.i
+			loop
+			if id != -1 :flag = 2 :break
+			
+			flag = 0
+		loop
+	}
+	if flag == 1 {	// 移動
+		if chk.CHK_ROUND {
+			mx /= range*chk.CHK_ROUND :mx *= range*chk.CHK_ROUND
+			my /= range*chk.CHK_ROUND :my *= range*chk.CHK_ROUND
+		}
+		ptx.id = mx
+		pty.id = my
+		if not(getkey(1) & 0x8000) :flag = 0
+	}else :if flag == 2 {	// 点新規作成
+		nid = -1
+		repeat max
+			if ptf.cnt == 0 :nid = cnt :break
+		loop
+		if nid == -1 :nid = max
+		
+		ptn.nid = ptn.id
+		ptn.id = nid
+		ptx.nid = mx
+		pty.nid = my
+		ptf.nid = 1
+		if nid == max :max++
+		flag = 0
+	}else :if flag == 3 {	// 削除
+		if 1 < id {
+			pid = 0//-1
+			repeat max
+				if ptn(cnt) == id :pid = cnt :break
+			loop
+			
+			ptn.pid = ptn.id
+			ptf.id = 0
+			if id == max-1 :max--
+		}
+		flag = 0
+	}
+	
+	return
+	
+#deffunc Draw
+	
+	redraw 0
+	colorwhite :boxf :color
+	
+	// パレット
+	hCheck = objinfo(chkBeginID, 2)
+	xx = winfo(4, hCheck)
+	yy = winfo(5, hCheck)
+	boxf xx-1, yy-15, xx+101, yy, 0
+	boxf xx-1, yy, xx+101, 14*chkmax+yy+1, 0
+	pos xx+20, yy-13 :mes "パレット"
+	
+	repeat max
+		// 数字
+		if chk.CHK_TEXT :pos ptx.cnt, pty.cnt :mes cnt
+		
+		// 円
+		if chk.CHK_CIRCLE {
+			circle ptx.cnt-range, pty.cnt-range, ptx.cnt+range, pty.cnt+range, chk.CHK_CIRCLE-1
+		}
+	
+		// 点
+		if chk.CHK_DOT :circle ptx.cnt-1, pty.cnt-1, ptx.cnt+2, pty.cnt+2, 1
+	loop
+	
+	i = 0
+	repeat max
+		// 線
+		pid = ptn(i)
+		if pid == -1 :continue
+		if chk.CHK_LINE :line ptx(pid), pty(pid), ptx.i, pty.i
+		
+		// 補助線
+		if chk.CHK_EXLINE {
+			r = dftp(ptx.i, pty.i, ptx(pid), pty(pid))
+			a = atan(pty(pid)-pty.i, ptx(pid)-ptx.i)
+			repeat 2
+				afa = a
+				if cnt == 0 :afa -= deg2rad(90) :else :afa += deg2rad(90)
+				if (cnt==0) && (0.0 <= afa) :range -= 1.0 :else :if (cnt==1) && (afa <= 0.0) :range -= 1.0
+				xx = cos(afa)*range + ptx.i
+				yy = sin(afa)*range + pty.i
+				line cos(a)*r+xx, sin(a)*r+yy, xx, yy
+				if (cnt==0) && (0.0 <= afa) :range += 1.0 :else :if (cnt==1) && (afa <= 0.0) :range += 1.0
+			loop
+		}
+		i = pid
+	loop
+	redraw 1
+	
+	return
+	
+	#module __MATH__
+	// 線と点の距離  -  Distance Between Both Straight Lines
+	#define global dislnpt dbbsl
+	#defcfunc dbbsl double lsx, double lsy, double lex, double ley, double px, double py
+		lesx = lex-lsx
+		lesy = ley-lsy
+		Us = (px-lsx)*lesx + (py-lsy)*lesy
+		Ub = lesx*lesx + lesy*lesy
+		x = lsx + lesx * Us/Ub
+		y = lsy + lesy * Us/Ub
+	return sqrt(powf(px-x, 2)+powf(py-y, 2))
+	
+	// 点と点の距離  -  Distance for two points
+	#define global dispt2 dftp
+	#defcfunc dftp double px1, double py1, double px2, double py2
+	return sqrt(powf(px1-px2, 2)+powf(py1-py2, 2))
+	#global

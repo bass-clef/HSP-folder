@@ -1,0 +1,345 @@
+	
+	#define DIID_DWebBrowserEvents2 "{34A715A0-6587-11D0-924A-0020AFC7AC4D}"
+	
+	#define TITLETEXT "SS viewer"
+	#define db double
+	
+	gosub *create
+	gosub *move
+	gosub *draw
+	
+*main
+	if (ginfo_act == -1) || (ief) :wait 1 :goto *main
+	w = mousew
+	if w {
+		if w < 0 :yy -= fontsize :else :yy += fontsize
+		gosub *draw
+	}
+	if getkey(1) & 0x8000 :if wcx-16 <= mousex {
+		yy = -( int(db(ymax)/db(wcy)*db(mousey)) /fontsize*fontsize )
+		gosub *draw
+	}
+	wait 1
+	goto *main
+	
+*key
+	if wparam == 38 :yy += fontsize
+	if wparam == 40 :yy -= fontsize
+	if wparam == 'W' :yy += fontsize
+	if wparam == 'S' :yy -= fontsize
+	
+	gosub *draw
+	return
+*size
+	wcx = ginfo(12) :wcy = ginfo(13)
+	if ief {
+		smove 0, 20, hIE
+		ssize wcx, wcy-20, hIE
+		xx = wcx-wcx/10
+		smove 0, 0, hURL
+		ssize xx, 20, hURL
+		smove xx, 0, hBtn
+		ssize wcx-xx, 20, hBtn
+	}else {
+		gosub *calc
+		yy = -ypos.old
+	
+		gosub *draw
+	}
+	return
+*Jump
+	ief = 0
+	ssize 10, 10, hIE
+	smove -10, 0, hIE
+	ssize 10, 10, hURL
+	smove -10, 0, hURL
+	ssize 10, 10, hBtn
+	smove -10, 0, hBtn
+	url = gtext(hURL)
+	gosub *htmlcalc
+	return
+	
+*event
+	eveID = comevdisp(ie_event)
+	if eveID = 259 {//DISPID_DocumentComplete
+		comevarg url, ie_event, 1
+		if ief {
+			title url, hURL
+		}else {
+			gosub *htmlcalc
+		}
+	}
+	return
+
+*create
+	fontsize = 25
+	ief = 0
+	
+	gsel 0, -1
+	screen 1, ginfo(20), ginfo(21), 0,,, 1000, fontsize*4
+	title "初期化..."
+	wcx = ginfo(12) :wcy = ginfo(13)
+	onkey gosub *key
+	oncmd gosub *size, WM_SIZE
+	
+	pos -100, 0
+	axobj ie, "Shell.Explorer.2", 100, 100
+	if stat == -1 {
+		dialog "ActiveXコントロールの配置に失敗しました。", 1
+		end
+ 	}else {
+	 	hIE = objinfo(stat, 2)
+// 		ssize 100, 100, hIE
+	}
+	comevent ie_event, ie, DIID_DWebBrowserEvents2, *event
+	
+	objmode 2
+	pos -10, 0
+	input url, 10, 20 :hURL = objinfo(stat, 2)
+	objmode 1
+	
+	pos -100, 0 :objsize 100, 20
+	button gosub "SS専門表示", *Jump :hBtn = objinfo(stat, 2)
+	
+	title TITLETEXT
+	
+	return
+*move
+	oncmd 0 :onkey 0
+	objsize 300, 20
+	dialog "", 64, "接続先"
+	sdim url
+	input url, 300, 20
+	dlgfor
+		wait 1
+	loop
+	oncmd 1 :onkey 1
+	if peek(url, 0) :gosub *htmlcalc :else {
+		ief = 1
+		ie->"GoHome"
+		sendmsg hwnd@hsp, WM_SIZE
+	}
+	return
+	
+*connect
+	title TITLETEXT+" - 接続中..."
+	oncmd 0 :onkey 0
+	
+	ie->"Navigate" url
+	repeat :if ie("readyState") == 4 {break } :wait 1 :loop
+	doc = ie("Document")
+	body = doc("body")
+	html = body("innerHTML")
+	
+	oncmd 1 :onkey 1
+	title TITLETEXT
+	yy = 0
+	gosub *calc
+	return
+	
+*htmlcalc
+	sdim html
+	GetHTML html, url, "euc-jp"
+	yy = 0
+	gosub *calc
+	return
+	
+*calc
+	oncmd 0 :onkey 0
+	title TITLETEXT+" - 処理中..."
+	font msgothic, fontsize, 1
+	i = 0
+	dim ypos
+	HtmlTagSplit html, dst :max = stat
+	repeat max
+		ypos.cnt = ginfo_cy
+		rmscalc dst(cnt), hdc@hsp, wcx-16, wcy
+	loop
+	ymax = ginfo_cy
+	ypos.max = ymax
+	
+	title TITLETEXT
+	oncmd 1 :onkey 1
+	
+	return
+	
+*draw
+	if ief :return
+	redraw 0
+	colorwhite :boxf :color
+	line wcx-16, wcy, wcx-16, 0
+	boxf wcx-16, db(wcy)/db(ymax)*db(-yy), wcx, db(wcy)/db(ymax)*db(-yy), 0
+	
+	if yy <= 0 {
+		old = -1 :oldf = 0
+		repeat max
+			if (0-(ypos(cnt+1)-ypos.cnt) <= ypos.cnt+yy) && (ypos.cnt+yy <= wcy) {
+				if oldf == 0 :oldf = 1 :old = cnt
+				pos 0, ypos.cnt+yy
+				rmes dst(cnt), hdc@hsp, wcx-16, ymax
+			}
+		loop
+	}
+	
+	redraw 1
+	
+	return
+	
+	#module
+	#deffunc GetHTML var buf, str url_, str charcode_
+		sdim buf
+		url = url_
+		charcode = charcode_
+		newcom objXMLHTTP, "Microsoft.XMLHTTP"
+		objXMLHTTP->"Open" "GET", url, 0
+		objXMLHTTP->"Send"
+
+		if objXMLHTTP("status") = 200 {
+			newcom objRS, "ADODB.Stream"
+			if stat != 0 :dialog "ADODB.Streamがサポートされていません。", 0 :return
+			objRS("Type") = 1
+			objRS -> "Open"
+			sHtml = objXMLHTTP("ResponseBody")
+			objRS -> "Write" sHtml
+			objRS("Position") = 0
+			objRS("Type") = 2
+			objRS("Charset") = charcode
+			buf = objRS("ReadText")
+			objRS -> "Close"
+		}else{
+			dialog "接続に失敗致しました。", 0, "エラー"
+		}
+	
+		if vartype(objRS) == 6 {
+			if varuse(objRS) == 1 :delcom objRS
+		}
+		delcom objXMLHTTP
+	return
+	#global
+	
+	#module
+	#deffunc HtmlTagSplit var html, array prm
+		len = strlen(html)
+		pmax = 0
+		sdim prm
+		sdim buf
+		
+		repeat len
+			getstr sTmp, html, cnt, '<'
+			size = strsize
+			if size > 1 {	// 空っぽのときは描画する必要はありません
+				if buff :buf += sTmp
+			}
+		
+			if cnt+size >= len :break
+			getstr tag, html, cnt+size, '>'
+			
+			size += strsize
+			tag = getpath(tag, 16)	// 小文字に変換
+			tag = strtrim(tag, 3, ' ')
+			if tag == "b" :buff = 1 :sdim buf
+			if tag == "/b" {
+				buff = 0
+				if peek(buf, 0) :prm.pmax = buf :pmax++ :sdim buf
+			}
+			if (tag == "br") || (tag == "br/") {
+				if peek(buf, 0) :prm.pmax = ""+buf+"\n" :pmax++ :sdim buf
+			}
+			if tag == "/span" :if ('0' <= peek(sTmp, 0)) && (peek(sTmp, 0) <= '9') {
+				buf += sTmp
+			}
+
+			continue cnt+size
+		loop
+		
+    return pmax
+    #global
+    
+	#module
+	#deffunc TagSearch var buf, array prm, str tag
+		len = strlen(buf)
+		sdim prm
+		/* case 1 */
+		split buf, "<"+tag+"", prm
+		max = length(prm)
+		repeat
+			if max <= cnt :break
+			i = -1 :j = cnt
+			slen = 0
+			i = wordIndex(prm.cnt, '>', slen)
+			if i != -1 :prm.cnt = strmid(prm.cnt, i+1, slen)
+			
+			i = TagIndex(prm.cnt, tag, 1)
+			if cnt < max-1 :if i == -1 {
+				prm.cnt = prm(cnt+1)
+				
+				prm(cnt+1) = ""
+				max--
+				continue
+			}else {
+				if i != -1 :poke prm.cnt, i, 0//prm.cnt = strmid(prm.cnt, 1, i)
+			}
+		loop
+		/**/
+	return max
+	#global
+	
+	#module
+	#defcfunc wordIndex var buf, int word, var len
+		index = -1
+		if len == 0 :len = strlen(buf)
+		repeat len
+			if peek(buf, cnt) == word :index = cnt :break
+		loop
+	return index
+	
+	#defcfunc TagIndex var buf, str tag, int endf
+		if endf :tags = "</"+tag+">" :else :tags = "<"+tag
+		i = 0 :len = strlen(tags)
+		index = -1
+		repeat strlen(buf)
+			if peek(buf, cnt) == peek(tags, i) {
+				i++
+				if i == 1 :index = cnt
+				if len <= i :break
+			}else :index = -1
+		loop
+	return index
+	#global
+	
+	#module
+	// 勝手に改行して描画
+	#uselib "user32.dll"
+	#cfunc	DrawText	"DrawTextA"		int, sptr, int, int, int
+	#define DT_TOP			 			0x00000000
+	#define DT_LEFT						0x00000000
+	#define DT_CENTER					0x00000001
+	#define DT_RIGHT					0x00000002
+	#define DT_VCENTER					0x00000004
+	#define DT_BOTTOM					0x00000008
+	#define DT_WORDBREAK				0x00000010
+	#define DT_SINGLELINE				0x00000020
+	#define DT_EXPANDTABS				0x00000040
+	#define DT_TABSTOP					0x00000080
+	#define DT_NOCLIP					0x00000100
+	#define DT_EXTERNALLEADING			0x00000200
+	#define DT_CALCRECT					0x00000400
+	#define DT_NOPREFIX					0x00000800
+	#define DT_INTERNAL					0x00001000
+	#define DT_EDITCONTROL				0x00002000
+	#define DT_PATH_ELLIPSIS			0x00004000
+	#define DT_END_ELLIPSIS				0x00008000
+	#define DT_MODIFYSTRING				0x00010000
+	#define DT_RTLREADING				0x00020000
+	#define DT_WORD_ELLIPSIS			0x00040000
+	#define DT_NOFULLWIDTHCHARBREAK		0x00080000
+	#deffunc rmes str mes_, int hdc_, int width_, int height_
+		rc_ = ginfo_cx, ginfo_cy, ginfo_cx+width_, ginfo_cy+height_
+		pos ginfo_cx, ginfo_cy+DrawText(hdc_, mes_, strlen(mes_), varptr(rc_), DT_WORDBREAK | DT_LEFT | DT_TOP | DT_EXPANDTABS)
+	return
+	#deffunc rmscalc str mes_, int hdc_, int width_, int height_
+		rc_ = ginfo_cx, ginfo_cy, ginfo_cx+width_, ginfo_cy+height_
+		pos ginfo_cx, ginfo_cy+DrawText(hdc_, mes_, strlen(mes_), varptr(rc_), DT_WORDBREAK | DT_LEFT | DT_TOP | DT_EXPANDTABS | DT_CALCRECT)
+	return
+	#global
+	

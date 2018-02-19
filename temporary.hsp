@@ -1,0 +1,75 @@
+	
+	#module __JOYSTICK__
+	#uselib "winmm.dll"
+	#func	joyGetPosEx			"joyGetPosEx"		int, var
+	#define	JOYERR_BASE				160
+	#define	JOYERR_UNPLUGGED		(JOYERR_BASE+7)	/*指定されたジョイスティックはシステムに接続されていません。*/
+	#define JOYERR_PARMS			(JOYERR_BASE+5)	/*パラメーターが無効です*/
+	#define JOYERR_NOCANDO			(JOYERR_BASE+6)	/*正常に動作しませんでした*/
+	#define	MMSYSERR_BASE			0
+	#define	MMSYSERR_NODRIVER		(MMSYSERR_BASE+6)			/*ジョイスティックドライバが存在しません。*/
+	#define	MMSYSERR_INVALPARAM		(MMSYSERR_INVALPARAM+11)	/*無効なパラメータが渡されました。*/
+	#define	MMSYSERR_BADDEVICEID	(MMSYSERR_BASE+2)			/*指定されたジョイスティック識別子は無効です。*/
+	#define JOY_RETURNX				0x00000001
+	#define JOY_RETURNY				0x00000002
+	#define JOY_RETURNZ				0x00000004
+	#define JOY_RETURNR				0x00000008
+	#define JOY_RETURNU				0x00000010	/* axis 5 */
+	#define JOY_RETURNV				0x00000020	/* axis 6 */
+	#define JOY_RETURNPOV			0x00000040
+	#define JOY_RETURNBUTTONS		0x00000080
+	#define	JOY_RETURNRAWDATEUNDER	(JOY_RETURNX | JOY_RETURNY | JOY_RETURNZ | JOY_RETURNR | JOY_RETURNU | JOY_RETURNV | JOY_RETURNPOV | JOY_RETURNBUTTONS)
+	#define JOY_RETURNRAWDATA		0x00000100
+	#define JOY_RETURNPOVCTS		0x00000200
+	#define JOY_RETURNCENTERED		0x00000400
+	#define JOY_USEDEADZONE			0x00000800
+	#define JOY_RETURNALL			(JOY_RETURNX | JOY_RETURNY | JOY_RETURNZ | JOY_RETURNR | JOY_RETURNU | JOY_RETURNV | JOY_RETURNPOV | JOY_RETURNBUTTONS)
+	#define	JOY_COUNTMAX			255
+	#define	size_JOYINFOEX			52
+	#define	JOYINFOEX(%1)			dim %1, 13 :%1(0) = size_JOYINFOEX
+	#define	ctype	char(%1)		(%1 >> 8)
+	
+	#deffunc joystick array joy, int connecting, int awaittime
+		JOYINFOEX joy :joy.1 = JOY_RETURNRAWDATEUNDER
+		joyGetPosEx nConnected, joy
+		
+		if stat != 0 :if connecting {
+			JOYINFOEX joy :joy.1 = JOY_RETURNRAWDATEUNDER
+			nConnected = 0
+			repeat
+				await awaittime
+				joyGetPosEx nConnected, joy
+				if stat == 0 :break
+				nConnected = (nConnected + 1) \ JOY_COUNTMAX
+			loop
+			
+		}
+		
+		if stat == 0 {
+			/* 2byte -> 1byte */
+			repeat 4, 2	
+				joy.cnt = char(joy.cnt)
+			loop
+			joy.10 = char(joy.10)
+			/**/
+		}
+		void str(nConnected)
+	return
+	#global
+	
+	repeat
+		redraw 0
+		colorwhite :boxf :color
+		
+		joystick joy, 1, 1
+		if stat != 0 {
+			// joystick not connected
+		}
+		pos 0, 0
+		repeat 13
+			mes strf("%d:[%d][%X]", cnt, joy.cnt, joy.cnt)
+		loop
+		
+		redraw 1
+		wait 1
+	loop

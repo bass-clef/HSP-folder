@@ -1,0 +1,80 @@
+	
+	#define global ctype isalpha(%1) ((('A' <= %1) && (%1 <= 'Z')) || (('a' <= %1) && (%1 <= 'z')))
+	#define global ctype isnumber(%1) (('0' <= %1) && (%1 <= '9'))
+	#define global ctype iscontrol(%1) (0x20 <= %1) && (%1 <= 0x7E)
+	#define global ctype isshiftjis(%1) (((0x80 <= %1) && (%1 <= 0x9F)) || ((0xE0 <= %1) && (%1 <= 0xFE)))
+	#define global ctype bkt2a(%1, %2, %3) ((%1 <= %2) && (%2 <= %3))
+	
+	sdim buf
+	sdim tmp
+	
+	objsize ginfo(12), 20
+	pos 0,  0 :button gosub "cnv", *cnv
+	
+	objmode 2
+	pos 0, 20 :mesbox buf, ginfo(12), ginfo(13)-20, 5, 0
+	
+	stop
+	
+*cnv
+//	spacein buf
+	repeat 1
+		notesel@hsp buf
+		repeat notemax
+			noteget@hsp tmp, cnt
+			noteadd "\t"+tmp, cnt, 1
+		loop
+	loop
+	objprm 1, buf
+	return
+	
+	#module
+	#deffunc spacein var buf
+		sdim token :sdim s
+		bracket = 0 :old = 0
+		notesel@hsp buf
+		repeat notemax
+			noteget@hsp token, cnt
+			if bracket :if inword(token, '{') < inword(token, '}') :bracket--
+			if old != bracket {
+				old = bracket
+				s = ""
+				repeat bracket
+					s += "\t"
+				loop
+			}
+			
+			noteadd ""+s+""+token, cnt, 1
+			
+			if bracket :if inword(token, '(') < inword(token, ')') :bracket--
+			if inword(token, '(') > inword(token, ')') :bracket++
+			if inword(token, '{') > inword(token, '}') :bracket++
+			if old != bracket {
+				old = bracket
+				s = ""
+				repeat bracket
+					s += "\t"
+				loop
+			}
+		loop
+	return
+	
+	#defcfunc inword var buf, int word
+		c = 0 :shift = 0
+		repeat
+			i = peek(buf, cnt)
+			if i == 0 :break
+			if shift == 0 {
+				if isshiftjis(i) :shift++
+				if i == word :c++
+			}else :shift--
+		loop
+	return c
+	
+	#defcfunc isalnumber var buf
+		i = 1
+		repeat strlen(buf)
+			if not(isnumber(peek(buf, cnt))) :if peek(buf, cnt) != '.' :i = 0 :break
+		loop
+	return i
+	#global

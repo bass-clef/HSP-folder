@@ -1,0 +1,151 @@
+	
+	randomize
+	
+	// 0:なし 1:壁 2:塗り
+	wdh = 11
+	hgt = 8
+	max = wdh*hgt
+	dim map, max
+	map = 0,0,1,0,0, 0,1,0,0,0, 0,1,0,1,0, 0,1,1,0,0, 0,0,0,0,1
+	
+	onclick gosub *click
+	gosub *draw
+	stop
+	
+*click
+	if wdh <= mousex/50 || hgt <= mousey/50 :return
+	
+	FillMap map, mousex/50, mousey/50, wdh, hgt, 2
+	gosub *draw
+	
+	i = 1
+	repeat max
+		if map.cnt == 0 :i = 0 :break
+	loop
+	
+	if i {
+		wait 100
+		dim map, max
+		repeat max/2
+			map(rnd(max)) = 1
+		loop
+		gosub *draw
+	}
+	
+	return
+	
+*draw
+	redraw 0
+	colorwhite :boxf: color
+	for i, 0, hgt, 1
+		repeat wdh
+			boxf cnt*50, i*50, cnt*50+50, i*50+50, 0
+			if map(i*wdh+cnt) {
+				if map(i*wdh+cnt) == 2 :color 128, 255, 128
+				boxf cnt*50+1, i*50+1, cnt*50+50-1, i*50+50-1
+				color
+			}
+		loop
+	next
+	redraw 1
+	return
+		
+	#module __STACK__ array stack
+		#deffunc push int value
+			stack.scnt = value
+			scnt++
+		return
+		#defcfunc pop
+			if scnt == 0 :return -1
+			scnt--
+		return stack.scnt
+		#defcfunc top
+			if scnt == 0 :return -1
+		return stack(scnt-1)
+		#defcfunc size
+		return scnt
+	#global
+	
+	#module
+	// スキャンライン - シード・フィル アルゴリズム
+	// FillMap 配列, 開始x, 開始y, 幅, 高さ, 塗りつぶしID
+	#deffunc Fillmap array mapdata, int xbeg_, int ybeg_, int wdh, int hgt, int fillid
+		x = xbeg_		:y = ybeg_
+		wdhm = wdh-1	:hgtm = hgt-1
+		begID = mapdata(y*wdh+x)	// 塗り潰しの対象ID取得
+		
+		// step.1 左右に塗りつぶしの境界を探す
+		*step1
+		logmes "step.1"
+		xl = x :xr = x
+		while mapdata(y*wdh+xl) == begID
+			xl--
+			if xl < 0 :_break
+		wend
+		while mapdata(y*wdh+xr) == begID
+			xr++
+			if wdhm < xr :_break
+		wend
+		if xl != xr :xl += 1 :xr -= 1
+		logmes "範囲 ("+xl+","+y+") - ("+xr+","+y+")"
+	
+		// step.2 線分 (xl, y)-(xr, y) を塗り潰す
+		logmes "step.2"
+		if xl != xr {
+			repeat limit(xr-xl+1, 0, wdh), xl
+				mapdata(y*wdh+cnt) = fillid
+			loop
+			lmax = xl
+			rmax = xr
+		}else {
+			mapdata(y*wdh+xr) = fillid
+			lmax = xl
+			rmax = xr
+		}
+	
+		// step.3 線分 (xl, y-1)-(xr, y-1) 中の範囲を走査しその右端を積む
+		logmes "step.3 stack:"+size()
+		repeat xr-xl+1, xl
+			if y-1 < 0 :break
+			if mapdata((y-1)*wdh+cnt) == begID {
+				if cnt+1 < wdh {
+					if cnt == rmax {
+						push y-1 :push cnt :logmes "push "+cnt+" x "+(y-1)
+					}else {
+						if mapdata((y-1)*wdh+cnt+1) != begID :push y-1 :push cnt :logmes "push "+cnt+" x "+(y-1)
+					}
+				}else {
+					if cnt+1 == wdh :push y-1 :push cnt :logmes "push "+cnt+" x "+(y-1)
+				}
+			}
+		loop
+	
+		// step.4 線分 (xl, y+1)-(xr, y+1) 中の範囲を走査しその右端を積む
+		logmes "step.4 stack:"+size()
+		repeat xr-xl+1, xl
+			if hgtm < y+1 :break
+			if mapdata((y+1)*wdh+cnt) == begID {
+				if cnt+1 < wdh {
+					if cnt == rmax {
+						push y+1 :push cnt :logmes "push "+cnt+" x "+(y+1)
+					}else {
+						if mapdata((y+1)*wdh+cnt+1) != begID :push y+1 :push cnt :logmes "push "+cnt+" x "+(y+1)
+					}
+				}else {
+					if cnt+1 == wdh :push y+1 :push cnt :logmes "push "+cnt+" x "+(y+1)
+				}
+			}
+		loop
+		
+		// step.5 stackからpopし step.1-4 の処理をやる
+		logmes "step.5 stack:"+size()
+		if size() {
+			x = pop() :y = pop()
+			wait 1
+			goto *step1
+		}
+		
+	return
+	#global
+	
+	

@@ -1,0 +1,174 @@
+	
+	// coolor makeing
+	// メモリ節約のため配列はstringで処理
+	
+	
+	#uselib "user32.dll"
+	#func	CharLowerBuff		"CharLowerBuffA"		int, int
+	#cfunc	GetDesktopWindow		"GetDesktopWindow"
+	#cfunc	GetDC					"GetDC"				int
+	#func	ReleaseDC				"ReleaseDC"			int, int
+	#uselib "gdi32.dll"
+//	#func	BitBlt		"BitBlt"	int, int, int, int, int, int, int, int, int
+	#cfunc	GetPixel				"GetPixel"			int, int, int
+	
+	// 参照するURL
+	url = "http://www.colordic.org/\n"
+	url += "http://www.colordic.org/w/\n"
+	url += "http://www.colordic.org/y/\n"
+	
+	m_clr = RGB(16, 16, 16)	// margin color 類似色検索に用いる
+	widthmax = 0
+	fontsize = 18
+	
+	bgscr 0, ginfo(20), fontsize*2, 2,,, 300, fontsize*2
+	title "take a color"
+	font msgothic, fontsize
+	gsel 0, 2
+	
+	oncmd gosub *WindowProc, WM_LBUTTONDOWN
+	/*
+	//原色大辞典から色名取得
+	axobj ie, "Shell.Explorer.2", 0, 0
+	if stat == -1 {
+		dialog "ActiveXコントロールの配置に失敗しました。", 1
+		end
+ 	}else {
+	 	objIE = stat
+	}
+	sdim clr :sdim clrname
+	repeat 3
+		redraw 0 :colorwhite :boxf :color :pos 0, 0 :mes "html取得..." :redraw 1
+		notesel@hsp url
+		ie->"Navigate" noteget(cnt)	// アクセス
+		repeat :if ie("readyState") == 4 {break } :wait 1 :loop
+		doc = ie("Document")	// html取得
+		body = doc("body")
+		html = body("innerHTML")
+		/* htmlコード解析 *
+		redraw 0 :colorwhite :boxf :color :pos 0, 0 :mes "html解析..." :redraw 1
+		CharLowerBuff varptr(html), strlen(html)	// 小文字へ
+		notesel@hsp html
+		repeat notemax
+			style = noteget(cnt)
+			if instr(style, 0, "<td style=") != -1 {
+				i = instr(style, 0, "title=")
+				if i != -1 {
+					i += 7
+					j = instr(style, i+1, "\"")
+					if j != -1 {
+						style = strmid(style, i, j+1)
+						sdim prm
+						split style, " ", prm
+						if length(prm) > 1 {
+							clrname += ""+prm.0+"\n"
+							clr += ""+strmid(prm.1, 1, strlen(prm.1))+"\n"
+							if strlen(prm.0) > widthmax :widthmax = strlen(prm.0)
+						}
+					}
+				}
+			}
+		loop
+	loop
+	delcom ie
+	clrobj objIE
+	/**/
+	
+	// 自分
+	widthmax *= fontsize
+	pos_s = fontsize*12
+	width pos_s+widthmax
+	hmwnd = hwnd@hsp
+	hmdc = hdc@hsp
+	
+	
+	// デスクトップ取得
+	redraw 0 :colorwhite :boxf :color :pos 0, 0 :mes "Desktop取得..." :redraw 1
+	htwnd = GetDesktopWindow()
+	htdc = GetDC(htwnd)
+	if htdc == NULL :end
+	onexit *exit	
+	repeat
+		mx = ginfo(0) :my = ginfo(1)
+		if ((mx != mxold) || (my != myold)) {
+			mxold = mx :myold = my
+			i_clr = GetPixel(htdc, mx, my)
+			r = RR(i_clr) :g = GG(i_clr) :b = BB(i_clr)
+			n_clr = strf("%02x%02x%02x", r, g, b)
+			num = -1 :m = 0
+			notesel@hsp clr
+			repeat notemax
+				r_clr = noteget(cnt)
+				if r_clr == n_clr :num = cnt :break	// 完全一致
+			loop
+			if num == -1 {// 類似色検索
+				mm_clr = RGB(255, 255, 255)
+				repeat notemax
+					r_clr = noteget(cnt)
+					r_clr = int("$"+noteget(cnt))
+					ri_clr = RGB(BB(r_clr), GG(r_clr), RR(r_clr))
+					r_m = RR(ri_clr)-RR(m_clr) :r_p = RR(ri_clr)+RR(m_clr)
+					g_m = GG(ri_clr)-GG(m_clr) :g_p = GG(ri_clr)+GG(m_clr)
+					b_m = BB(ri_clr)-BB(m_clr) :b_p = BB(ri_clr)+BB(m_clr)
+					if ((r_m < r) && (r < r_p)) && ((g_m < g) && (g < g_p)) && ((b_m < b) && (b < b_p)) {
+						r = limit(RR(ri_clr)-RR(i_clr), -255, 255) :if r < 0 :r = -r
+						g = limit(GG(ri_clr)-GG(i_clr), -255, 255) :if g < 0 :g = -g
+						b = limit(BB(ri_clr)-BB(i_clr), -255, 255) :if b < 0 :b = -b
+						
+						if (r < RR(mm_clr)) && (g < GG(mm_clr)) && (b < BB(mm_clr)) {
+							mm_clr = RGB(r, g, b)
+							num = cnt :m = 1
+						}
+					}
+				loop
+			}
+	
+			if num != -1 {
+				notesel@hsp clrname
+				if strlen(noteget(num)) == 0 :num = -1
+			}
+			
+			redraw 0
+			r = RR(i_clr) :g = GG(i_clr) :b = BB(i_clr)
+			color r, g ,b :boxf
+			if (r+g+b)/3 <= 0x90 :colorwhite :else :color
+			pos 0, 0
+			if num == -1 {
+				mes "色名:該当色なし"
+			}else {
+				notesel@hsp clrname
+				if m {
+					mes "色名:"+noteget(num)+"っぽい"
+					pos 0, 18 :mes "html:"+n_clr
+
+					notesel@hsp clr
+					r_clr = noteget(num)
+					ri_clr = RGB(int("$"+strmid(r_clr, 0, 2)), int("$"+strmid(r_clr, 2, 2)), int("$"+strmid(r_clr, 4, 2)))
+					color RR(ri_clr), GG(ri_clr), BB(ri_clr)
+					boxf pos_s+widthmax/2, 0, pos_s+widthmax, fontsize*2
+	
+					if (r+g+b)/3 <= 0x90 :colorwhite :else :color
+					noteunsel
+					pos pos_s+widthmax/2, 0
+					mes ""+noteget(num)
+					notesel@hsp clr
+					mes ""+noteget(num)
+				}else {
+					mes "色名:"+noteget(num)
+				}
+			}
+			if not(m) :pos 0, 18 :mes "html:"+n_clr
+			redraw 1
+		}
+		wait 1
+	loop
+	
+*exit
+	ReleaseDC htwnd, htdc
+	end :end
+	
+*WindowProc
+	if iparam == WM_LBUTTONDOWN {
+		if hiword(lparam) < 20 :sendmsg hmwnd, WM_NCLBUTTONDOWN, 2
+	}
+	return

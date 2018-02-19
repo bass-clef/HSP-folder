@@ -1,0 +1,196 @@
+	
+	// CodeDefinition
+	
+	#include "hsedsdk.as"
+	
+	#uselib "user32.dll"
+	#func	SetTimer	"SetTimer"		int, int, int, int
+	#func	KillTimer	"KillTimer"		int, int
+	#cfunc	FindWindow	"FindWindowA"	sptr, sptr
+	
+	#define wx					300
+	#define wy					400
+	#define	EM_SETTABSTOPS		0x00CB
+	#define	HSED_INTERFACE_NAME	"HspEditorInterface"
+	
+	sdim sWord
+	sdim sWorded
+	buf = "検索ワードに対象を入力してください"
+	tabsize = 4 * 4
+	dir_hsp = getpath(GetExeFileName(FindWindow(HSED_INTERFACE_NAME, HSED_INTERFACE_NAME)), 32)
+	if dir_hsp == "" {
+		dialog "ＨＳＰウィンドウがありません\n待機して検索を続行しますか？", 5, "Error"
+		if stat == 7 :end
+		while dir_hsp == ""
+			dir_hsp = getpath(GetExeFileName(FindWindow(HSED_INTERFACE_NAME, HSED_INTERFACE_NAME)), 32)
+			wait 10
+		wend
+	}
+	
+	screen 0, ginfo(20), ginfo(21), 2 :title "コード定義 for HSP"
+	hMWnd = hwnd()
+	slong hMWnd, -16, (glong(hMWnd, -16) | WS_SIZEBOX) - WS_MINIMIZEBOX
+	oncmd gosub *WindowProc, WM_SIZING
+	oncmd gosub *WindowProc, WM_COMMAND
+	oncmd gosub *WindowProc, WM_TIMER
+	oncmd gosub *WindowProc, WM_DESTROY
+	
+	objsize 20, 20
+	pos   0,  0 :button gosub "...", *WindowProc :hButton1 = objinfo(stat, 2)
+	objmode 2
+	font msgothic, 14
+	pos   0, 20 :mesbox buf, 0, 0, 5, 0 :hMEdit = objinfo(stat, 2)
+	pos  10,  3 :mes "検索ワード"
+	pos 100,  0 :input sWord, 0, 20 :hSEdit = objinfo(stat, 2)
+	
+	width wx, wy
+	sendmsg hMWnd, WM_SIZING, 0, 0
+	sendmsg hMEdit, EM_SETTABSTOPS, 1, varptr(tabsize)
+	gsel 0, 1
+	objsel 2
+	font msgothic, 10
+	
+	
+	stop
+	
+*WindowProc
+	if iparam == WM_DESTROY {
+		KillTimer hMWnd, 1000
+	}elseif iparam == WM_TIMER {
+		KillTimer hMWnd, 1000
+		WordSearch gtext(hSEdit), dir_hsp
+	}elseif iparam == WM_COMMAND {
+		if lparam == hButton1 {
+			title "B1"
+		}elseif lparam == hSEdit {
+			if strlen(gtext(hSEdit)) > 0 :if sWorded != gtext(hSEdit) {
+				sWorded = gtext(hSEdit)
+				KillTimer hMWnd, 1000
+				SetTimer hMWnd, 1000, 1000, 0
+			}
+		}
+	}elseif iparam == WM_SIZING {
+		ssize ginfo(12)/2, ginfo(13)-20, hMEdit
+		ssize ginfo(12)-120, 20, hSEdit
+		smove ginfo(12)-20, 0, hButton1
+	}
+	return
+	
+	#module
+	// 単語検索
+	#deffunc WordSearch str word, str dir_hsp
+		sdim def
+		
+		file = dir_hsp + "common\\hspdef.as"
+		size = LoadRead(buf, file)
+		AddDef buf, def, getpath(file, 32)
+	
+		objsize 300, 400
+		dialog "", 64, "definition"	//do
+		objsize 300, 400
+		listbox list, 0, def
+		dlgfor :wait 1 :loop
+		
+	return
+	#global
+	
+	#module
+	// defに追加
+	#enum	global	ERROR_INCLUDE	1
+	#deffunc AddDef var buf, var def, str dir
+		sdim str_
+		sdim var_
+		sdim h_def
+		sdim addbuf
+		
+		
+		repeat// 定義している文を検索
+			await 1
+			notesel@hsp buf
+			if notemax <= cnt :break
+			if strmid(noteget(cnt), 0, 2) == "//" :continue
+			if strmid(noteget(cnt), 0, 1) == ";" :continue
+			if strlen(noteget(cnt)) == 0 :continue
+			
+			if instr(noteget(cnt), 0, "#include")	!= -1	{
+				str_ = noteget(cnt)
+				split str_, "\"", file
+				if LoadRead(addbuf, dir + file.1) == -1 :if LoadRead(addbuf, ""+ dir_cur +"\\"+ file.1) == -1 :break ERROR_INCLUDE
+				noteadd addbuf, cnt, 0
+			}elseif instr(noteget(cnt), 0, "#addition")	!= -1	{
+				str_ = noteget(cnt)
+				notedel cnt
+				split str_, "\"", file
+				void LoadRead(addbuf, dir + file.1)
+				if stat == -1 :void LoadRead(addbuf, ""+ dir_cur +"\\"+ file.1)
+				if stat != -1 :noteadd addbuf, cnt, 0 :void "Loaded"
+			}elseif instr(noteget(cnt), 0, "#define")	!= -1	{
+				def += ""+ noteget(cnt) +"\n"
+			}elseif instr(noteget(cnt), 0, "#deffunc")	!= -1	{def += ""+ noteget(cnt) +"\n"
+			}elseif instr(noteget(cnt), 0, "#defcfunc")	!= -1	{def += ""+ noteget(cnt) +"\n"
+			}elseif instr(noteget(cnt), 0, "#func")		!= -1	{def += ""+ noteget(cnt) +"\n"
+			}elseif instr(noteget(cnt), 0, "#cfunc")	!= -1	:def += ""+ noteget(cnt) +"\n"
+		loop
+	return stat
+	#global
+	
+	#module
+	#uselib "user32.dll"
+	#func	CharLowerBuff	"CharLowerBuffA"	sptr, int
+	// 読み込み/読み取り
+	#defcfunc LoadRead var buf, str file
+		title ""+file
+		exist file
+		if strsize == -1 :return -1
+		sdim buf, strsize+1
+		bload file, buf, strsize
+		CharLowerBuff buf, strsize	// 小文字へ
+	return size
+	
+	#global
+	
+	#module
+	// 現在のＨＳＰウィンドウのテキスト取得
+	#deffunc GetActFootyText var buf
+		hsed_getacttabid nTabID
+		hsed_getfootyid nFootyID, nTabID
+		hsed_gettext buf, nFootyID
+	return
+	
+	#uselib "user32.dll"
+	#func	GetWindowThreadProcessId	"GetWindowThreadProcessId"	int, int
+	#uselib "kernel32.dll"
+	#cfunc	OpenProcess			"OpenProcess"			int, int, int
+	#func	CloseHandle			"CloseHandle"			int
+	#uselib "psapi.dll"
+	#cfunc	EnumProcessModules	"EnumProcessModules"	int, int, int, int
+	#cfunc	GetModuleFileNameEx	"GetModuleFileNameExA"	int, int, var, int
+	#define	PROCESS_QUERY_INFORMATION	0x0400
+	#define PROCESS_VM_READ				0x10
+	
+	// HWNDからファイル名取得
+	#defcfunc GetExeFileName int hWnd_
+		size_dest = MAX_PATH+1
+		sdim dest, size_dest+1
+		
+		// プロセスID
+		processID = NULL
+		GetWindowThreadProcessId hWnd_, varptr(processID)
+		
+		// プロセスハンドル
+		hProcess = OpenProcess( PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, processID)
+		if not(hProcess) :return ""
+		
+		// モジュールハンドル
+		hModule = NULL
+		dummy = 0
+		if not(EnumProcessModules( hProcess, varptr(hModule), 4, varptr(dummy))) :return ""
+		
+		// ファイル名(フルパス)
+		memset dest, 0, size_dest
+		if not(GetModuleFileNameEx( hProcess, hModule, dest, size_dest)) :return ""
+		
+		CloseHandle hProcess
+		// hModuleは自分で閉じちゃいけない
+	return dest
+	#global

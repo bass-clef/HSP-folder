@@ -1,0 +1,68 @@
+	
+	#uselib "gdi32.dll"
+	#func	BitBlt	"BitBlt"	int, int, int, int, int,  int, int, int, int
+	#uselib "user32.dll"
+	#func	ReleaseDC	"ReleaseDC"		int, int
+	#cfunc	GetDC		"GetDC"			int
+	
+	#include "targetfind.as"
+	
+	wndcw = ginfo(20)
+	wndch = ginfo(21)
+	
+	htWnd = FindWindow(2)
+	if htwnd == null :end
+	
+	wdh = 55
+	hgt = 20
+	
+	buffer 1, wdh, hgt
+	bgscr 0, wdh, hgt
+	gsel 0, 2
+	onclick gosub *click
+	
+*main
+	gsel 1
+	redraw 0
+	htdc = GetDC(htWnd)
+	BitBlt hdc@hsp, 0, 0, wdh, hgt, htdc, 1177, 512, SRCCOPY
+	ReleaseDC htWnd, htdc
+	
+	redraw 1
+	mref vram, 66
+	hash = 0 :redf = 0
+	repeat wdh*hgt
+		i = cnt*3
+		red = peek(vram, i+2)
+		hash += red
+		if (peek(vram, i) < red-100) && (peek(vram, i+1) < red-100) && (240 < red) :redf++
+	loop
+	
+	gsel 0
+	if hash != hashed {
+		hashed = hash
+		title ""+redf
+		if 90 < redf {
+			repeat 10
+				colorwhite :boxf
+				redraw 1
+				wait 10
+				color 255 :boxf
+				redraw 1
+				wait 10
+			loop
+		}
+	}
+	
+	redraw 0
+	pos 0, 0 :gcopy 1, 0, 0, wdh, hgt
+	redraw 1
+	
+	
+	wait 1
+	goto *main
+	
+*click
+	if wparam == 1 :sendmsg hwnd@hsp, WM_NCLBUTTONDOWN, 2
+	if wparam == 2 :wait 50 :end
+	return

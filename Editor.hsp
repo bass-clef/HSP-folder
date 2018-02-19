@@ -1,0 +1,266 @@
+	
+	// チップ編集・加工 ソフト
+	
+	// 要素
+	// ・背景透過
+	// ・大きさ可変
+	// ・透過キャンパス貼り付け
+	
+	#uselib "user32.dll"
+	#func	FillRect		"FillRect"			int, int, int
+	#func	InvalidateRect	"InvalidateRect"	int, int, int
+	#cfunc	GetActiveWindow	"GetActiveWindow"
+	#uselib "gdi32.dll"
+	#cfunc	GetStockObject	"GetStockObject"	int
+	#func	StretchBlt		"StretchBlt"		int, int, int, int, int,  int, int, int, int, int,  int
+	#uselib "msimg32.dll"
+	#func	TransparentBlt	"TransparentBlt"	int, int, int, int, int,  int, int, int, int, int,  int
+	
+	#define	BLACK_BRUSH		4
+	#enum	global	MI_FILE = 10
+	#enum	global	MI_QUIT
+	#enum	global	MI_CLOS
+	#enum	global	MI_OPEN
+	#enum	global	MI_EDIT
+	#enum	global	MI_OPTI
+	
+	
+*main
+	gosub *varinit
+	gosub *create
+	stop
+	
+*varinit
+	dim rc, 4
+	alpha = RGB(0, 117, 117)
+	div = makeword(16, 16)
+	beg = makeword(5, 5)
+	sub = makeword(5, 5)
+	return
+	
+*create
+	gsel 0, -1
+	screen 1, ginfo(20), ginfo(21), 0,,, 640, 480 :title "Editor"
+	hmwnd = hwnd@hsp :hmDC = hdc@hsp
+	MenuInit hmwnd, hMenu
+	oncmd gosub *WindowProc, WM_COMMAND
+	oncmd gosub *WindowProc, WM_MENUSELECT
+	oncmd gosub *WindowProc, WM_INITMENU
+	oncmd gosub *WindowProc, WM_SYSCOMMAND
+	oncmd gosub *WindowProc, WM_LBUTTONDOWN
+	oncmd gosub *WindowProc, WM_LBUTTONUP
+	
+	return
+	
+*click
+	sendmsg hmwnd, WM_LBUTTONDOWN, wparam, lparam
+	return
+	
+*WindowProc
+	if iparam == WM_LBUTTONDOWN {
+		if ginfo_act == 1 {
+			lup = 1
+			*reLB
+			mx = loword(lparam) :my = hiword(lparam)
+			dx = loword(div) :dy = hiword(div)
+			if (mx == 0) && (my == 0) {vx = 0 :vy = 0
+			}else :vx = mx/dx*dx :vy = my/dy*dy
+		
+			TransparentBlt hmDC, vx, vy, vx+dx, vy+dy, hPicDC, sx, sy, sx+dx, sy+dy, alpha
+			if lup :wait 1 :goto *reLB
+		}elif ginfo_act == 0 {
+			mx = loword(lparam) :my = hiword(lparam)
+			dx = loword(div) :dy = hiword(div)
+			sx = mx/dx*dx :sy = my/dy*dy
+			ix = loword(Img) :iy = hiword(Img)
+	
+			StretchBlt hCamDC, 0, 0, ix, iy, hPicDC, 0, 0, ix, iy, SRCCOPY
+			rc.0 = sx, sy, sx+dx, sy+dy
+			FillRect hCamDC, varptr(rc), GetStockObject(BLACK_BRUSH)
+			InvalidateRect hCamWnd, NULL, FALSE
+		}
+	}elif iparam == WM_LBUTTONUP {
+		lup = 0
+	}elif iparam == WM_SYSCOMMAND {
+		uCmdType = wparam & 0xFFF0
+		if uCmdType == 0xF100 :if mf {
+			MenuEnable hmwnd, hMenu
+			sendmsg hmwnd, WM_TIMER, WT_RESIZE
+		}
+	}elif iparam == WM_COMMAND {
+		wID = loword(wparam)
+		if wID == MI_QUIT {oncmd 0 :end
+		}elif wID == MI_CLOS {
+			if mf {
+				MenuEnable hmwnd, hMenu :mf = 0
+				ChangeMenuItem hmwnd, hMenu, MI_CLOS, 0, "×", "__RightJostify__"
+			}else {
+				MenuDisable hmwnd :mf = 1
+				ChangeMenuItem hmwnd, hMenu, MI_CLOS, 0, "＋", "__RightJostify__"
+			}
+			sendmsg hmwnd, WM_TIMER, WT_RESIZE
+		}elif wID == MI_OPEN {
+			dialog "jpg;*.bmp;*.gif;*.png;*.ico;", 16, ""
+			if stat == 0 :return
+			fName = refstr
+			
+			buffer 2
+			picload fName
+			hPicDC = hdc@hsp
+			Img = makeword(ginfo(12), ginfo(13))
+			ix = loword(Img) :iy = hiword(Img)
+			
+			screen 0, ix, iy
+			gcopy 2, 0, 0, ix, iy
+			hCamDC = hdc@hsp
+			hCamWnd = hwnd@hsp
+			onclick gosub *click
+	
+			gsel 1, 1
+		}elif wID == MI_OPTI {
+		}
+	}elif iparam == WM_MENUSELECT {
+		wID = loword(wparam)
+		if wID == 0 && hiword(wparam) == 0xFFFF {
+			if mf :MenuDisable hmwnd :sendmsg hmwnd, WM_TIMER, WT_RESIZE
+		}
+	}elif iparam == WM_INITMENU {
+		if glong(hbSelect, -16) & WS_VISIBLE {
+			ChangeMenuItem hWnd_, hMenu.2, MI_BUTT, 0x08, "", ""	// check
+		}else {
+			ChangeMenuItem hWnd_, hMenu.2, MI_BUTT, 0, "", ""	// uncheck
+		}
+		if subimgf {
+			ChangeMenuItem hWnd_, hMenu.2, MI_IMGS, 0x08, "", ""	// check
+		}else {
+			ChangeMenuItem hWnd_, hMenu.2, MI_IMGS, 0, "", ""	// uncheck
+		}
+	}
+	return
+
+	#module __MENU__
+	#uselib "user32.dll"
+	#cfunc	CreateMenu				"CreateMenu"
+	#cfunc	CreatePopupMenu			"CreatePopupMenu"
+	#func	InsertMenuItem			"InsertMenuItemA"	int, int, int, var
+	#func	SetMenuItemInfo			"SetMenuItemInfoA"	int, int, int, var
+	#func	SetMenu					"SetMenu"			int, int
+	#func	DestroyMenu				"DestroyMenu"		int
+	#func	DrawMenuBar				"DrawMenuBar"		int
+	
+	#enum	cbSize = 0
+	#enum	fMask
+	#enum	fType
+	#enum	fState
+	#enum	wID
+	#enum	hSubMenu
+	#enum	hbmpChecked
+	#enum	hbmpUnchecked
+	#enum	dwItemData
+	#enum	dwTypeData
+	#enum	cch
+	#enum	hbmpItem
+	
+	// メニュー削除
+	#deffunc MenuDelete int hWnd_, var hMenu_ onexit
+		if hMenu_ :DestroyMenu hMenu_ :hMenu_ = 0
+	return
+	
+	// メニュー非表示
+	#deffunc MenuDisable int hWnd_
+		SetMenu hWnd_, NULL
+		DrawMenuBar hWnd_
+	return
+	
+	// メニュー表示
+	#deffunc MenuEnable int hWnd_, int hMenu_
+		SetMenu hWnd_, hMenu_
+	return
+	
+	//メニュー作成
+	#deffunc MenuInit int hWnd_, array hMenu_
+		hMenu_.2 = CreatePopupMenu()
+		if hMenu_.2 == 0 :return FALSE
+		AddMenuItem hMenu_.2, "", 2, 0, ""
+		AddMenuItem hMenu_.2, "設定 (&O)", MI_OPTI, 0, "詳細の設定を行います"
+		
+		hMenu_.1 = CreatePopupMenu()
+		if hMenu_.1 == 0 :return FALSE
+		AddMenuItem hMenu_.1, "開く (&O)\t\tCtrl+O", MI_OPEN, 0, "最初の画像を読み込みます"
+		AddMenuItem hMenu_.1, "", 2, 0, ""
+		AddMenuItem hMenu_.1, "終了 (&Q)\t\tAlt+F4", MI_QUIT, 0, "終了します"
+		
+		hMenu_.0 = CreateMenu()
+		if hMenu_.0 == 0 :return FALSE
+		AddMenuItem hMenu_.0, "ファイル (&F)", MI_FILE, hMenu_.1, ""
+		AddMenuItem hMenu_.0, "編集 (&E)", MI_OPER, hMenu_.2, ""
+		AddMenuItem hMenu_.0, "×", MI_CLOS, 0, "__RightJostify__"
+		
+		SetMenu hWnd_, hMenu_
+	return TRUE
+	// メニューアイテム追加
+	#deffunc AddMenuItem int hMenu_, str ItemName, int nId, int hSMenu, str ItemDate
+		dim mii, 12	//MENUITEMINFO
+		
+		mii.cbSize		= 48		//sizeof(MENUITEMINFO)
+		mii.fMask		= $32		//MIIM_TYPE | MIIM_ID | MIIM_DATA
+		mii.wID			= nId
+		dwItemDate		= ItemDate
+		mii.dwItemData	= varptr(dwItemDate)
+	
+		if ItemDate == "__RightJostify__" {
+			mii.fType	= 0x4000	//MFT_STRING | MFT_RIGHTJUSTIFY
+			dwTypeDate	= ItemName
+			mii.dwTypeData	= varptr(dwTypeDate)
+		}else :if ItemName != "" {			// NULL = セパレーター
+			mii.fType	= 0			//MFT_STRING
+			dwTypeDate	= ItemName
+			mii.dwTypeData	= varptr(dwTypeDate)
+		}else :if ItemDate == "__MenuDisabled__" {
+			mii.fMask	|= $1		//MIIM_STATE
+			mii.fState	= $3
+			mii.fType	= 0			//MFT_STRING
+			dwTypeDate	= ItemName
+			mii.dwTypeData	= varptr(dwTypeDate)
+		}else :mii.fType	= $800	//MFT_SEPARATOR
+		
+		if hSMenu != NULL {			// サブメニュー
+			mii.fMask	   |= $4	//MIIM_SUBMENU
+			mii.hSubMenu	= hSMenu
+		}
+		
+		InsertMenuItem hMenu_, nId, FALSE, mii
+	return
+	
+	// メニューアイテム変更
+	#deffunc ChangeMenuItem int hWnd_, int hMenu_, int nId, int uState, str ItemName, str ItemDate
+		dim mii, 12	//MENUITEMINFO
+		
+		mii.cbSize = 48
+		mii.fMask  = $3	//MIIM_ID | MIIM_STATE
+		mii.fState = uState
+		mii.wID    = nId
+		
+		if ItemName != "" {
+			mii.fMask	   |= $10	//MIIM_TYPE
+			mii.fType		= 0
+			dwTypeDate		= ItemName
+			mii.dwTypeData	= varptr(dwTypeDate)
+		}
+		if ItemDate == "__MenuDisabled__" {
+			mii.fState	= $3
+			mii.fType	= 0			//MFT_STRING
+			dwTypeDate	= ItemName
+			mii.dwTypeData	= varptr(dwTypeDate)
+		}else :if ItemDate == "__RightJostify__" {
+			mii.fType	= 0x4000	//MFT_STRING | MFT_RIGHTJUSTIFY
+		}else :if ItemDate != "" {
+			mii.fMask	   |= 0x20	//MFT_DATA
+			dwItemDate		= ItemDate
+			mii.dwItemData	= varptr(dwItemDate)
+		}
+	
+		SetMenuItemInfo hMenu_, nId, FALSE, mii
+		DrawMenuBar hWnd_
+	return
+	#global

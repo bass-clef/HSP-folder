@@ -1,0 +1,216 @@
+	
+	screen 0, 300, 300// ウィンドウ 0 を 300 x 300 で表示
+	
+	max = 2	// input, button の数
+	
+	sdim fName, 64, max
+	// 文字列型配列変数 fName を初期確保域を64byte+a
+	// maxの数だけ定義
+	
+	bgflag = 0	// Back Ground Flag	: バックグラウンドで動かしているか
+	booted = 0	// 設定されている実行ファイルが起動しているか
+	
+	repeat max// これより下でloopを見つけたらここに戻ってくる max回それを繰り返す
+		objsize 25, 20	// これより下で書くオブジェクトのデフォルトの大きさを25x20にする
+		pos 250, 300/(max+2)*(cnt+1) :button gosub "...", *Jump
+		// 250x300/(max+2)*(cnt+1) の位置に ボタン を折り返しジャンプで配置
+		// 表示する文字は"..." 飛ぶ先は *Jump
+		
+		pos 25, ginfo_cy-40	// 位置を20xginfo_cy-40に設定
+		// ginfo_cyには今現在、設定されているy軸が入っている
+		
+		if cnt {// もしcntが0以外なら or もしcntに何か入っているなら
+			// cntには今repeat-loop間を何回繰り返したかが入ってる
+			
+			mes "起動するファイル"	// ginfo_cx x ginfo_cy の位置に文字を表示
+		}else {// もしも～じゃなかったら
+			mes "監視するファイル"
+		}
+	loop
+	repeat max
+		objmode 2// これより下で書くオブジェクトのフォントを
+		//現在設定されている画面用フォントと同じにする
+		
+		font msgothic, 16	// 画面用フォントを "ＭＳ ゴシック" の 16 ポイントの大きさにする
+		
+		pos 25, 300/(max+2)*(cnt+1) :input fName(cnt), 225, 20
+		// 25x300/(max+2)*(cnt+1) の位置に 225x20の大きさで 入力ボックスを置く
+	loop
+	
+	objsize 250, 20
+	pos 25, 300/(max+2)*(max+1) :button gosub "設定", *BackGroundCheck
+	
+*mainlp// 飛ぶ先 *mainlpを定義
+	
+	if booted {
+		if iswin(htWnd) == 0 :booted = 0
+		// iswinは指定したウィンドウがあるかどうか、ないなら0 あるはそれ以外
+	}else :if bgflag {
+		dim wnds
+		// 数値型の配列 wnds を定義 この中身はウィンドウハンドル(ウィンドウを識別するもの)
+		// 初期はなにも入ってない 個数は省略可
+		
+		GetVisibleWnd wnds	// 現在可視できるウィンドウを列挙wndsに配列として代入
+		i = -1
+		repeat length(wnds)	// length(wnds) は wndsの配列の数
+			if getpath(fName(0), 16) == getpath(GetExeFileName(wnds.cnt), 16) {
+				// getpath の 16 は fName(0) を小文字へ
+				// GetExeFileName(wnds.cnt) は wnds.cnt に入ってるウィンドウの
+				// フルパスを取得する
+				i = cnt
+				break	// repeat～loop 間を強制で抜ける loopへ
+			}
+		loop
+		if i != -1 {
+			htWnd = wnds.i
+			repeat max-1, 1	// 二番目の1 : repeat の cntの数値を 1 から始める
+				if getpath(fName(cnt), 2) == ".exe" {
+					// getpath の 2 は fName(cnt) の 拡張子を取得
+					exec fName(cnt)
+					// fName(cnt) を 実行
+				}else {
+					exec fName(cnt), 16
+					// fName(cnt) を関連付けされたアプリケーションで起動。
+					// abc.hsp なら HSPスクリプトエディタが起動する
+				}
+			loop
+			booted = 1
+		}
+	}
+	wait 1	// このアプリケーションを 10ms (1秒は1000ms) 停止
+	goto *mainlp // mainlpへ帰ることを考えずに飛ぶ
+	
+*BackGroundCheck
+	i = -1
+	repeat max
+		exist fName(cnt)
+		// fName(cnt) の中のファイル が存在しているかどうか
+		if strsize == -1 :i = cnt :break
+		// strsizeには ファイルのサイズが入っている。
+		// -1 はファイルが存在していないという意味
+	loop
+	if i != -1 :dialog ""+i+"番目を登録していません" :return
+				// ダイアログを表示 中身は「""+i+"(ry」タイプは 0 タイトルはなし
+													// *BackGroundCheck に飛んでくる前の場所へ帰る
+	
+	bgflag = 1
+	return// *BackGroundCheck に飛んでくる前の場所へ帰る
+	
+*Jump
+	id = stat	// ここの stat には ボタンの識別番号が入っている
+	if id == 0 :ext = "exe" :else :ext = "*.*"
+	dialog@hsp ext, 16, ""
+	// ダイアログを表示 ファイル選択ダイアログ 指定できる拡張子は ext。
+	// extの説明が ""
+	
+	if stat == 0 :return
+	// ここの stat には ファイルが選択されたかどうかの審議値が入っている
+	// 0ならファイルが選択されなかった
+	
+	fName(id) = refstr	// ここの refstr はフルパスのファイル名が入っている
+	objprm id+max, fName(id)
+	// オブジェクト識別番号 id+max の中身を fName(id) にする
+	
+	return
+	
+	#module// モジュール
+	// モジュールないで外部から定義された関数は グローバル化しないと
+	// そとでは使えない
+	#uselib "EnumWindows.dll"	// 外部のEnumWindows.dllを使う
+	#cfunc	GetWindows		"GetWindows"		int, int
+	// GetWindows を 関数型 で 引数が int, int で定義
+	// #cfuncが関数型、#funcが命令型
+	// 関数型は必ず代入式それらの書き方でないとエラー
+	
+	// #func ABC "ABC" int
+	// は
+	// ABC 8641	// 8641は数字ならなんでも可
+	
+	// #cfunc ABC "ABC" int, str
+	// は
+	// value = ABC(1369, "文字")	// 1369は上記同様、"文字"も文字なら何でも可
+	
+	#uselib "user32.dll"
+	#cfunc	IsWindowVisible	"IsWindowVisible"	int
+	
+	// 可視ウィンドウ列挙
+	// 命令 GetVisibleWnd を定義
+	#deffunc GetVisibleWnd array hwnds
+	// array は配列を要求
+		dim wnd, 1000	// あらかじめ1000個の空きを作成
+		i = 0
+		repeat GetWindows(varptr(wnd), 1000)
+			// ここのrepeatは GetWindows からの戻り値数繰り返す
+			// varptr(wnd) は wnd の変数のアドレス取得
+			// GetWindowsが本体。wndに現在表示されていないウィンドウと
+			// そうでないウィンドウが入っている。
+			// 戻り値はそのウィンドウの数
+			
+			if (IsWindowVisible(wnd.cnt) != 0) && (wnd.cnt != hwnd@hsp) {
+			// ここのもしもは
+			// (IsWindowVisible(wnd.cnt) != 0) かつ (wnd.cnt != hwnd@hsp)
+			// 日本語訳 : wnd.cnt が見えていてなおかつ wnd.cnt は自分のウィンドウじゃない
+			
+				// IsWindowVisible(wnd.cnt)はwnd.cntのウィンドウが見えているかどうか
+				// 見えていたら 0 以外
+				
+				
+				hwnds.i = wnd.cnt
+				i++
+			}
+		loop
+	return
+	#global
+	
+	#module
+	#uselib "user32.dll"
+	#func	GetWindowThreadProcessId	"GetWindowThreadProcessId"	int, int
+	#uselib "kernel32.dll"
+	#cfunc	OpenProcess			"OpenProcess"			int, int, int
+	#func	CloseHandle			"CloseHandle"			int
+	#uselib "psapi.dll"
+	#cfunc	EnumProcessModules	"EnumProcessModules"	int, int, int, int
+	#cfunc	GetModuleFileNameEx	"GetModuleFileNameExA"	int, int, var, int
+	
+	#define	PROCESS_QUERY_INFORMATION	0x0400
+	// PROCESS_QUERY_INFORMATION は 0x0400 へ置き換えられる
+	// 変数と違って代入はできない小文字も可
+	
+	#define PROCESS_VM_READ				0x10
+	
+	// HWNDからファイル名取得
+	#defcfunc GetExeFileName int hWnd_
+		size_dest = MAX_PATH+1
+		sdim dest, size_dest+1
+		
+		// プロセスID
+		processID = NULL
+		GetWindowThreadProcessId hWnd_, varptr(processID)
+		// hWnd_ で指定されたウィンドウのプロセスIDを processID へ代入
+		
+		// プロセスハンドル
+		hProcess = OpenProcess( PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, processID)
+		if not(hProcess) :return ""
+		// processID で指定されたプロセスを
+		//「PROCESS_QUERY_INFORMATION | PROCESS_VM_READ」 のアクセス権を割り当てて開く(操作できるようにする)
+		
+		// モジュールハンドル
+		hModule = NULL
+		dummy = 0
+		if not(EnumProcessModules( hProcess, varptr(hModule), 4, varptr(dummy))) :return ""	// GetExeFileName が呼ばれた場所へ帰還、なおかつ refstr に "" を代入
+		// hProcess の モジュールハンドルを hModule へ代入
+		// この関数はようわからん
+		/// not() は カッコ内の。。。を反転させる 「not(0) == 1」「not(1) == 0」
+		
+		// ファイル名(フルパス)
+		memset dest, 0, size_dest
+		// dest内を0で埋め尽くす size_dest バイト数だけ
+		
+		if not(GetModuleFileNameEx( hProcess, hModule, dest, size_dest)) :return ""
+		// hModule の フルパスを取得。 dest へ size_destバイト数 だけ代入
+		
+		CloseHandle hProcess	// 鉄則「開いたハンドルは閉じましょう」 hProcess を閉じる
+		
+		// hModuleは自分で閉じちゃいけない
+	return dest	//GetExeFileName が呼ばれた場所へ帰還、なおかつ refstr に dest を代入
+	#global

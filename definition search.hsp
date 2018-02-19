@@ -1,0 +1,258 @@
+	
+	#packopt name "Find Definition"
+	
+	#include "hspinet.as"
+	
+	#uselib "shlwapi.dll"
+	#cfunc	PathFileExists	"PathFileExistsA"	sptr
+	
+	sdim reads
+	sdim readed
+	sdim fileold
+	sdim file
+	sdim pathes
+	
+	dir_target = "c:\\program files (x86)\\microsoft sdks\\windows\\v7.0a\\include\\"
+//	dir_target = "C:\\hsp331\\hspsdk\\"
+	
+	getenv pathes, "PATH"
+	pathes += ";"+dir_target+";"+dir_exe+";"+dir_cur+";"+dir_mydoc+";"+dir_win
+	target = ""
+	
+	screen 0, 300, 40
+	title "Definition Searcher"
+	gosub *create_obj
+	font msgothic, 10
+	stop
+	
+*create_obj
+	objsize ginfo(12), 20
+	pos 0, 20 :button gosub "検索", *find
+	objmode 2 :font msgothic, 14
+	pos 0,  0 :input target
+	return
+	
+*find
+	clrobj 0, 1
+	width 160, 10
+	gosub *find_inside
+	
+	return
+	
+*find_inside
+	nuller = " \t"
+	ender = "\n"
+	szNuller = 2
+	szEnder = 1
+	reads = "Windows.h\nCommCtrl.h\n"
+	readed = reads
+	
+	split pathes, ";", path
+	pathesmax = length(path)
+	
+	sdim inf
+	sdim contfiles
+	repeat
+		await
+		notesel@hsp reads
+		if notemax == 0 :break
+		
+		redraw 0
+		colorwhite :boxf 0, 0, 160, 10 :color
+		pos 0, 0 :mes "残り "+notemax+" files 除外ファイル数:"+cont
+		redraw 1
+	
+		dir = getpath(noteget(0), 32)
+		if strlen(dir) {
+			dir_target = dir
+			noteadd getpath(noteget(0), 3), 0, 1
+		}
+		*retry
+		j = 1
+		file = noteget(0)
+		notesel@hsp contfiles
+		repeat cont
+			if file == noteget(cnt) :j = 0 :break
+		loop
+		noteunsel
+		if j == 0 :notedel 0 :continue
+	
+		j = -1
+		repeat pathesmax
+			fName = path.cnt+noteget(0)
+			exist fName
+			if strsize != -1 :j = cnt :break
+		loop
+		if j == -1 {
+			if 0 {
+			dialog "列挙されているパスを参照しましたがファイルが見つかりませんでした。\n検索しますか？", 6, "Definition Search"
+			if stat == 2 :break
+			if stat == 6 {
+				SearchFile "C:\\", fName
+				file = refstr
+				dialog ""+file, 0, "", NULL
+				if strlen(file) {
+					path.pathesmax = getpath(refstr, 32)
+					pathesmax++
+					notesel@hsp reads
+					goto *retry
+				}
+			}
+			}
+			contfiles += file+"\n"
+			cont++
+			notedel 0
+			continue
+		}
+		nowdir = path(j)
+		
+		sdim buf, strsize+1
+		bload fName, buf, strsize
+		
+		split buf, "#", prm
+		
+		for i, 0, length(prm), 1
+			if strmid(prm.i, 0, 7) == "include" {
+//					file = strmid(prm.i, 9, instr(prm.i, 0, ".")+1-8)
+				j = 1
+				prm.i = strtrim(prm.i, 3, ' ')
+				prm.i = strtrim(prm.i, 3, '\t')
+				prm.i = strtrim(prm.i, 3, '\n')
+				dim prmsub
+				split prm.i, "\"", prmsub
+				if 1 < length(prmsub) {// ["] で囲まれたファイル
+					file = prmsub.1
+				}else {// [<>]で囲まれたファイル
+					dim prmsub
+					split prm.i, "<", prmsub
+					if 1 < length(prmsub) {
+						baketend = instr(prmsub.1, 0, ">")
+						if baketend == -1 :_continue	// 構文エラー <> の終わりが無い
+						file = strmid(prmsub.1, 0, baketend)
+					}else {
+						_continue
+					}
+				}
+				// [../]による階層一段上げ
+				str_ = file
+				j = 0
+				repeat 2
+					if peek(str_, cnt) == '.' :str_ = strmid(str_, 1, strlen(str_)) :j++ :else :break
+				loop
+				if j == 2 {
+					path_ = GetPrevDir(nowdir)
+					if peek(str_, 0) == '/' {
+						// 一段上の階層の別のディレクトリ
+						j = 0
+						repeat strlen(str_)
+							if peek(str_, cnt) == '/' :j = cnt
+						loop
+						file = strmid(str_, j+1, strlen(str_))
+						peth_ += strmid(str_, 0, j-1)
+					}
+					j = 1
+					repeat pathesmax	// パスの重複
+						if path_ = path.cnt :j = 0 :break
+					loop
+					if j {
+						path += path_
+						pathesmax++
+					}
+				}
+				
+				j = 1
+				notesel@hsp readed// 重複検査
+				repeat notemax
+					if noteget(cnt) == file :j = 0
+				loop
+				noteunsel
+				
+				if j :reads += file+"\n" :readed += file+"\n"
+				_continue
+			}
+			
+			tf = 0
+			
+			if strmid(prm.i, 0, 6) == "define" :tf = 1
+			if tf {
+				code = getpath(prm.i, 16)
+				code = strmid(code, 6, strlen(code))
+				code = strtrim(code, 1, ' ')
+				code = strtrim(code, 1, '\t')
+				j = instr(code, 0, getpath(target, 16))
+				if j != -1 :if j < 1 {
+					if fileold != file {
+						inf += "\nfrom \""+fName+"\"\n"
+						fileold = file
+					}
+					// 改行判定
+					inf += "#"
+					notesel@hsp prm.i
+					repeat notemax
+						noteget@hsp str_, cnt
+						str_ += "\n"
+						lineend = instr(str_, 0, "\n")
+						inf += ""+str_+""
+						if instr(str_, lineend-5, "\\") == -1 :break
+					loop
+					noteunsel
+					
+//					inf += "#"+prm.i+""
+				}
+			}
+			/**
+			repeat szNuller
+				prm.i = strtrim(prm.i, 3, peek(nuller, cnt))
+			loop
+			n = instr(prm.i, 0, ender)
+			if n != -1 :poke prm.i, n, 0
+			/**/
+		next
+		notedel 0
+	loop
+	
+	inf += "/------------------------------------------------------------------------/\n検索除外ファイル\n"+contfiles
+	
+	screen 0, 640, 480, 0, (ginfo(20)-640)/2, (ginfo(21)-480)/2
+	objmode 2 :font msgothic, 14
+	mesbox inf, ginfo(12), ginfo(13), 5, 0
+	
+	
+	stop
+	#module
+	#defcfunc GetPrevDir str str_
+		dir = str_
+		dir = strtrim(dir, 2, '\\')
+		dir = getpath(dir, 32)
+	return dir
+	#global
+	
+	#module
+	#deffunc SearchFile str dir_begin, str sfile
+		sdim list :sdim list2 :sdim file :sdim ext
+		file = dir_begin
+		ext = "*"+getpath(sfile, 26)
+		
+		repeat
+			await
+			if cnt != 0 {
+				notesel@hsp list
+				if notemax == 0 :break
+				noteget@hsp file, 0
+				notedel 0
+			}
+			if isdir(file) {
+				chdir file
+				dirlist list2, "*.*", 2
+				notesel@hsp list2
+				repeat notemax
+					gext = getpath(noteget(cnt), 2)
+					if (gext == ext) || (gext == "") :list += ""+file+"\\"+noteget(cnt)+"\n"
+				loop
+			}else {
+				title ""+file
+				if getpath(file, 24) == getpath(sfile, 16) :return file
+			}
+		loop
+	return ""
+	#global

@@ -1,0 +1,245 @@
+	
+	#packopt name "wordFinder"
+	#packopt hide 0
+	
+	#uselib "kernel32.dll"
+	#func	FileTimeToSystemTime	"SystemTimeToFileTime"	int, int
+	#uselib "comctl32.dll"
+	#func	LBItemFromPt			"LBItemFromPt"			int, int, int, int
+	
+	#include "enumfile.as"
+	#include "array.as"
+	
+	sdim listbuf
+	sdim dst
+	sdim word
+	dir = dir_cur
+	delimiter = "*.hsp;*.as"
+	chk = 1, 0, 0, 1
+	
+	screen 0, 360, 185, 0
+	title "Word Finder"
+	
+	objmode 2 :font msgothic, 16
+	pos 5,  5
+	mes ":検索対象:"
+	input word, ginfo(12)-10, 20
+	
+	font msgothic, 12
+	pos 5, 50
+	mes ":開始ディレクトリ:"
+	input dir, ginfo(12)-10-15, 15
+	
+	objsize 16, 16
+	objmode 1
+	pos ginfo(12)-20, ginfo_cy-16 :button gosub "...", *folderselect
+	
+	objsize 100, 14
+	pos 5, 90 :mes ":オプション:"
+//	pos 5+ginfo_mesx, 85 :combox com.0, 0, "完全一致\n通常"
+	
+	
+	objsize (360-15)/2, 15
+	pos 5, 110 :chkbox "大文字と小文字を区別する", chk.0
+	pos 5+winfo(31), 110 :chkbox "Escape Sequence を有効にする", chk.1
+	cx = 5 :cy = ginfo_cy
+	wdh = winfo(31)
+	
+	objsize wdh/5*2+1, 15
+	pos 5 :chkbox "サイズ", chk.2
+	pos cx+winfo(31), ginfo_cy-14 :input size, winfo(31)/2*3+1, 14
+	hSzEdit = objinfo(stat, 2)
+	slong hSzEdit, GWL_STYLE, glong(hSzEdit, GWL_STYLE) | 0x2000
+	
+	pos cx+wdh, cy
+	objsize wdh/5*2+1, 15
+	chkbox "拡張子", chk.3
+	pos cx+wdh+winfo(31), ginfo_cy-14 :input delimiter, winfo(31)/2*3+1, 14
+	hDelimiterEdit = objinfo(stat, 2)
+//	slong hExtEdit, GWL_STYLE, glong(hExtEdit, GWL_STYLE) | 0x2000
+	
+	
+	
+	objsize ginfo(12)-10, 20
+	pos 5, ginfo(13)-25
+	button gosub "検索開始", *Search
+	
+	onkey gosub *key
+	
+	stop
+	
+//	objsize ginfo(12), ginfo(13)
+//	listbox list, 0, dst :listID = stat
+	
+*addfilter
+	
+	stop
+	
+*key
+	if wparam == 13 :gosub *Search
+	return
+	
+*folderselect
+	dialog "", 66, ""
+	if stat == 0 :return
+	dir = refstr
+	return
+	
+*search
+	objsize 400, 300
+	dialog "1", 64, "検索結果"
+	oncmd gosub *contextMenu, WM_CONTEXTMENU
+	objsize 400, 300
+	buf = 0
+	objmode 2 :font msgothic, 12
+	listbox buf, 0, "", 1 :ListID = stat :hListBox = objinfo(ListID, 2)
+	
+	if chk.0 == 0 :word = getpath(word, 16)
+	if chk.3 == 0 :findDelimiter = "*.*" :else :findDelimiter = delimiter
+	EnumFile dir, listbuf, findDelimiter, 2
+	
+	sdim dst
+	sdim data
+	sdim tempData
+	sdim fName
+	notesel@hsp listbuf :max = notemax
+	title ""+max+"件..."
+	
+	wait 1
+	
+	repeat max
+		noteget@hsp fName, cnt
+		exist fName :size = strsize
+		if 1 <= size {
+			sdim buf, size+1
+			bload fName, buf, size
+			if chk.0 == 0 {
+				buf = getpath(buf, 16)
+			}
+			if 0 <= instr(buf, 0, word) {
+				dst += ""+fName+"\n"
+				objprm listID, dst
+			}
+		}
+	loop
+	
+	/*
+	repeat notemax
+		notesel@hsp listbuf
+		noteget@hsp fName, cnt
+		exist fName
+		if strsize != -1 {
+			sdim buf, strsize
+			bload fName, buf, strsize
+			i = 0
+			sdim ext
+			notesel@hsp buf
+			repeat notemax
+				await
+				noteget@hsp ext, cnt
+				ext = getpath(ext, 16)
+				if instr(ext, 0, word) != -1 :i = 1 :break
+			loop
+			if i {
+				/*
+				GetFileLoadTime fName
+				CopyFileTime tempData
+				notesel@hsp dst
+				if 1 < length(data) {
+					f = 0
+					repeat length(data)
+						if compareFileTime(data.cnt, tempData) == 1 {
+							addListPrm cnt
+							f = 1
+							break
+						}
+					loop
+					if f == 0 :addListPrm length(data)
+				}else :addListPrm length(data)
+				/**
+				dst += fName+"\n"
+				objprm listID, dst
+			}
+		}else :await
+	loop
+	/**/
+	
+	sdim prm
+	split dst, "\n", prm
+	if 1 < length(prm) {
+		array_reverse prm
+		array_delete prm, 0, 1
+		dst = array_join("\n", prm)
+	}
+	objprm listID, dst
+	
+	notesel@hsp dst
+	title "検索終了 ["+word+"] ("+max+"件中 "+notemax+"件)"
+	
+	return
+	
+*contextMenu
+	if wparam == hListBox {
+		LBItemFromPt wparam, ginfo(0), ginfo(1), 0 :id = stat
+		objprm ListId, id
+		
+		notesel@hsp dst
+		file = noteget(id)
+		file = strtrim(file, 0, '\"')
+		exec "rundll32.exe shell32.dll,OpenAs_RunDLL "+file+""
+	}
+	return
+	
+	#deffunc addListPrm int index
+		dim tempFileTime, 8+1
+		FileTimeToSystemTime varptr(tempData), varptr(tempFileTime)
+		strSplit tempFileTime, 2, p, 16
+		repeat 8 :t.cnt = wpeek(p.cnt, 0) :loop
+		time_str = strf("%04d/%2d/%2d(%2d) %2d:%02d:%2d", t.0, t.1, t.3, t.2, t.4, t.5, t.6)
+		
+		array_addprm data, index, tempData
+		memcpy data.index, tempData, 8
+		split dst, "\n", prm
+		array_addprm prm, index, time_str+" "+getpath(fName, 11)/*fName*/
+		dst = array_join("\n", prm)
+	return
+	
+	
+	#module
+	#uselib "kernel32.dll"
+	#cfunc	CreateFile				"CreateFileA"			sptr, int, int, int, int, int, int
+	#func	GetFileTime				"GetFileTime"			int, int, int, int
+	#func	FileTimeToSystemTime	"FileTimeToSystemTime"	int, int
+	#func	SystemTimeToFileTime	"SystemTimeToFileTime"	int, int
+	#func	CloseHandle				"CloseHandle"			int
+	#cfunc	CompareFileTime___		"CompareFileTime"		int, int
+	#define GENERIC_READ				(0x80000000)
+	#define	OPEN_EXISTING				3
+	#define	FILE_ATTRIBUTE_NORMAL		0x80
+	
+	// ファイルの日付取得
+	#deffunc GetFileLoadTime str fname
+		hFile = 0			// HANDLE hFile;
+		dim ftFileTime, 2	// FILETIME ftFileTime;
+		dim stFileTime, 8	// SYSTEMTIME stFileTime;
+	
+		hFile = CreateFile(fname, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL)
+		if hFile == -1 :return 1
+
+		GetFileTime hFile, NULL, NULL, varptr(ftFileTime )
+		FileTimeToSystemTime varptr(ftFileTime), varptr(stFileTime)
+		
+		CloseHandle hFile
+	return
+	#defcfunc GetFileTime int type	// gettimeの形式で出力
+//		mes "日付 "+loword(stFileTime.0)+"/"+hiword(stFileTime.0)+"/"+hiword(stFileTime.1)+"("+loword(stFileTime.1)+")"
+//		mes "時間 "+loword(stFileTime.2)+":"+hiword(stFileTime.2)+" "+loword(stFileTime.3)+" "+hiword(stFileTime.3)
+	return wpeek(stFileTime, type*2)
+	#deffunc CopyFileTime var string_var
+		memexpand string_var, 8+1
+		memcpy string_var, ftFileTime, 8
+	return
+	#defcfunc compareFileTime array time1, array time2
+	return CompareFileTime___(varptr(time1), varptr(time2))
+	#global
+

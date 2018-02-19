@@ -1,0 +1,48 @@
+	
+	
+	
+	#module
+	// add 変数, 開始index, 領域のサイズ, 最大, 乗算値
+	#deffunc add var v, int index_, int size_, int max_, int range_
+		pt = varptr(v)
+		i = pts_max
+		repeat pts_max
+			if pts.cnt == pt+index_ :i = cnt :break
+		loop
+		pts.i	= pt+index_
+		count.i	= 0
+		size.i	= size_
+		max.i	= max_
+		range.i	= 0.5*range_
+		if i == pts_max :pts_max++
+	return
+	
+	#const	H_PI	(M_PI/2.0)
+	#deffunc AllCalc
+		repeat pts_max
+			if count.cnt == -1 :continue
+			dupptr clone, pts.cnt, size.cnt, 4
+			clone = int(  (sin( -H_PI + M_PI/double(max.cnt) * double(count.cnt+1) )+1.0) * range.cnt  )
+			count.cnt++
+			if max.cnt <= count.cnt :count.cnt = -1
+		loop
+	return
+	#global
+	
+	add x, 0, 4, 200, 50
+	
+	repeat 150
+		AllCalc
+		
+		redraw 0
+		color :boxf :colorwhite
+		pos 0, 0 :mes ""+cnt+":"+x
+		line x, 0, x, ginfo(13)
+		redraw 1
+		wait 1
+	loop
+	
+	
+	
+	
+	

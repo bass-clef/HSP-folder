@@ -1,0 +1,38 @@
+	
+	// clicker
+	
+	screen 0, 200, 14, 8
+	title "clicker - ÉLÅ[ìoò^Ç»Çµ"
+	font msgothic, 14
+	onkey gosub *key
+	nKey = null
+	
+*main
+	if (getkey(nKey) & 0x8000) && (getkey(17) & 0x8000) {
+		if f == 0 :if hTarGetWnd != null {
+			f = 1
+			sendmsg hTarGetWnd, WM_LBUTTONDOWN, 1, makeword(1, 1)
+//			sendmsg hTarGetWnd, WM_LBUTTONUP, 1, makeword(1, 1)
+		}
+	}else {
+		if f :f = 0
+	}
+	
+	
+	wait 1
+	goto *main
+	
+*key
+	nKey = wparam
+	title "clicker - "+nKey
+	hTarGetWnd = hwnd(ginfo(0), ginfo(1))
+	
+	redraw 0
+	colorwhite :boxf :color
+	pos 0, 0 :mes gtext(hTarGetWnd)
+	redraw 1
+	
+	f = 1
+	return
+	
+	

@@ -1,0 +1,442 @@
+	
+	
+	/*
+	
+	ÉVÉÖÅ[ÉeÉBÉìÉO
+	
+	:ãÖ:
+	ÅEï˚å¸
+	ÅEëÂÇ´Ç≥
+	
+	*/
+	
+	#uselib "user32.dll"
+	#func	SetTimer	"SetTimer"	int, int, int, int
+	#func	KillTimer	"KillTimer"	int, int
+	
+	#include "keys.as"
+	#include "BlankIdentifier.as"
+	
+	#packopt name "C:\\Users\\Hiro\\Desktop\\nerunerunerune\\Ç ÇÈÇ ÇÈÇ ÇÈÇ "
+	
+	chdir "resource\\"
+	
+	bloodId = 7
+	bloodMax = 5
+	repeat bloodMax
+		buffer bloodId+cnt
+		picload "blood_"+(cnt+1)+".bmp"
+		bloodXSize.cnt = ginfo(12)
+		bloodYSize.cnt = ginfo(13)
+	loop
+	
+	calorieMateId = 6
+	buffer calorieMateId
+	picload "calorieMate.bmp"
+	calorieMateSize = ginfo(12), ginfo(13)
+	
+	bulletId = 5
+	buffer bulletId
+	picload "bullet.png"
+	bulletImgSize = ginfo(12), ginfo(13)
+	
+	targetId = 4
+	buffer targetId
+	picload "shooting target.bmp"
+	stSize = 64, 64
+	
+	imgId = 3
+	buffer imgId
+	picload "2bit.bmp"
+	imgSize = ginfo(12), ginfo(13)
+	
+	blackId = 2
+	buffer blackId, imgSize.0, imgSize.1+100
+	color 255 :boxf
+	
+	bufId = 0
+	buffer bufId, imgSize.0, imgSize.1+100
+	colorwhite :boxf
+	pos 0, 0 :gcopy imgId, 0, 0, imgSize.0, imgSize.1
+	
+	mainId = 1
+	screen mainId, imgSize.0, imgSize.1+100
+	slong hwnd, GWL_STYLE, glong(hwnd, GWL_STYLE) | WS_THICKFRAME
+	title "Ç ÇÈÇ ÇÈÇ ÇÈÇ "
+	
+	font msgothic, 30
+	
+	initKeys
+	banKeys = 1, 2
+	banKeyMax = length(banKeys)
+	repeat banKeyMax
+		registoryKey banKeys.cnt, 1, 10
+	loop
+	
+	// é©íe
+	initBlankId pistol
+	dim bullet :bulletCount = 0 :bulletMax = 50
+	dim bulletDistance
+	dim bulletSize
+	bulletXSize = 32
+	bulletSizeMax = 20
+	bulletSpeed = 1
+	bulletDistanceMax = 10
+	mergin = 1
+	merginSpeed = 0
+	
+	gunMax = 10
+	repeat gunMax
+		mci "open machingun.mp3 type MPEGVideo alias gun"+cnt
+		mci "setaudio gun"+cnt+" volume to 300"
+	loop
+	mci "open zombie0.wav type waveaudio alias zombie0"
+	mci "open zombie1.wav type waveaudio alias zombie1"
+	
+	
+	// É_ÉÅÅ[ÉWï∂éö
+	initBlankId number
+	dim numberPos :numberCount = 0 :numberMax = 50
+	dim number	// lo:score hi:trans
+	numberCountMax = 40
+	
+	// ìGíe
+	initBlankId attack
+	dim attack :attackCount = 0:attackMax = 50
+	dim attackSize :attackSizeMax = bulletSizeMax
+	dim attackDistance
+	attackSpeed = 1
+	attackDistanceMax = 100
+	attackDistanceMargin = 20
+	
+	dim calorieMate
+	calorieMateFlag = 0
+	
+	myHPMax = 100000
+	myHP = myHPMax
+	myLevel = 1
+	
+	mode = 0
+	score = 0
+	hMainWnd = hwnd
+	
+	time = 1
+	level = 1.0
+	oldLevel = int(level)
+	
+	gmode 4, 0, 0, 255
+	
+	onexit goto *exit
+	oncmd gosub *main, WM_TIMER
+	SetTimer hwnd, 1000, 10, 0
+	
+	stop
+*lp
+	gosub *main
+	wait 1
+	goto *lp
+	
+*exit
+	oncmd 0
+	mci "close zombie0"
+	mci "close zombie1"
+	repeat gunMax
+		mci "close gun"+cnt
+	loop
+	KillTimer hwnd, 1000
+	end
+	
+*main
+	
+	mx = mousex
+	my = mousey
+	
+	gsel bufId
+	gosub *calc
+	
+	gsel mainId
+	gosub *draw
+	
+	oldMx = mx
+	oldMy = my
+	
+	return
+	
+	
+*calc
+	
+	if mx != -1 && my != -1 :calcKeys
+	
+	mouseMargin = int(sqrt(powf(oldMx-mx, 2)+powf(oldMy-my, 2)))*30
+	
+	move = sin(M_PI * 2.0 / 200.0 * moveCount) * 100
+	moveCount = (moveCount+1)\200
+	
+	gosub *enemy
+	
+	if 0 == myHP {
+		gameover = 1
+	} else {
+		gosub *shot
+	}
+	
+	level += logf(time)/10000.0
+	if int(level) != oldLevel {
+		oldLevel = int(level)
+		gsel bufId
+		gmode 1
+		colorwhite :boxf
+		pos 0, 0 :gcopy imgId, 0, 0, imgSize.0, imgSize.1
+		gsel mainId
+	}
+	
+	time++
+	
+	return
+	
+*enemy
+	
+	for i, 0, attackCount, 1
+		if isBlankId(i, attackCount, attack) :_continue
+		// Ç†ÇΩÇËîªíË
+		attackSize.i++
+		attackDistance.i -= attackSpeed
+		if (attackDistance.i <= 0) {
+			setBlankId i, attack
+			myHP = limit(myHP - attackDamage.i, 0, myHP - attackDamage.i)
+			newText loword(attack.i), hiword(attack.i), attackDamage.i
+			_break
+		}
+	
+		repeat bulletCount
+			if isBlankId(cnt, bulletCount, bullet) :blankCount++ :continue
+			r = sqrt(powf( loword(attack.i)-loword(bullet.cnt) , 2) + powf( hiword(attack.i)-hiword(bullet.cnt) , 2))
+			if (r < attackSize.i) {
+				setBlankId i, attack
+				setBlankId cnt, bullet
+				break
+			}
+		loop
+	next
+	
+	//Å@ìGÇÃçUåÇ
+	a = limit(level, 0, 250)
+	if (1 < rnd(300-a)) :return
+	
+	zombieId = rnd(2)
+	mci "seek zombie"+zombieId+" to 0"
+	mci "play zombie"+zombieId
+	centerX = rnd(ginfo(12)-attackDistanceMax/2)
+	centerY = rnd(ginfo(13)-100)
+	repeat 1+rnd(3)+rnd(limit(level/100, 1, 100))
+		newId = getBlankId(attackCount, attack, attackMax)
+		if -1 == newId :break
+		attack.newId = makelong( centerX+rnd(50)-25, centerY+rnd(50)-25 )
+		attackSize.newId = 3
+		attackDistance.newId = attackDistanceMax - rnd(attackDistanceMargin)
+		attackDamage.newId = 100+time+rnd(1000)
+	loop
+	
+	return
+	
+*shot
+	
+	// êVÇµÇ¢íe
+	keyCount = 0
+	repeat banKeyMax
+		if keyDowned(banKeys.cnt) || keyJustBeforeDown(banKeys.cnt) {
+			keyCount++
+		}
+	loop
+	if (keyCount) {
+		keyCount += int(myLevel)/10000
+		
+		gunFlag = 1
+	}
+	if gunWait {
+		gunWait--
+	}else :if gunFlag {
+		gunFlag = 0
+		mci "seek gun"+ gunId +" to 0"
+		mci "play gun"+ gunId
+		gunId = (gunId+1)\10
+		gunWait = 6
+	}
+	
+	repeat keyCount
+		newId = getBlankId(bulletCount, bullet, bulletMax)
+		if -1 == newId :mode = 1 :break
+		bullet.newId = makelong(mx-(mergin+mouseMargin)/2+rnd(mergin+mouseMargin), my-(mergin+mouseMargin)/2+rnd(mergin+mouseMargin))
+		bulletSize.newId = bulletSizeMax
+		bulletDistance.newId = bulletDistanceMax
+	loop
+	
+	
+	// âÊëúÇ†ÇΩÇËîªíË
+	blankCount = 0
+	useCount = 0
+	calorieMateX = loword(calorieMate)
+	calorieMateY = hiword(calorieMate)
+	repeat bulletCount
+		if isBlankId(cnt, bulletCount, bullet) :blankCount++ :continue
+		useCount++
+	
+		xx = loword(bullet.cnt)
+		yy = hiword(bullet.cnt)
+		
+		if calorieMateFlag {
+			if (calorieMateX <= xx && xx <= calorieMateX+calorieMateSize && calorieMateY <= yy && yy <= calorieMateY+calorieMateSize) {
+				calorieMateFlag = false
+			}
+		}
+
+		if bulletDistance.cnt {
+			bulletDistance.cnt--
+			if (0 == bulletDistance.cnt \ bulletSpeed) {
+				bulletSize.cnt--
+			}
+		} else {
+			setBlankId cnt, bullet
+	
+			gsel imgId
+			pget xx-move, yy
+			hit = (ginfo_r+ginfo_g+ginfo_b)
+			gsel bufId
+			if 765 == hit :continue
+			
+			point = 10 + rnd(245)
+			blood = rnd(bloodMax)
+			
+			gmode 4, 0, 0, point
+			colorwhite
+			pos xx-bloodXSize.blood/2, yy-bloodYSize.blood/2
+			gcopy bloodId+blood, 0, 0, bloodXSize.blood, bloodYSize.blood
+	
+			point += rnd(10)
+			point += rnd(myLevel)
+			score += point
+			level += point / 10000.0
+	
+			newText xx, yy, point
+		}
+	loop
+	
+	// calorieMateÇ…ÇÊÇÈâÒïú
+	if calorieMateFlag {
+		yy = hiword(calorieMate)+2
+		xx = loword(calorieMate)
+		
+		if (ginfo(13)-100 < yy) {
+			calorieMateFlag = false
+			if myHP == myHPMax {
+				myHPMax += myHPMax / level
+				myHP = myHPMax
+				myLevel += 10000
+			} else {
+				myHP = limit(myHP + myHPMax / 5, 0, myHPMax)
+			}
+		} else {
+			calorieMate = makelong(xx, yy)
+		}
+	} else :if (0 == (score+1)\(50-limit(level, 0, 48)) ) {
+		calorieMateFlag = true
+		calorieMate = makelong(rnd(ginfo(12)-calorieMateSize.0), 0)
+		
+	}
+	
+	return
+	
+#deffunc newText int x, int y, int damage
+	newId = getBlankId(numberCount, number, numberMax)
+	if -1 == newId :return
+	numberPos.newId = makelong(x, y)
+	number.newId = makelong(damage, numberCountMax)
+	
+	return
+	
+*draw
+	
+	redraw 0
+	colorwhite :boxf 0, 0, ginfo(12), ginfo(13)
+	
+	// îwåi
+	colorwhite
+	pos move, 0 :gcopy bufId, 0, 0, imgSize.0, imgSize.1
+	
+	// ìGíe
+	repeat attackCount
+		if isBlankId(cnt, attackCount, attack) :continue
+		color 0, 50
+		circle loword(attack.cnt)-attackSize.cnt/2, hiword(attack.cnt)-attackSize.cnt/2, loword(attack.cnt)+attackSize.cnt/2, hiword(attack.cnt)+attackSize.cnt/2
+	loop
+	
+	// calorieMate
+	if calorieMateFlag {
+		pos loword(calorieMate), hiword(calorieMate)
+		gcopy calorieMateId, 0, 0, calorieMateSize.0, calorieMateSize.1
+	}
+	
+	// íe
+	repeat bulletCount
+		if isBlankId(cnt, bulletCount, bullet) :continue
+		color 100, 100, 0
+		circle loword(bullet.cnt)-bulletSize.cnt/2, hiword(bullet.cnt)-bulletSize.cnt/2, loword(bullet.cnt)+bulletSize.cnt/2, hiword(bullet.cnt)+bulletSize.cnt/2
+	loop
+	
+	// ï∂éö
+	repeat numberCount
+		if isBlankId(cnt, numberCount, number) :continue
+		scoreText = str(loword(number.cnt))
+		count = hiword(number.cnt)-1
+		clr = int(scoreText)/10
+		clr2 = limit(255-clr, 0, 255)
+		color 255, clr2, clr2
+		pos loword(numberPos.cnt)-strlen(scoreText)*7, hiword(numberPos.cnt) :mes scoreText
+		number.cnt = makelong(int(scoreText), count)
+		if (0 == count) {
+			setBlankId cnt, number
+		}
+	loop
+	colorwhite
+	
+	// ÉJÅ[É\Éã
+	if mx != -1 && my != -1 {
+		pos mx-stSize.0/2, my-stSize.1/2 :gcopy targetId, 0, 0, stSize.0, stSize.1
+	}
+	
+	pos 10, ginfo(13)-bulletImgSize.1-10
+	gcopy bulletId, 0, 0, bulletImgSize.0, bulletImgSize.1
+	
+	// èeíeécó 
+	pos 10+bulletImgSize.0, ginfo(13)-40
+	color :mes "x"+(bulletMax-useCount)
+	
+	// ì_êî
+	str_ = "score "+score
+	pos ginfo(12)-20-15*strlen(str_), ginfo(13)-40
+	mes str_
+	str_ = "level "+int(level)
+	pos ginfo(12)-20-15*strlen(str_), ginfo(13)-70
+	mes str_
+	
+	// HP
+	xx = 10+bulletImgSize.0*2+40
+	yy = ginfo(13)-40
+	color 128
+	boxf xx, yy, xx + 500.0 / double(myHPMax) * double(myHP), yy+30
+	color
+	boxf xx, yy, xx + 500, yy+30, 0
+	pos xx+10, yy-30 :mes "ATK "+myLevel
+	pos xx+10, yy :mes "Life "+myHP+" / "+myHPMax
+	
+	if gameover {
+		gmode 3, 0, 0, 140
+		pos 0, 0
+		gcopy blackId, 0, 0, ginfo(12), ginfo(13)
+		gmode 4, 0, 0, 255
+	}
+	
+	
+	redraw 1
+	
+	return

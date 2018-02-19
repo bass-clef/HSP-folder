@@ -1,0 +1,35 @@
+	
+	#include "scrollbar.as"
+	
+	oncmd gosub *hscroll, WM_HSCROLL
+	oncmd gosub *vscroll, WM_VSCROLL
+	
+	pos 0, ginfo_winy-18
+	CreateScrollBar ginfo_winx-18, 18, 0, 0, 500, 100, 50
+	hscrollID = stat
+	
+	pos ginfo_winx-18, 0
+	CreateScrollBar 18, ginfo_winy-18, 1, 0, 500, 100, 50
+	vscrollID = stat
+	
+	ScrollBar_SetPos hscrollID, 200
+	
+	ScrollBar_SetPos vscrollID, 200
+	ScrollBar_SetRange vscrollID, 100, 200, 1
+	
+	stop
+*vscroll
+*hscroll
+	MoveScrollBar
+	i = stat
+	gosub *showData
+	return
+	
+*showData
+	redraw 0
+	colorwhite :boxf :color
+	pos 0, 0
+	mes ""+i
+	redraw 1
+	return
+	

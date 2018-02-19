@@ -1,0 +1,65 @@
+#uselib "user32.dll"
+#func	GetWindowThreadProcessId	"GetWindowThreadProcessId"	int, int
+#cfunc	FindWindow	"FindWindowA"	sptr, sptr
+#uselib "kernel32.dll"
+#cfunc	OpenProcess			"OpenProcess"			int, int, int
+#func	CloseHandle			"CloseHandle"			int
+#func	VirtualQueryEx		"VirtualQueryEx"		int, int, int, int
+#define	PROCESS_QUERY_INFORMATION	0x400
+#define MEM_COMMIT           0x1000     
+#define MEM_RESERVE          0x2000     
+#define MEM_DECOMMIT         0x4000     
+#define MEM_RELEASE          0x8000     
+#define MEM_FREE            0x10000     
+#define MEM_PRIVATE         0x20000     
+#define MEM_MAPPED          0x40000     
+#define MEM_RESET           0x80000     
+#define MEM_TOP_DOWN       0x100000     
+#define MEM_WRITE_WATCH    0x200000     
+#define MEM_PHYSICAL       0x400000     
+#define MEM_ROTATE         0x800000     
+#define MEM_LARGE_PAGES  0x20000000     
+#define MEM_4MB_PAGES    0x80000000     
+
+htWnd = FindWindow("notepad", null)
+if htWnd == null :dialog "メモ帳がない" :end
+
+// プロセスID取得 hWnd_ にメモ帳のウィンドウハンドルを入れて
+processID = NULL
+GetWindowThreadProcessId htWnd, varptr(processID)
+
+// プロセスハンドルを取得
+hProcess = OpenProcess( PROCESS_QUERY_INFORMATION, FALSE, processID)
+
+dim mbi, 7 //MEMORY_BASIC_INFORMATION構造体
+/*
+typedef struct _MEMORY_BASIC_INFORMATION {
+  PVOID  BaseAddress;
+  PVOID  AllocationBase;
+  DWORD  AllocationProtect;
+  SIZE_T RegionSize;
+  DWORD  State;
+  DWORD  Protect;
+  DWORD  Type;
+} MEMORY_BASIC_INFORMATION, *PMEMORY_BASIC_INFORMATION;
+*/
+
+sdim priority
+Address = 0.0
+
+repeat
+Address += double(mbi.3)// ここに情報を取得したいアドレスを入れるみたいです
+if 2147483647d <= Address :break
+priority += strf("アドレス [%08X]", Address)
+VirtualQueryEx hProcess, Address, varptr(mbi), 4*7
+
+priority += strf(" アクセス権 %8X メモリ領域 %8X : 確保Base:%08X 確保Protect:%X Protext:%d Type:%X\n", mbi.4, mbi.3, mbi.1, mbi.2, mbi.5, mbi.6)
+if mbi.3 == 0 :break
+await
+loop
+
+CloseHandle hProcess
+
+objmode 2 :font msgothic, 12
+mesbox priority, ginfo(12), ginfo(13), 5, 0
+

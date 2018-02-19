@@ -1,0 +1,107 @@
+#ifndef OBJ_ROT_FV 
+#define OBJ_ROT_FV 
+ 
+#module 
+#define tx euler(0)
+#define ty euler(1)
+#define tz euler(2)
+#deffunc euler2matrix array matrix, array euler 
+    matrix(0)= cos(ty)*cos(tz)
+    matrix(1)=-sin(tx)*sin(ty)*cos(tz)+cos(tx)*sin(tz)
+    matrix(2)= cos(tx)*sin(ty)*cos(tz)+sin(tx)*sin(tz)
+    matrix(3)=-cos(ty)*sin(tz)
+    matrix(4)= sin(tx)*sin(ty)*sin(tz)+cos(tx)*cos(tz)
+    matrix(5)=-cos(tx)*sin(ty)*sin(tz)+sin(tx)*cos(tz)
+    matrix(6)=-sin(ty)
+    matrix(7)=-sin(tx)*cos(ty)
+    matrix(8)= cos(tx)*cos(ty)
+    return 
+#deffunc matrix2euler array matrix, array euler 
+    if absf(matrix(6))=1{
+        tx=atan(matrix(2),matrix(1))
+        tz=0.0 
+        ty=-atan(1,0)*matrix(6)
+    }
+    else{
+        tx=atan(-matrix(7),matrix(8))
+        tz=atan(-matrix(3),matrix(0))
+        ty=-atan(matrix(6),matrix(0)/cos(tz))
+    }
+    return 
+#global 
+ 
+#module 
+#define w quaternion(0)
+#define x quaternion(1)
+#define y quaternion(2)
+#define z quaternion(3)
+#define ax axis(0)
+#define ay axis(1)
+#define az axis(2)
+#deffunc rotate2quaternion double theta, array axis, array quaternion 
+    aa=sqrt(ax*ax+ay*ay+az*az)
+    w=cos(theta/2)
+    x=sin(theta/2)*ax/aa 
+    y=sin(theta/2)*ay/aa 
+    z=sin(theta/2)*az/aa 
+    return 
+#deffunc quaternion2matrix array matrix, array quaternion 
+    matrix(0)=1.0-2.0*y*y-2.0*z*z 
+    matrix(1)=2.0*x*y+2.0*w*z 
+    matrix(2)=2.0*x*z-2.0*w*y 
+    matrix(3)=2.0*x*y-2.0*w*z 
+    matrix(4)=1.0-2.0*x*x-2.0*z*z 
+    matrix(5)=2.0*y*z+2.0*w*x 
+    matrix(6)=2.0*x*z+2.0*w*y 
+    matrix(7)=2.0*y*z-2.0*w*x 
+    matrix(8)=1.0-2.0*x*x-2.0*y*y 
+    return 
+#global 
+ 
+#module 
+#deffunc matrixTimesMatrix array mat0, array mat1, array mat2 
+    mat0(0)=mat1(0)*mat2(0)+mat1(1)*mat2(3)+mat1(2)*mat2(6)
+    mat0(1)=mat1(0)*mat2(1)+mat1(1)*mat2(4)+mat1(2)*mat2(7)
+    mat0(2)=mat1(0)*mat2(2)+mat1(1)*mat2(5)+mat1(2)*mat2(8)
+    mat0(3)=mat1(3)*mat2(0)+mat1(4)*mat2(3)+mat1(5)*mat2(6)
+    mat0(4)=mat1(3)*mat2(1)+mat1(4)*mat2(4)+mat1(5)*mat2(7)
+    mat0(5)=mat1(3)*mat2(2)+mat1(4)*mat2(5)+mat1(5)*mat2(8)
+    mat0(6)=mat1(6)*mat2(0)+mat1(7)*mat2(3)+mat1(8)*mat2(6)
+    mat0(7)=mat1(6)*mat2(1)+mat1(7)*mat2(4)+mat1(8)*mat2(7)
+    mat0(8)=mat1(6)*mat2(2)+mat1(7)*mat2(5)+mat1(8)*mat2(8)
+    return 
+#global 
+ 
+#module 
+#deffunc objrotfv array axis, double theta 
+    ddim euler,3 
+    ddim mat_euler,9 
+    ddim mat_axis,9 
+    ddim matrix,9 
+    ddim quaternion,4 
+ 
+    //回転させたいオブジェクトの回転角を取得 
+    objgetfv euler 
+ 
+    //得たオイラー角を回転行列に変換 
+    euler2Matrix mat_euler,euler 
+ 
+    //任意の軸を中心とする回転を四元数で表す 
+    rotate2quaternion theta,axis,quaternion 
+ 
+    //四元数を回転行列に変換 
+    quaternion2matrix mat_axis,quaternion 
+ 
+    //回転行列を掛け合わせる 
+    matrixTimesMatrix matrix,mat_axis,mat_euler 
+ 
+    //回転行列からオイラー角を分解する 
+    matrix2euler matrix,euler 
+ 
+    //回転させたいオブジェクトに回転角を設定 
+    objsetfv euler 
+ 
+    return 
+#global 
+ 
+#endif 

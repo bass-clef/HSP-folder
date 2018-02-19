@@ -1,0 +1,2084 @@
+	
+	
+	// Super Tree
+	
+	// 親も子もいない平等な世界
+	
+	
+	/*
+	バグ
+	・新規の際に座標があってない
+	・最後に編集したファイルが正常でない
+	・読み込んだ場合に名前がない円が「関係線」ていう名前になっている
+	要望
+	・■がほしい
+	・個別の大きさを変更できるように
+	・文字を中に表示
+	・文字改行を任意に
+	*/
+	
+	
+	#packopt hide 1
+	#packopt name "Super Tree"
+	#include "D:\\Program Files\\Dropbox\\hsp sources\\Super Tree.as"
+	#undef  APP_NAME
+	#define	APP_NAME	"Super Tree"
+	
+	Init
+	gosub *LoadIni
+	SetMenuString
+	Draw
+	
+	stop
+	
+	// 画面移動
+#deffunc MoveViewPos
+
+	repeat
+		if clicking < 0 :break
+		vmx = mousex-cos(olda)*oldr
+		vmy = mousey-sin(olda)*oldr
+	
+		Draw 1
+		gmode 3,,, alpha
+		colorwhite
+		pos 0, 0 :mes ""+vmx+" x "+vmy
+		redraw 1
+		
+		wait 1
+	loop
+	
+	return
+	
+	#define global	AddParameter(%1, %2, %3, %4, %5)	AddParameter__ %1, %2-vmx, %3-vmy, %4, %5
+#deffunc AddParameter__ int ID_, int mx_, int my_, str name_, int type_
+	// 新規
+	if ID_ == -1 {
+		ID = prmmax
+		repeat prmmax
+			if prm.cnt == 0 :ID = cnt
+		loop
+	
+		// タイプ
+		prm.ID = type_
+		
+		// 座標
+		memexpand vertex.ID, 8+1
+		if mx_ != INT_MAX :setpt vertex.ID, 0, mx_
+		if my_ != INT_MAX :setpt vertex.ID, 1, my_
+		
+		// 表示名
+		memexpand name.ID
+		if name_ == "" {
+			objmode 2
+			pos mx_-50 +vmx, my_-rNormal-fsize-2 +vmy
+			input name.ID, 100, fsize+2, 0, 0
+			namechangef = stat+1
+			objsel namechangef-1
+		}else {
+			name.ID = name_
+		}
+		
+		// 色
+		repeat
+			clr.ID = RGB(rnd(255), rnd(255), rnd(255))
+			if RR(clr.ID) < 50 && GG(clr.ID) < 50 && BB(clr.ID) < 50 :continue
+			break
+		loop
+		if ID == prmmax :prmmax++
+		
+		// 描画オーダー登録
+		if type_ == PRM_SPACE {
+			// 領域だけ最前列に移動
+			ordermax++
+			for i, ordermax-1, 0, -1
+				order(i) = order(i-1)
+			next
+			order.0 = ID
+		}else {
+			order.ordermax = ID
+			ordermax++
+		}
+	}else {
+		if 1 <= type_ && type_ <= 10 {
+			x = getpt(vertex.ID_, 0)
+			y = getpt(vertex.ID_, 1)
+		}
+		if type_ == 1 {			// タイプ変更
+		}else :if type_ == 2 {	// 座標変更
+		}else :if type_ == 3 {	// 表示名変更
+			objmode 2
+			pos x-50 +vmx, y-rNormal-fsize-2 +vmy
+			input name.ID_, 100, fsize+2, 0, 0
+			namechangef = stat+1
+			objsel namechangef-1
+		}else :if type_ == 4 {	// 色変更
+			color RR(clr.ID_), GG(clr.ID_), BB(clr.ID_)
+			dialog "", 35, "", NULL
+			if stat {
+				clr.ID_ = RGB(ginfo_r, ginfo_g, ginfo_b)
+				
+				// このID_と関係がある子の色も変更
+				repeat prmmax
+					if prm.cnt == PRM_LINE || IsFilePrm(prm.cnt) {
+						FromID = getpt(vertex.cnt, 2)
+						if FromID == ID_ :clr.cnt = clr.ID_
+					}
+				loop
+			}
+		}else :if type_ == 5 {	// extra変更
+		}else :if type_ == 11 {	// 移動
+			setpt vertex.ID_, 0, mx_
+			setpt vertex.ID_, 1, my_
+			
+			repeat prmmax
+				if prm.cnt == PRM_LINE {
+					// 中点移動
+					GetLineMidpoint getpt(vertex.cnt, 2), getpt(vertex.cnt, 3), x, y
+					setpt vertex.cnt, 0, x
+					setpt vertex.cnt, 1, y
+				}else :if prm.cnt == PRM_TEXT || prm.cnt == PRM_IMAGE {
+					// 座標の決定
+					FromID = getpt(vertex.cnt, 2)
+					x = getpt(vertex.FromID, 0)
+					y = getpt(vertex.FromID, 1)
+					wdh = getpt(vertex.cnt, 3)
+					hgt = getpt(vertex.cnt, 4)
+					setpt vertex.cnt, 0, x+wdh/2
+					setpt vertex.cnt, 1, y+hgt/2
+				}
+			loop
+		}else :if type_ == 12 {	// 削除
+			if IsFilePrm(prm.ID_) :SetBlankWindow extra.ID_
+			prm.ID_ = -1
+			repeat ordermax
+				if order.cnt == ID_ :order.cnt = -1 :break
+			loop
+			
+			/*
+			// 関連付け対象も一緒に削除
+			repeat prmmax
+				if IsFilePrm(prm.cnt) {
+					// 関連付け対象の監視
+					ToID = getpt(vertex.cnt, 2)
+					if ToID != ID_ :continue
+					prm.cnt = -1
+					SetBlankWindow extra.cnt
+				}
+			loop
+			*/
+		}
+		
+	}
+	return ID
+	
+	// 要素複製
+#deffunc CopyPrm int ID_, int mx_, int my_
+	AddParameter -1, mx_, my_, name.ID_, prm.ID_
+	extra.stat = extra.ID_
+	return
+	
+	// 要素移動
+#deffunc MovePrm int ID_
+	repeat 
+		if clicking < 0 :break
+		AddParameter ID_, mousex-cos(a)*red, mousey-sin(a)*red, "", 11
+		Draw
+		wait 1
+	loop
+	return
+	
+	// 要素削除
+#deffunc DelParameter int ID_
+	AddParameter ID_, 0, 0, "", 12
+	return ID
+	
+#deffunc AddCircle int ID_, int mx_, int my_, str name_, int range_
+	// 新規
+	if ID_ == -1 {
+		AddParameter -1, mx_, my_, name_, PRM_CIRCLE
+		// 円の場合 半径を代入
+		extra.ID = range_
+	}else :ID = ID_
+	return ID
+	
+#deffunc AddLine int ID_, int fromID_, int toID_, int wLine_
+	// 新規
+	if ID_ == -1 {
+		AddParameter -1, INT_MAX, INT_MAX, "Relationship Line", PRM_LINE
+		// 間接参照線の場合 中点と終点を代入
+		memexpand vertex.ID, 8+8+1
+		GetLineMidpoint fromID_, toID_, x, y
+		setpt vertex.ID, 0, x
+		setpt vertex.ID, 1, y
+	}else :ID = ID_
+	
+	setpt vertex.ID, 2, fromID_
+	setpt vertex.ID, 3, toID_
+	
+	extra.ID = wLine_	// が直接値か
+	
+	// 前IDの色継承
+	clr.ID = clr.fromID_
+	return ID
+	
+#deffunc AddSpace int ID_, array pts_, int pts_max, int pts_index
+	// 新規
+	/**
+	if ID_ == -1 {
+		AddParameter -1, INT_MAX, INT_MAX, "Polygon Region", PRM_SPACE
+		i = 0
+		x = 0.0
+		y = 0.0
+		// 外側にある要素だけ列挙
+		repeat pts_max-pts_max, pts_index
+			if prm.(pts_.cnt) != 1 && prm.(pts_.cnt) != 2 :continue
+			// 四方に探査・四方全てにぶつかると中
+			j = 0
+			repeat pts_max-pts_max, pts_index
+				// 円だと関係線をたどって次の円まで 線判定
+				
+			loop
+			if j != 4 :i++
+		loop
+		
+		// 関係線をたどって頂点同士を結ぶ
+		
+		
+		
+		extra.ID = i	// 領域の場合 頂点数
+		repeat i
+			memexpand vertex.ID, 8+4+i*4+1
+			setpt vertex.ID, 2+i, pts_.cnt
+			x += getpt(vertex.(pts_.cnt), 0)
+			y += getpt(vertex.(pts_.cnt), 1)
+		loop
+		setpt vertex.ID, 0, x/i
+		setpt vertex.ID, 1, y/i
+	}
+	/**/
+	return
+	
+#deffunc AddFileObject int type_, int ID_, int FromID_, str fname_
+	if ID_ == -1 {
+//		if type_ != PRM_FOLDER && type_ != PRM_FILE :name.FromID_ = getpath(fname_, 8)
+		AddParameter -1, INT_MAX, INT_MAX, fname_, type_
+//		clr.ID = clr.FromID_
+//		extra.ID = 0
+		memexpand vertex.ID, 8+4+8+8+16+1
+		// 自分座標x, y, 依存ID, 元サイズ, 現サイズ, ファイル更新日時
+		setpt vertex.ID, 2, FromID_
+	}else :ID = ID_
+	
+	// ファイル生存確認
+	sdim tbuf
+	if type_ == PRM_FOLDER {
+		if isdir(name.ID) == 0 {
+			logmes "folder not found : "+name.ID
+			DelParameter ID
+			return -1
+		}
+	}else {
+		exist name.ID
+		if strsize == -1 {
+			logmes "file not found : "+name.ID
+			DelParameter ID
+			return -1
+		}
+		size = strsize
+	}
+	
+	if ID_ == -1 {
+		GetFileLoadTime name.ID
+		GetFileAlTime vertex.ID, 28
+	}else {
+		// ファイル変更確認
+		GetFileLoadTime name.ID
+		sdim tbuf, 16
+		GetFileAlTime tbuf, 0
+		i = 1
+		repeat 4
+			if lpeek(tbuf, cnt*4) != lpeek(vertex.ID, 28+cnt*4) :i = 0 :break
+		loop
+		if i :return -2		// 更新不要
+		memcpy vertex.ID, tbuf, 16, 28
+	}
+	
+	wdh = wdhFile
+	hgt = hgtFile
+	setpt vertex.ID, 3, wdh
+	setpt vertex.ID, 4, hgt
+	setpt vertex.ID, 5, wdh
+	setpt vertex.ID, 6, hgt
+	return ID
+	
+#deffunc AddImageObject int type_, int ID_, int FromID_, str fname_
+	AddFileObject type_, ID_, FromID_, fname_
+	if stat == -1 :SetBlankWindow extra.ID_
+	if stat < 0 :return stat
+	
+	if ID_ == -1 :extra.ID = GetBlankWindow()		// テキストの場合 ウィンドウバッファ
+	return ID
+	
+	// テキスト要素を作成
+#deffunc AddText int ID_, int FromID_, int mx_, int my_, str fname_
+	AddImageObject PRM_TEXT, ID_, FromID_, fname_
+	if stat < 0 :return stat
+	
+	// テキスト作成
+	sdim tbuf, size+1
+	bload name.ID, tbuf, size
+	notesel@hsp tbuf
+	len = 0
+	repeat notemax
+		noteget@hsp inf, cnt
+		tlen = strlen(inf)*fsize/2
+		repeat strlen(inf) :if peek(inf, cnt) == '\t' { tlen += fsize/2*3 } :loop
+		if len < tlen :len = tlen
+	loop
+	wdh = len+mar
+	hgt = notemax*fsize + (notemax-1)*mar/4 + mar
+	buffer extra.ID, wdh, hgt
+	font msgothic, fsize
+	color bkclr.0, bkclr.1, bkclr.2 :boxf@hsp :color frclr.0, frclr.1, frclr.2
+	repeat notemax
+		pos mar/2, mar/2 + cnt*(fsize+mar/4)
+		mes noteget(cnt)
+	loop
+	setpt vertex.ID, 3, wdh
+	setpt vertex.ID, 4, hgt
+	setpt vertex.ID, 5, wdh
+	setpt vertex.ID, 6, hgt
+	FromID = getpt(vertex.ID, 2)
+	setpt vertex.ID, 0, getpt(vertex.FromID, 0)+wdh/2
+	setpt vertex.ID, 1, getpt(vertex.FromID, 1)+hgt/2
+	gsel 0
+	
+	return ID
+	
+	// 画像要素を作成
+#deffunc AddImage int ID_, int FromID_, int mx_, int my_, str fname_
+	AddImageObject PRM_IMAGE, ID_, FromID_, fname_
+	if stat < 0 :return stat
+	
+	// 画像作成
+	buffer extra.ID
+	picload fname_
+	wdh = ginfo(12)
+	hgt = ginfo(13)
+	setpt vertex.ID, 3, wdh
+	setpt vertex.ID, 4, hgt
+	setpt vertex.ID, 5, wdh
+	setpt vertex.ID, 6, hgt
+	FromID = getpt(vertex.ID, 2)
+	setpt vertex.ID, 0, getpt(vertex.FromID, 0)+wdh/2
+	setpt vertex.ID, 1, getpt(vertex.FromID, 1)+hgt/2
+	gsel 0
+	
+	return ID
+	
+	// ファイル
+#deffunc AddFile int ID_, int FromID_, int mx_, int my_, str fname_
+//	AddFileObject PRM_FILE, ID_, FromID_, fname_
+	AddImageObject PRM_FILE, ID_, FromID_, fname_
+	if stat < 0 :return stat
+	
+	buffer extra.ID, wdh, hgt
+	color bkclr.0, bkclr.1, bkclr.2 :boxf@hsp :color frclr.0, frclr.1, frclr.2
+	DrawIconFromFile wdh, hgt, fname_
+	gsel 0
+	
+	if ID_ == -1 {
+		setpt vertex.ID, 0, mx_ - vmx
+		setpt vertex.ID, 1, my_ - vmy
+	}
+	return ID
+	
+	// フォルダ
+#deffunc AddFolder int ID_, int FromID_, int mx_, int my_, str dir_
+//	AddFileObject PRM_FOLDER, ID_, FromID_, dir_
+	AddImageObject PRM_FOLDER, ID_, FromID_, dir_
+	if stat < 0 :return stat
+	
+	buffer extra.ID, wdh, hgt
+	color bkclr.0, bkclr.1, bkclr.2 :boxf@hsp :color frclr.0, frclr.1, frclr.2
+	DrawIconFromFile wdh, hgt, dir_
+	gsel 0
+	
+	if ID_ == -1 {
+		setpt vertex.ID, 0, mx_ - vmx
+		setpt vertex.ID, 1, my_ - vmy
+	}
+	return ID
+	
+	// 線の中点を取得
+#deffunc GetLineMidpoint int fromID_, int toID_, var x_, var y_
+	x = getpt(vertex.fromID_, 0)
+	y = getpt(vertex.fromID_, 1)
+	xed = getpt(vertex.toID_, 0)
+	yed = getpt(vertex.toID_, 1)
+	a = atan(yed-y, xed-x)
+	r = sqrt(powf(xed-x, 2) + powf(yed-y, 2)) / 2
+	x_ = cos(a)*r+x
+	y_ = sin(a)*r+y
+	return
+	
+	
+	// 要素上の検出
+	#define global	ctype	EqOrderPrm(%1)		(cnt == (%1) && prm.dID == (%1))
+	#define	global	ctype	isOnPrm(%1, %2, %3=-1)	isOnPrm__(%1, %2, %3)
+#defcfunc isOnPrm__ int mx_, int my_, int rejectionType
+	tID = -1
+	repeat PRM_TYPE_MAX-1, 1
+		for i, ordermax-1, -1, -1
+			dID = order.i
+			if dID == -1 :_continue
+			if prm.dID == rejectionType :_continue
+			
+			if EqOrderPrm(PRM_CIRCLE) {
+				// 円
+				x = getpt(vertex.dID, 0) +vmx
+				y = getpt(vertex.dID, 1) +vmy
+				r = sqrt( powf( mx_-x, 2 )+powf( my_-y, 2 ) )
+				if extra.dID > r {
+					a = atan(my_-y, mx_-x)
+					tID = dID
+					_break
+				}
+			}else :if EqOrderPrm(PRM_LINE) {
+				// 線
+				FromID = getpt(vertex.dID, 2)
+				ToID = getpt(vertex.dID, 3)
+				
+				x = getpt(vertex.FromID, 0) +vmx
+				y = getpt(vertex.FromID, 1) +vmy
+				xed = getpt(vertex.ToID, 0) +vmx
+				yed = getpt(vertex.ToID, 1) +vmy
+				if extra.dID > disline(x, y, xed, yed, mx_, my_) {
+					r = sqrt(powf(xed-x, 2) + powf(yed-y, 2))/2
+					x = getpt(vertex.dID, 0) +vmx
+					y = getpt(vertex.dID, 1) +vmy
+					r2 = sqrt( powf(mx_-x, 2) + powf(my_-y, 2) )
+					if r2 < r {
+						tID = dID
+						_break
+					}
+				}
+			}else :if EqOrderPrm(PRM_TEXT) || EqOrderPrm(PRM_IMAGE) {
+				// テキスト | 画像
+				FromID = getpt(vertex.dID, 2)
+				x = getpt(vertex.FromID, 0) +vmx
+				y = getpt(vertex.FromID, 1) +vmy
+				wdh = getpt(vertex.dID, 5)
+				hgt = getpt(vertex.dID, 6)
+				if x <= mx_ && mx_ <= x+wdh && y <= my_ && my_ <= y+hgt {
+					tID = dID
+					_break
+				}
+			}else :if EqOrderPrm(PRM_FILE) || EqOrderPrm(PRM_FOLDER) {
+				// ファイル | フォルダ
+				wdh = getpt(vertex.dID, 5)
+				hgt = getpt(vertex.dID, 6)
+				x = getpt(vertex.dID, 0) -wdh/2 +vmx
+				y = getpt(vertex.dID, 1) -hgt/2 +vmy
+				if x <= mx_ && mx_ <= x+wdh && y <= my_ && my_ <= y+hgt {
+					tID = dID
+					_break
+				}
+			}
+		next
+		if tID != -1 :break
+	loop
+	return tID
+	
+	
+*Click
+	clicking = wparam
+	mx = loword(lparam)
+	my = hiword(lparam)
+	if oldmx == mx && oldmy == my :dclicked++
+	oldmx = mx
+	oldmy = my
+	if clicking == 1 {
+		LeftClick	// 左click
+		Draw
+	}else :if clicking == 2 {
+		RightClick	// 右click
+	}
+	dclicked = 0
+	return
+	
+*Click_up
+	clicking = -clicking
+	mx = loword(lparam)
+	my = hiword(lparam)
+	return
+	
+#deffunc LeftClick
+	if menuf {
+		// メニュー押下
+		FindMenu mx, my
+	}else :if namechangef {
+		// 表示名変更状態
+		ApplyName
+	}else {
+		// 要素上をクリックしたか
+		ID = isOnPrm(mx, my)
+		
+		if ID != -1 {
+			if 1 == dclicked {
+				DoubleLeftClick ID
+			}else {
+				// 要素移動
+				// 円/ファイル/フォルダ 以外は移動できない
+				if prm.ID != PRM_CIRCLE && prm.ID != PRM_FILE && prm.ID != PRM_FOLDER :return
+				
+				// 移動
+				red = r	// 要素選択時の中心からの距離
+				MovePrm ID
+			}
+		}else {
+			// 画面移動
+			oldr = sqrt(powf(mousex-vmx, 2) + powf(mousey-vmy, 2))
+			olda = atan(mousey-vmy, mousex-vmx)
+			MoveViewPos
+		}
+	}
+	return
+	
+	// 要素上でのダブルクリック時の動作
+#deffunc DoubleLeftClick int ID_
+	if IsFilePrm(prm.ID_) {
+		if prm.ID_ == PRM_FOLDER {
+			if extra.ID_ < 0 {
+				extra.ID_ = -extra.ID_
+				repeat prmmax
+					if IsFilePrm(prm.cnt) {
+						FromID = getpt(vertex.cnt, 2)
+						if FromID == ID_ :DelParameter cnt
+					}
+				loop
+				return
+			}
+			extra.ID_ = -extra.ID_
+			i = 0
+			chdir name.ID_
+			dirlist filelist, "*.*", 0
+			aAdd = 360.0/4
+			aBegAdd = 0
+			rFile = double(wdhFile)*4.0
+			next4 = 4
+			nFile = 0
+			repeat
+				await
+				if nFile == next4 {
+					nFile = 0
+					next4 += 4
+					rFile += double(wdhFile)*4.0
+					aAdd = 360.0/next4
+					if aBegAdd :aBegAdd = 0 :else :aBegAdd = aAdd/2
+				}
+				
+				notesel@hsp filelist
+				if notemax <= cnt :break
+				noteget@hsp inf, cnt
+				inf = ""+strtrim(name.ID_, 2, '\\')+"\\"+inf
+				
+				// アクセスできないファイルを除外
+				if IsFileAccess(inf) == 0 :continue
+				// システムファイルを除外
+				if GetFileAttributes(inf) & FILE_ATTRIBUTE_SYSTEM :continue
+				
+				x = cos(deg2rad(aAdd*nFile-90+aBegAdd))*rFile+getpt(vertex.ID_, 0)
+				y = sin(deg2rad(aAdd*nFile-90+aBegAdd))*rFile+getpt(vertex.ID_, 1)
+				if isdir(inf) {	AddFolder -1, ID_, x, y, inf
+				}else :			AddFile -1, ID_, x, y, inf
+				nFile++
+			loop
+		}else {
+			exec ""+name.ID_, 16
+		}
+	}
+	return
+	
+#deffunc ApplyName
+	clrobj namechangef-1, namechangef-1
+	namechangef = 0
+	Draw
+	return
+	
+#deffunc RightClick
+	if namechangef :ApplyName
+	if menuf :menuf = 0 :Draw
+	
+	dim pt, 2 :ptmax = 0
+	oldID = isOnPrm(mx, my)
+	addmode = (oldID == -1)+1
+	repeat
+		wait 1
+		if clicking < 0 :break
+		if ptmax :if (mxed == mousex && myed == mousey) :continue
+		myed = mousey
+		mxed = mousex
+		AddTempPoint addmode
+		
+		if ptmax || addmode == 2 {
+			repeat ptmax
+				if pt.cnt != -1 :oldID = pt.cnt :break
+			loop
+			
+			Draw
+		}
+	loop
+	addmode = 0
+	
+	AddTempPoint
+	InsertRightClickMenu mx, my
+	SetMenu mx, my
+	return
+	
+	// 仮の確保要素
+#deffunc AddTempPoint int addMode_
+	
+	if addMode_ == 1 {
+		ID = isOnPrm(mousex, mousey)
+		// 開始と現在下の物だけ
+		ptmax = 0
+		if oldID != -1 :pt = oldID :ptmax++
+		if ID != -1 :if oldID != ID :pt.1 = ID :ptmax++
+		
+	}else :if addMode_ == 2 {
+		// 複数追加
+		ptmax = 0
+		repeat prmmax
+			if prm.cnt == PRM_NULL :continue
+			x = getpt(vertex.cnt, 0) +vmx
+			y = getpt(vertex.cnt, 1) +vmy
+			if oldmx < mousex :nif = (oldmx <= x && x <= mousex) :else :nif = (mousex <= x && x <= oldmx)
+			if oldmy < mousey :nif &= (oldmy <= y && y <= mousey) :else :nif &= (mousey <= y && y <= oldmy)
+			if nif {
+				ID = cnt
+				i = ptmax
+				repeat ptmax
+					if ID == pt.cnt :i = cnt :break
+				loop
+				pt.i = ID
+				if i == ptmax :ptmax++
+			}
+		loop
+	}
+	return
+	
+	#define global ActMenu(%1, %2=0)	menustr.nmenu = %1 :ismenu.nmenu = %2 :nmenu++
+	#define global InitMenu				sdim menustr :dim ismenu :nmenu = 0
+	
+#deffunc SetMenuString
+	// プルダウンメニュー項目
+	sdim mstr, MSTR_MAX
+	mstr.MSTR_ADDPRM = "要素追加"
+	mstr.MSTR_ADDLINE = "関係線追加"
+	mstr.MSTR_ADDBRANCH = "分岐点を作成"
+	mstr.MSTR_ADDSPACE = "領域追加"
+	mstr.MSTR_ADDFILE = "ファイル..."
+	mstr.MSTR_ADDFOLDER = "フォルダー..."
+	mstr.MSTR_COPY = "複製"
+	mstr.MSTR_DELETE = "削除"
+		mstr.MSTR_DEL_SELF = "選択項目を削除"
+		mstr.MSTR_DEL_PARENT = "親を削除"
+		mstr.MSTR_DEL_CHILDREN = "子を削除"
+		mstr.MSTR_DEL_SIBLING = "兄弟を削除"
+	mstr.MSTR_CHANGE = "変更"
+		mstr.MSTR_CNG_TYPE = "タイプ変更"
+		mstr.MSTR_CNG_POS = "位置変更"
+		mstr.MSTR_CNG_NAME = "名称変更"
+		mstr.MSTR_CNG_COLOR = "表示色変更"
+		mstr.MSTR_CNG_EXTRA = "その他を変更"
+	mstr.MSTR_REGFROM = "出発地点に登録"
+	mstr.MSTR_REGTO = "到着地点に登録"
+	mstr.MSTR_FINDROOT = "指定区間をルート検索"
+	mstr.MSTR_OTHERROOT = "この間の道をルート検索"
+	mstr.MSTR_ROOTFILTER = "検索用フィルター"
+		mstr.MSTR_RFIL_DUP = "重複の許可数 "+Duplication
+		mstr.MSTR_RFIL_MAX = "探索数 "+FindMax
+		mstr.MSTR_RFIL_LENMIN = "最小の長さ"
+		mstr.MSTR_RFIL_LENMAX = "最大の長さ"
+		mstr.MSTR_RFIL_THROU = "経由地点"
+		mstr.MSTR_RFIL_REJEC = "除外地点"
+	mstr.MSTR_ASSOCIATE = "関連付け"
+		mstr.MSTR_ASS_TEXTFILE = "テキストファイル..."
+		mstr.MSTR_ASS_IMGFILE = "画像..."
+	mstr.MSTR_NEW = "新規"
+	mstr.MSTR_LOAD = "開く"
+	mstr.MSTR_SAVE = "保存"
+	mstr.MSTR_RETURN = "戻る"
+	mstr.MSTR_QUIT = "終了"
+	return
+	
+#deffunc FindMenu int mx_, int my_
+	if menuf == 0 :return 0
+	Selected = 0
+	// プルダウン押下状態、検索
+	repeat nmenu
+		x = xBeg
+		y = yBeg + mar/4 + cnt*fsize + cnt*mar/2
+		xed = xEnd
+		yed = y+fsize + mar/2
+		wdh = xed-x
+		hgt = yed-y
+		if cnt == 0 :y -= mar/4
+		if cnt == nmenu-1 :yed += mar/4
+		if (x <= mx_ && mx_ <= xed ) && (y <= my_ && my_ <= yed) {
+			SelectingMenu cnt, mx_, my_
+		}
+	loop
+	if Selected == 0 && menuf :menuf = 0
+	if menuf == 0 :ptmax = 0
+	Draw
+	return 1
+	
+#deffunc SelectingMenu int ID_, int mx_, int my_
+	// プルダウンメニュー選択時
+	Selected = 1
+	if ismenu.ID_ & 1 :return	// 無効
+	if ismenu.ID_ & 16 {	// アップダウン
+		if my_ < y+hgt/2 :menu_ctlf = 2 :else :menu_ctlf = 1
+	}
+	
+	menuf = 0
+	switch menustr.ID_
+	case MSTR_ADDPRM	// 円追加
+		AddCircle -1, xAdd, yAdd, "", rNormal
+		swbreak
+	case MSTR_ADDLINE	// 線追加
+		AddLine -1, oldID, aID, wLine
+		swbreak
+	case MSTR_ADDBRANCH	// 分岐点追加
+		FromID = getpt(vertex.aID, 2)
+		ToID = getpt(vertex.aID, 3)
+		AddCircle -1, xAdd, yAdd, "", rNormal
+		dID = stat
+		clr.dID = clr.FromID
+		AddLine aID, FromID, dID, wLine
+		AddLine -1, dID, ToID, wLine
+		
+		swbreak
+	case MSTR_ADDSPACE	// 領域追加
+		if 2 < ptmax {
+			i = 0
+			repeat ptmax
+				if prm.(pt.cnt) == PRM_CIRCLE || prm.(pt.cnt) == PRM_LINE  :i++
+			loop
+			if 2 < i :AddSpace -1, pt, ptmax, 0
+		}
+		swbreak
+	case MSTR_ADDFILE		// ファイル
+		void ""
+		dialog "", 16, "", NULL
+		if stat == 0 :swbreak
+		AddFile -1, -1, xAdd, yAdd, refstr
+		swbreak
+	case MSTR_ADDFOLDER	// フォルダー
+		void ""
+		dialog "ここで選択されたフォルダは要素と関連付けされ、\nフォルダの中のファイルの編集、フォルダー自体の編集ができます。", 66, "", NULL
+		if stat == 0 :swbreak
+		AddFolder -1, -1, xAdd, yAdd, refstr
+		swbreak
+		
+	case MSTR_CHANGE	// 変更
+		InsertChangeMenu
+		SetMenu xRec, yRec// xAdd, yAdd
+		menued = 1
+		swbreak
+		case MSTR_CNG_POS	// 位置変更
+			swbreak
+		case MSTR_CNG_NAME	// 表示名変更
+			AddParameter aID, 0, 0, "", 3
+			swbreak
+		case MSTR_CNG_COLOR	// 表示色変更
+			AddParameter aID, 0, 0, "", 4
+			swbreak
+	
+	case MSTR_COPY		// 複製
+		CopyPrm aID, xAdd, yAdd
+		swbreak
+		
+	case MSTR_DELETE	// 削除
+		InsertDeleteMenu
+		SetMenu xRec, yRec
+		menued = 1
+		swbreak
+		case MSTR_DEL_SELF		// 自身
+			repeat ptmax
+				DelParameter pt.cnt
+			loop
+			swbreak
+		case MSTR_DEL_PARENT	// 親
+			repeat ptmax
+				if IsFilePrm(prm.pt(cnt)) {
+					DelParameter getpt(vertex(pt.cnt), 2)
+				}
+			loop
+			swbreak
+		case MSTR_DEL_CHILDREN	// 子
+			repeat ptmax
+				if IsFilePrm(prm.pt(cnt)) {
+					j = pt.cnt
+					repeat prmmax
+						if IsFilePrm(prm.cnt) {
+							if getpt(vertex.cnt, 2) == j :DelParameter cnt
+						}
+					loop
+				}
+			loop
+			swbreak
+		case MSTR_DEL_SIBLING	// 兄弟
+			repeat ptmax
+				if IsFilePrm(prm.pt(cnt)) {
+					FromID = getpt(vertex(pt.cnt), 2)
+					repeat prmmax
+						if IsFilePrm(prm.cnt) {
+							if getpt(vertex.cnt, 2) == FromID :DelParameter cnt
+						}
+					loop
+				}
+			loop
+			swbreak
+	
+	case MSTR_ASSOCIATE	// 関連付け
+		InsertAssociateMenu
+		SetMenu xRec, yRec// xAdd, yAdd
+		menued = 1
+		swbreak
+	case MSTR_ASS_TEXTFILE	// テキストファイル
+		void ""
+		dialog "", 16, "", NULL
+		if stat == 0 :swbreak
+		AddText -1, aID, xAdd, yAdd, refstr
+		swbreak
+	case MSTR_ASS_IMGFILE	// 画像ファイル
+		void ""
+		dialog "bmp;*.gif;*.jpg;*.ico;*.png;*.psd;*.tga", 16, "", NULL
+		if stat == 0 :swbreak
+		AddImage -1, aID, xAdd, yAdd, refstr
+		swbreak
+		
+	case MSTR_ROOTFILTER// 検索フィルター
+		InsertFilterMenu
+		SetMenu xRec, yRec// xAdd, yAdd
+		menued = 1
+		swbreak
+	case MSTR_RFIL_DUP	// 重複許可数
+		if menu_ctlf == 1 :Duplication--
+		if menu_ctlf == 2 :Duplication++
+		mstr.MSTR_RFIL_DUP = "重複の許可数 "+Duplication
+		SetMenu xRec, yRec// xAdd, yAdd
+		menuf = 1
+		swbreak
+	case MSTR_RFIL_MAX	// 検索数
+		if menu_ctlf == 1 :FindMax--
+		if menu_ctlf == 2 :FindMax++
+		mstr.MSTR_RFIL_MAX = "探索数 "+FindMax
+		SetMenu xRec, yRec// xAdd, yAdd
+		menuf = 1
+		swbreak
+	case MSTR_RFIL_THROU
+	case MSTR_RFIL_REJEC
+		j = menustr.ID_ - MSTR_RFIL_THROU
+		i = fpfmax
+		repeat fpfmax
+			if FindPoint.cnt == -1 :i = cnt :break
+		loop
+		repeat fpfmax
+			if aID == FindPoint.cnt :i = cnt :break
+		loop
+		
+		if fpflag & j+1 || not(fpflag & (j+1)\2+1) {
+			// 経由地点に追加
+			FindPoint.i = aID
+			fFindPoint.i = j+1
+			if i == fpfmax :fpfmax++
+		}else {
+			// 経由地点から削除
+			fFindPoint.i = -1
+		}
+		swbreak
+		
+	case MSTR_REGFROM	// 出発地点に登録
+		if fFromID == aID :fFromID = -1 :else :fFromID = aID
+		if fToID == fFromID :fToID = -1
+		swbreak
+	case MSTR_REGTO		// 到着地点に登録
+		if fToID == aID :fToID = -1 :else :fToID = aID
+		if fToID == fFromID :fFromID = -1
+		swbreak
+	case MSTR_OTHERROOT	// 間指定ルート
+		fFromID = oldID
+		fToID = aID
+	case MSTR_FINDROOT	// ルート検索
+		if fFromID == -1 :dialog "出発地点が指定されていません。", 1, NULL :swbreak
+		if fToID == -1 :dialog "到着地点が指定されてません。", 1, NULL :swbreak
+		FindRoot
+		swbreak
+	case MSTR_LOAD		// 開く
+	case MSTR_SAVE		// 保存
+		filef = menustr.ID_-MSTR_LOAD+1
+		if file == "" && filemax == 0 {
+			if filef == 1 :Load "" :else :Save ""
+		}else {
+			FileMenu filef
+			SetMenu xRec, yRec// xAdd, yAdd
+			menued = 1
+		}
+		swbreak
+	case MSTR_RETURN	// 戻る
+		if menued == 1 {
+			menued = 0
+			
+			InsertRightClickMenu xRec, yRec// xAdd, yAdd
+			SetMenu xRec, yRec// xAdd, yAdd
+		}else {
+			Selected == 0
+			menuf = 1
+		}
+		swbreak
+	case MSTR_QUIT		// 終了
+		sendmsg hwnd, WM_CLOSE
+		swbreak
+	default
+		if MSTR_FILESBEGIN <= menustr.ID_ && menustr.ID_ <= MSTR_FILESEND {
+			// ファイル選択
+			i = menustr.ID_ - MSTR_FILESBEGIN
+			if i == 0 {
+				if filef == 1 :Load "" :else :Save ""
+			}else {
+				if filef == 1 :Load files(filemax-1-(i-1)) :else :Save files(filemax-1-(i-1))
+			}
+		}
+	swend
+	return
+	
+	// 右クリック時のメニュー
+#deffunc InsertRightClickMenu int mx_, int my_
+	InitMenu
+	if ptmax {
+		// 終了が要素上で
+		repeat ptmax
+			if pt.cnt != -1 :oldID = pt.cnt :break
+		loop
+		
+		if oldID != -1 {
+			if ptmax == 2 && pt.0 != pt.1 {
+				// 二つ選択 & 開始と終了が同じでない
+				ActMenu MSTR_ADDLINE
+				ActMenu MSTR_DELETE, 2
+				ActMenu MSTR_OTHERROOT
+				oldID = pt.0
+				aID = pt.1
+			}else {
+				// １つ | ３つ以上選択 | 開始と終了が同じ
+				i = 0
+				repeat ptmax
+					if pt.cnt != -1 :i++
+				loop
+				if i == 1 {
+					// １つのみ選択
+					aID = oldID
+					ActMenu MSTR_CHANGE, 2
+					ActMenu MSTR_DELETE, 2
+					
+					if prm.aID == PRM_LINE :ActMenu MSTR_ADDBRANCH
+					ActMenu MSTR_COPY
+					ActMenu MSTR_ASSOCIATE, 2
+					
+					regflag = 3		// 出発地点 | 到着地点 に登録
+					if fFromID == aID	:regflag &= regflag^1
+					if fToID == aID		:regflag &= regflag^2
+					
+					if regflag & 1 {	mstr.MSTR_REGFROM = "出発始点に登録"
+					}else :				mstr.MSTR_REGFROM = "出発地点を解除"
+					ActMenu MSTR_REGFROM
+					
+					if regflag & 2 {	mstr.MSTR_REGTO = "到着地点に登録"
+					}else :				mstr.MSTR_REGTO = "到着地点を解除"
+					ActMenu MSTR_REGTO
+				}else {
+					// 複数選択
+					ActMenu MSTR_ADDSPACE, 1| 4
+					ActMenu MSTR_DELETE, 2
+				}
+			}
+		}
+	}else {
+		// 何もない場所で
+		ActMenu MSTR_ADDPRM
+		ActMenu MSTR_ADDFILE
+		ActMenu MSTR_ADDFOLDER
+		if fFromID != -1 && fToID != -1 :ActMenu MSTR_FINDROOT
+	}
+	
+	ActMenu MSTR_ROOTFILTER, 2
+	
+	if ptmax == 0 {
+		if file == "" && filemax == 0 {
+			ActMenu MSTR_LOAD
+			ActMenu MSTR_SAVE
+		}else {
+			ActMenu MSTR_LOAD, 2
+			ActMenu MSTR_SAVE, 2
+		}
+		
+	}
+	ActMenu MSTR_QUIT
+	ActMenu MSTR_RETURN
+	
+	
+	return
+	
+	// 削除押下じのメニュー
+#deffunc InsertDeleteMenu
+	InitMenu
+	ActMenu MSTR_RETURN
+	ActMenu MSTR_DEL_SELF
+	ActMenu MSTR_DEL_PARENT
+	ActMenu MSTR_DEL_CHILDREN
+	ActMenu MSTR_DEL_SIBLING
+	return
+	
+	// 変更押下時のメニュー
+#deffunc InsertChangeMenu
+	InitMenu
+	ActMenu MSTR_RETURN
+	ActMenu MSTR_CNG_TYPE, 1 | 4
+	ActMenu MSTR_CNG_POS, 1 | 4
+	ActMenu MSTR_CNG_NAME
+	ActMenu MSTR_CNG_COLOR
+	ActMenu MSTR_CNG_EXTRA, 1 | 4
+	
+	return
+	
+	// 関連付け押下時のメニュー
+#deffunc InsertAssociateMenu
+	InitMenu
+	ActMenu MSTR_RETURN
+	ActMenu MSTR_ASS_TEXTFILE
+	ActMenu MSTR_ASS_IMGFILE
+	return
+	
+	// フィルターメニュー
+#deffunc InsertFilterMenu
+	InitMenu
+	ActMenu MSTR_RETURN
+	ActMenu MSTR_RFIL_DUP, 16
+	ActMenu MSTR_RFIL_MAX, 16
+	ActMenu MSTR_RFIL_LENMIN
+	ActMenu MSTR_RFIL_LENMAX
+	
+	if aID != -1 && oldID == aID {
+		// 一つのみ選択
+		
+		fpflag = 3	// &1:経由追加 &2:除外追加
+		// aIDを判定
+		// ※経由地点かつ除外地点は出来ないように
+		repeat fpfmax
+			if FindPoint.cnt == aID :fpflag &= fpflag^fFindPoint.cnt :break
+		loop
+		
+		if fpflag & 1 || not(fpflag & 2) {
+			mstr.MSTR_RFIL_THROU = "経由地点に追加"
+		}else {
+			mstr.MSTR_RFIL_THROU = "経由地点から削除"
+		}
+		if fpflag & 2 || not(fpflag & 1) {
+			mstr.MSTR_RFIL_REJEC = "除外地点に追加"
+		}else {
+			mstr.MSTR_RFIL_REJEC = "除外地点から削除"
+		}
+		ActMenu MSTR_RFIL_THROU
+		ActMenu MSTR_RFIL_REJEC
+		
+	}
+	return
+	
+	// ファイル 開く|保存 のメニュー
+#deffunc FileMenu int filetype_
+	InitMenu
+	
+	mstr(MSTR_FILESBEGIN) = "参照..."
+	ActMenu MSTR_FILESBEGIN
+	
+	if file == files(filemax-1) {
+		if filetype_ == 1 {
+			mstr(MSTR_FILESBEGIN+1) = "再読み込み"
+		}else :if filetype_ == 2 {
+			mstr(MSTR_FILESBEGIN+1) = "上書き保存"
+		}
+	}else {
+		mstr(MSTR_FILESBEGIN+1) = "最後に編集したファイル"
+	}
+	ActMenu MSTR_FILESBEGIN+1
+	
+	i = 2
+	for j, limit(filemax-2, -1, filemax-1), limit(filemax-8, -1, filemax-8), -1
+		mstr(MSTR_FILESBEGIN+i) = getpath(files.j, 8)
+		ActMenu MSTR_FILESBEGIN+i
+		i++
+	next
+	
+	return
+	
+	// メニュー適用
+#deffunc SetMenu int mx_, int my_
+	menuf = 1
+	hgt = nmenu*fsize+mar + (nmenu-1)*mar/2
+	wdh = mar
+	max = 0
+	repeat nmenu
+		i = strlen( mstr(menustr.cnt) )*fsize/2
+		if max < i :max = i
+	loop
+	wdh += max
+	
+	xBeg = mx_
+	yBeg = my_
+	xAdd = mx_
+	yAdd = my_
+	
+	xEnd = xBeg+wdh
+	yEnd = yBeg+hgt
+	if ginfo(12) < mx_+wdh :xBeg -= wdh :xEnd -= wdh
+	if ginfo(13) < my_+hgt :yBeg -= hgt :yEnd -= hgt
+	xRec = xBeg
+	yRec = yBeg
+	
+	Draw
+	return
+	
+	// ルート探索
+	#deffunc FindRoot
+		EnumChildren
+		FindTo
+	return
+	
+	#deffunc EnumChildren
+		// 要素につながっている要素を列挙
+		sdim child,, prmmax
+		dim nChildmax, prmmax
+		dim haschild :haschildmax = 0
+		
+		// 線列挙
+		repeat prmmax
+			if prm.cnt == PRM_LINE {
+				FromID = getpt(vertex.cnt, 2)
+				ToID = getpt(vertex.cnt, 3)
+				
+				if prm.FromID == PRM_LINE && prm.ToID != PRM_LINE {
+					// 参照先がもう参照していた
+					if nChildmax.FromID == 4 :FromID = getpt(child.FromID)
+					
+					// 参照先に加算
+					memexpand child.FromID, nChildmax.FromID+4+1
+					setpt child.FromID, nChildmax.FromID/4, ToID
+					nChildmax.FromID += 4
+					
+					// 自身は参照している事を示す
+					memexpand child.cnt, 4+1
+					setpt child.cnt, 0, FromID
+					nChildmax.cnt = 4
+				}else :if prm.FromID != PRM_LINE && prm.ToID == PRM_LINE {
+					// 参照先がもう参照していた
+					if nChildmax.ToID == 4 :ToID = getpt(child.ToID)
+					
+					// 参照先に加算
+					memexpand child.ToID, nChildmax.ToID+4+1
+					setpt child.ToID, nChildmax.ToID/4, FromID
+					nChildmax.ToID += 4
+					
+					// 自身は参照している事を示す
+					memexpand child.cnt, 4+1
+					setpt child.cnt, 0, ToID
+					nChildmax.cnt = 4
+				}else :if prm.FromID == PRM_LINE && prm.ToID == PRM_LINE {
+					// 片方に片方と加算、片方は削除
+					if nChildmax.FromID == 4 :FromID = getpt(child.FromID)
+					if nChildmax.ToID == 4 :ToID = getpt(child.ToID)
+					
+					// 参照先に加算
+					memexpand child.FromID, nChildmax.FromID+ nChildmax.ToID +1
+					repeat nChildmax.ToID/4
+						setpt child.FromID, nChildmax.FromID/4, getpt(child.ToID, cnt)
+						nChildmax.FromID += 4
+					loop
+					
+					// 非参照先が参照している事を示す
+					memexpand child.ToID, 4+1
+					setpt child.ToID, 0, FromID
+					nChildmax.ToID = 4
+					
+				}else {
+					// 自身がつながっている要素を加算
+					memexpand child.cnt, nChildmax.cnt+8+1
+					setpt child.cnt, nChildmax.cnt/4, FromID
+					setpt child.cnt, nChildmax.cnt/4+1, ToID
+					nChildmax.cnt += 8
+				}
+			}
+		loop
+		
+		// 線につながっている要素同士だけを結合
+		repeat prmmax
+			if prm.cnt == PRM_LINE {
+				// 一番目の要素に二番目移行の要素をつなげる
+				j = cnt
+				repeat nChildmax.j/4
+					ToID = getpt(child.j, cnt)
+					i = haschildmax
+					repeat haschildmax
+						if haschild.cnt == ToID :i = cnt
+					loop
+					haschild.i = ToID
+					if haschildmax == i :haschildmax++
+					
+					repeat nChildmax.j/4
+						if getpt(child.j, cnt) == ToID :continue
+						i = cnt
+						repeat nChildmax.ToID
+							if getpt(child.ToID) == getpt(child.j, i) :i = -1 :break
+						loop
+						if i == -1 :continue
+						memexpand child.ToID, nChildmax.ToID+4+1
+						lpoke child.ToID, nChildmax.ToID, getpt(child.j, cnt)
+						nChildmax.ToID += 4
+					loop
+				loop
+				
+				// 自身の接続要素はない事にする
+				nChildmax.cnt = 0
+			}
+		loop
+	return
+		
+	#deffunc FindTo
+		// ルート検索
+		sdim result
+		sdim message
+		sdim rootqueue
+		sdim root, 4+1	:dim rootmax
+		sdim counter, prmmax*4+1
+		dim comproot :crmax = 0
+		dim noroot	:nrmax = 0	// 空きルート
+		allrootmax = 1
+		
+		// 根ルートをキューに追加
+		rootqueue += ""+fFromID+".0\n"
+		
+		repeat
+			await
+			notesel@hsp rootqueue
+			if notemax == 0 :message += "これ以上検索結果がでませんでした。" :break
+			
+			// キューから取り出す
+			noteget@hsp inf, 0
+			notedel 0
+			if inf == "" :continue	// 空
+			
+			sdim nprm
+			split inf, ".", nprm
+			nID = int(nprm.0)		// 現在探索中の要素
+			nowrootID = int(nprm.1)	// 現在探索中のルートID
+			
+			// 道順を記録
+			setpt root.nowrootID, rootmax.nowrootID, nID
+			rootmax.nowrootID++
+			
+			// カウンタ加算
+			setpt counter.nowrootID, nID, getpt(counter.nowrootID, nID)+1
+			
+			if RootLenMax != -1 {
+				if RootLenMax < rootmax.nowrootID {// ルートの長さ 最大監視
+					rootmax.nowrootID = 0
+					noroot.nrmax = nowrootID
+					nrmax++
+					continue
+				}
+			}
+			
+			if nID == fToID {
+				if rootmax.nowrootID < RootLenMin {// ルートの長さ 最小監視
+					// 空きルートに
+					rootmax.nowrootID = 0
+					noroot.nrmax = nowrootID
+					nrmax++
+					continue
+				}
+				
+				// 目的地にたどり着いた事を記録
+				comproot.crmax = nowrootID
+				crmax++
+				if FindMax <= crmax :message += "目的の探索数を超えました。" :break
+			}else {
+				// 子を追加
+				cOFR = 0	// 1frame中のカウンタ
+				repeat nChildmax.nID/4
+					aID = getpt(child.nID, cnt)
+					if Duplication < getpt(counter.nowrootID, aID) :continue
+					
+					// まだ子を１回も追加していないなら、親ルートに
+					if cOFR {
+						// 親ルートではない場合
+						if nrmax {
+							// 空きルートがある場合それに、
+							newrootID = noroot(nrmax-1)
+							nrmax--
+						}else {
+							// それがない場合、ルート最大値に
+							newrootID = allrootmax
+							allrootmax++
+						}
+						
+						// 既出ルートを親から継承
+						memexpand root.newrootID, rootmax.nowrootID*4+1
+						memcpy root.newrootID, root.nowrootID, rootmax.nowrootID*4
+						rootmax.newrootID = rootmax.nowrootID
+						
+						// ルートカウンタを親から継承
+						memexpand counter.newrootID, prmmax*4+1
+						memcpy counter.newrootID, counter.nowrootID, prmmax*4
+					}else :newrootID = nowrootID
+					
+					// キューに追加 次に探索する要素ID.ルートID
+					rootqueue += ""+aID+"."+newrootID+"\n"
+					cOFR++
+				loop
+				
+				if cOFR == 0 {
+					// 子を１つも追加していない&自身が新親でもない -> 行き止まり
+					// 空きルートに
+					rootmax.nowrootID = 0
+					noroot.nrmax = nowrootID
+					nrmax++
+				}
+			}
+		loop
+		
+		/* 確認用 */
+		logmes ":Results:"
+		sdim findResult
+		repeat crmax
+			nrID = comproot.cnt
+			
+			sdim str_
+			str_ += "rootID["+nrID+"]"
+			repeat rootmax.nrID
+				str_ += ""+name.getpt(root.nrID, cnt)
+				if cnt < rootmax.nrID-1 :str_ += " -> "
+			loop
+			findResult += str_+"\n"
+		loop
+		findResult += message
+		logmes ""+ findResult
+		/**/
+		
+	return
+	
+	
+	// 全体の描画
+#deffunc Draw int drawf
+	redraw 0
+	
+	color bkclr.0, bkclr.1, bkclr.2 :boxf@hsp
+	color frclr.0, frclr.1, frclr.2
+	
+	gmode 3,,, alpha
+	if not(drawf & 2) :DrawAllPrm
+	if not(drawf & 4) :DrawTempPt
+	if not(drawf & 8) :DrawFromTo
+	if not(drawf & 16) :DrawFindPoint
+	if not(drawf & 32) :DrawAllName
+	if not(drawf & 64) :DrawMenu
+	
+	if not(drawf & 1) :redraw 1
+	
+	return
+	
+	// 全要素描画
+#deffunc DrawAllPrm
+	// 次に点と線
+	repeat ordermax
+		dID = order.cnt
+		DrawPrm dID
+	loop
+	return
+	
+#deffunc DrawTempPt
+	// 仮の確保要素
+	color frclr.0, frclr.1, frclr.2
+	if ptmax :pos 5, 5 :mes "選択中の要素 ("+ptmax+")"
+	
+	if addmode == 1 {
+		// 簡易線表示
+		color frclr.0, frclr.1, frclr.2
+		line oldmx, oldmy, mousex, mousey, 0, 4
+		color RR(clr.oldID), GG(clr.oldID), BB(clr.oldID)
+		line oldmx, oldmy, mousex, mousey, 0, 2
+	}else :if addmode == 2 {// ２つ以上複数選択
+		color frclr.0, frclr.1, frclr.2
+		if oldmx < mousex :x = oldmx :x2 = mousex :else :x = mousex :x2 = oldmx
+		if oldmy < mousey :y = oldmy :y2 = mousey :else :y = mousey :y2 = oldmy
+		boxf x, y, x2, y2, 0
+	}
+	
+	repeat ptmax
+		dID = pt.cnt
+		color frclr.0, frclr.1, frclr.2
+		pos 5, 25+cnt*(fsize+2)
+		if name.dID == "" {
+			font msgothic, fsize, 2
+			mes "no name"
+		}else {
+			font msgothic, fsize
+			mes name.dID
+		}
+		x = getpt(vertex.dID, 0) +vmx
+		y = getpt(vertex.dID, 1) +vmy
+		
+		color RR(clr.dID), GG(clr.dID), BB(clr.dID)
+		circle x-rNormal*2+1, y-rNormal*2+1, x+rNormal*2, y+rNormal*2, 0
+	loop
+	font msgothic, fsize
+	return
+	
+#deffunc DrawPrm int ID_
+	// １つの要素描画
+	if ID_ == -1 || prmmax <= ID_ :return
+	if prm.ID_ == PRM_CIRCLE {
+		// 円
+		x = getpt(vertex.ID_, 0) +vmx
+		y = getpt(vertex.ID_, 1) +vmy
+		r = extra.ID_
+		
+		color RR(clr.ID_), GG(clr.ID_), BB(clr.ID_)
+		circle x-r+1, y-r+1, x+r, y+r
+
+		color frclr.0, frclr.1, frclr.2
+		circle x-r+1, y-r+1, x+r, y+r, 0
+	}else :if prm.ID_ == PRM_LINE {
+		// 線
+		FromID = getpt(vertex.ID_, 2)
+		ToID = getpt(vertex.ID_, 3)
+		
+		x = getpt(vertex.FromID, 0) +vmx
+		y = getpt(vertex.FromID, 1) +vmy
+		xed = getpt(vertex.ToID, 0) +vmx
+		yed = getpt(vertex.ToID, 1) +vmy
+		a = atan(yed-y, xed-x)
+		r = sqrt(powf(xed-x, 2) + powf(yed-y, 2)) - extra.ToID - extra.ID_/2 -1
+		color RR(clr.ID_), GG(clr.ID_), BB(clr.ID_)
+		line x, y, x+cos(a)*r, y+sin(a)*r, 0, extra.ID_
+	}else :if prm.ID_ == PRM_SPACE {
+		// 領域
+		i = extra.ID_
+		sdim pts, i*8+1
+		repeat i
+			j = getpt(vertex.ID_, 2+cnt)
+			setpt pts, cnt*2, getpt(vertex.j, 0)
+			setpt pts, cnt*2+1, getpt(vertex.j, 1)
+		loop
+		
+		color RR(clr.ID_), GG(clr.ID_), BB(clr.ID_)
+		Polygon pts, i, 1
+		
+		color frclr.0, frclr.1, frclr.2
+		Polygon pts, i, 0
+	}else :if prm.ID_ == PRM_TEXT || prm.ID_ == PRM_IMAGE {
+		// バッファオブジェクト
+		FromID = getpt(vertex.ID_, 2)
+		wdh = getpt(vertex.ID_, 3)
+		hgt = getpt(vertex.ID_, 4)
+		towdh = getpt(vertex.ID_, 5)
+		tohgt = getpt(vertex.ID_, 6)
+		x = getpt(vertex.FromID, 0) +vmx
+		y = getpt(vertex.FromID, 1) +vmy
+		xed = x+towdh
+		yed = y+tohgt
+		pos x, y :gcopy 1, 0, 0, wdh, hgt
+		
+		gmode 4, wdh, hgt, 255
+		color bkclr.0, bkclr.1, bkclr.2
+//		pos x, y :gcopy extra.ID_, 0, 0, wdh, hgt
+		pos getpt(vertex.cnt, 0) +vmx, getpt(vertex.cnt, 1) +vmy
+		grotate extra.ID_, 0, 0, 0, towdh, tohgt
+		gmode 3,,, alpha
+		
+		color RR(clr.ID_), GG(clr.ID_), BB(clr.ID_)
+		boxf x, y, xed, yed, 0
+	}else :if prm.ID_ == PRM_FOLDER || prm.ID_ == PRM_FILE {
+		// フォルダ/ファイル
+		wdh = getpt(vertex.ID_, 3)
+		hgt = getpt(vertex.ID_, 4)
+		x = getpt(vertex.ID_, 0) +vmx
+		y = getpt(vertex.ID_, 1) +vmy
+		
+		gmode 4, wdh, hgt, 255
+		color bkclr.0, bkclr.1, bkclr.2
+		pos x, y
+		grotate abs(extra.ID_), 0, 0, 0, wdh, hgt
+		//DrawIconFromFile wdh, hgt, name.ID_
+		gmode 3,,, alpha
+	
+		x -= wdh/2
+		y -= hgt/2
+		xed = x+wdh
+		yed = y+hgt
+		color RR(clr.ID_), GG(clr.ID_), BB(clr.ID_)
+		boxf x, y, xed, yed, 0
+	}
+	return
+	
+#deffunc DrawFromTo
+	if fFromID != -1 :if prm.fFromID != PRM_NULL {	// 出発地点表示
+		x = getpt(vertex.fFromID, 0) +vmx
+		y = getpt(vertex.fFromID, 1) +vmy
+		sdim pts
+		setpt pts, 0, x
+		setpt pts, 1, y
+		setpt pts, 2, cos(deg2rad(-25-90))*rNormal*2+x
+		setpt pts, 3, sin(deg2rad(-25-90))*rNormal*2+y
+		setpt pts, 4, cos(deg2rad(25-90))*rNormal*2+x
+		setpt pts, 5, sin(deg2rad(25-90))*rNormal*2+y
+		color RR(clr.fFromID), GG(clr.fFromID), BB(clr.fFromID)
+		Polygon pts, 3, 1
+		color frclr.0, frclr.1, frclr.2
+		Polygon pts, 3, 0
+		pos getpt(pts, 0)-4*fsize/4, getpt(pts, 3)-fsize :mes "From"
+	}
+	if fToID != -1 :if prm.fToID != PRM_NULL {	// 到着地点表示
+		x = getpt(vertex.fToID, 0) +vmx
+		y = getpt(vertex.fToID, 1) +vmy
+		sdim pts
+		setpt pts, 0, x
+		setpt pts, 1, y
+		setpt pts, 2, cos(deg2rad(-25+90))*rNormal*2+x
+		setpt pts, 3, sin(deg2rad(-25+90))*rNormal*2+y
+		setpt pts, 4, cos(deg2rad(25+90))*rNormal*2+x
+		setpt pts, 5, sin(deg2rad(25+90))*rNormal*2+y
+		color RR(clr.fToID), GG(clr.fToID), BB(clr.fToID)
+		Polygon pts, 3, 1
+		color frclr.0, frclr.1, frclr.2
+		Polygon pts, 3, 0
+		pos x-2*fsize/4, getpt(pts, 5)+1 :mes "To"
+		if fFromID != -1 && fToID != -1 {
+			mes "検索結果\n"+ findResult
+		}
+	}
+	return
+	
+#deffunc DrawFindPoint
+	// 検索情報地点
+	repeat fpfmax
+		if fFindPoint.cnt == -1 || fFindPoint.cnt == 0 :continue
+		dID = FindPoint.cnt
+		if prm.dID == PRM_NULL :continue
+		x = getpt(vertex.dID, 0) +vmx
+		y = getpt(vertex.dID, 1) +vmy
+		
+		sdim pts
+		setpt pts, 0, x
+		setpt pts, 1, y
+		if fFindPoint.cnt == 1 {
+			setpt pts, 2, cos(deg2rad(-25))*rNormal*2+x
+			setpt pts, 3, sin(deg2rad(-25))*rNormal*2+y
+			setpt pts, 4, cos(deg2rad(25))*rNormal*2+x
+			setpt pts, 5, sin(deg2rad(25))*rNormal*2+y
+			color frclr.0, frclr.1, frclr.2
+			pos getpt(pts, 2)+mar/4, getpt(pts, 3) :mes "Meet"
+		}else {
+			setpt pts, 2, cos(deg2rad(-25+180))*rNormal*2+x
+			setpt pts, 3, sin(deg2rad(-25+180))*rNormal*2+y
+			setpt pts, 4, cos(deg2rad(25+180))*rNormal*2+x
+			setpt pts, 5, sin(deg2rad(25+180))*rNormal*2+y
+			color frclr.0, frclr.1, frclr.2
+			pos getpt(pts, 4)-4*fsize/2-mar/4+1, getpt(pts, 3)-fsize :mes "Pass"
+		}
+		
+		color RR(clr.dID), GG(clr.dID), BB(clr.dID)
+		Polygon pts, 3, 1
+		color frclr.0, frclr.1, frclr.2
+		Polygon pts, 3, 0
+	loop
+	return
+	
+#deffunc DrawAllName
+	// 要素名だけ後から
+	repeat ordermax
+		dID = order.cnt
+		if dID == -1 || prmmax <= dID :continue
+		if prm.dID == PRM_CIRCLE {
+			// 円
+			if name.dID == "" :continue
+			x = getpt(vertex.dID, 0) +vmx
+			y = getpt(vertex.dID, 1) +vmy
+			r = extra.dID
+			color frclr.0, frclr.1, frclr.2
+			pos x-strlen(name.dID)*fsize/4.0, y-r-fsize
+			mes name.dID, hdc, 100/*mes box width*/
+		}else :if prm.dID == PRM_FILE || prm.dID == PRM_FOLDER {
+			// ファイル/フォルダ
+			x = getpt(vertex.dID, 0) +vmx
+			y = getpt(vertex.dID, 1) +vmy
+			wdh = getpt(vertex.dID, 3)
+			hgt = getpt(vertex.dID, 4)
+			color frclr.0, frclr.1, frclr.2
+			i = strlen(getpath(name.dID, 8))*fsize/4.0
+			if wdh*3 < i :i = 3.0*wdh/2.0
+			pos x-i, y+hgt/2+1
+			mes getpath(name.dID, 8), hdc, wdh*3, hgt*3
+		}
+	loop
+	return
+	
+#deffunc DrawMenu
+	// プルダウンメニュー
+	if menuf {
+		pos xBeg, yBeg :gcopy 1, 0, 0, xEnd-xBeg, yEnd-yBeg
+		
+		color frclr.0, frclr.1, frclr.2
+		boxf xBeg, yBeg, xEnd, yEnd, 0
+		
+		repeat nmenu
+			x = xBeg+mar/2
+			y = yBeg+mar/2 + cnt*fsize + cnt*mar/2
+			wdh = max+mar/4-1
+			hgt = fsize+mar/4
+			color frclr.0, frclr.1, frclr.2
+			if cnt < nmenu-1 :line@hsp x-mar/4-1, y+fsize+mar/4, x+wdh, y+hgt
+			
+			// 1は無効項目
+			if ismenu.cnt & 2 {		// 子の項目を持っている
+				pos xEnd-1, y
+				gcopy 1, 0, 0, mar/4, hgt
+				boxf xEnd-1, y, xEnd+mar/4, y+hgt, 0
+			}
+			if ismenu.cnt & 4 {		// 灰色表示
+				color frclr.0/3, frclr.1/3, frclr.2/3
+			}
+			if ismenu.cnt & 8 {		// 見出し表示
+				x = xBeg + (xEnd-xBeg-x)/2
+			}
+			if ismenu.cnt & 16 {	// アップダウンボックス付
+				color frclr.0/2, frclr.1/2, frclr.2/2
+				sdim pts //-3
+				setpt pts, 0, x-mar/4-1
+				setpt pts, 1, y+hgt/2-5
+				setpt pts, 2, x+wdh
+				setpt pts, 3, y+hgt/2-5
+				setpt pts, 4, x+wdh/2
+				setpt pts, 5, y-mar/8
+				Polygon pts, 3, 1
+				
+				setpt pts, 0, x-mar/4-1
+				setpt pts, 1, y+hgt/2-1
+				setpt pts, 2, x+wdh
+				setpt pts, 3, y+hgt/2-1
+				setpt pts, 4, x+wdh/2
+				setpt pts, 5, y+hgt-mar/8
+				Polygon pts, 3, 1
+				color frclr.0, frclr.1, frclr.2
+			}
+			
+			pos x, y
+			print mstr(menustr.cnt)
+		loop
+	}
+	
+	return
+	
+	// 空きウィンドウ登録
+	#deffunc SetBlankWindow int wndID_
+		logmes "set "+abs(wndID_)
+		blankwnd.blankwndmax = abs(wndID_)
+		blankwndmax++
+	return
+	// 空きウィンドウ取得
+	#defcfunc GetBlankWindow
+		if blankwndmax {
+			i = blankwnd(blankwndmax-1)
+			blankwndmax--
+		}else {
+			i = wndbufmax
+			wndbufmax++
+		}
+		logmes "get "+i
+	return i
+	
+	
+	// 初期化
+#deffunc Init
+	
+	randomize
+	
+	bkclr = 0, 0, 0			// 背景色
+	frclr = 255, 255, 255	// 標準色
+	alpha = 255/5*4	// 透過度
+	fsize = 12		// フォントサイズ
+	mar = fsize*2	// プルダウンの間隔
+	rBox = 8		// 四角の半径
+	rNormal = 8		// 円の半径
+	wLine = 8		// 線の太さ
+	vmx = 0			// 全体の初期描画 x位置
+	vmy = 0			// 全体の初期描画 y位置
+	wdhFile = 24	// ファイルのアイコンの大きさ x
+	hgtFile = 24	// 〃 y
+	editmode = 0	// 0:通常 1:ディレクトリモード
+	vertexsize = 0, 8, 16, 0, 44, 44
+	
+	sdim file
+	sdim files :filemax = 0
+	sdim savebuf
+	sdim loadbuf
+	
+	// 空きウィンドウ
+	dim blankwnd
+	blankwndmax = 0
+	wndbufmax = 3
+	
+	// 描画順番
+	dim order
+	ordermax = 0
+	
+	/* 要素が持つプロパティ */
+	dim prm		// 0:なし 1:円 2:線 3:多角形
+	dim clr		// 表示色
+	sdim name	// 表示名
+	sdim vertex	// 頂点座標
+	dim extra	// 円は半径 線は線の太さ
+	/**/
+	
+	// 検索用フィルター
+	sdim findResult
+	dim FindPoint		// 除外・経由 地点のID
+	dim fFindPoint		// 除外・経由 地点 0:なし 1:経由 2:除外
+	fpfmax = 0			// FindPointfの数
+	Duplication = 0		// 既出のカウンタの最大値
+	FindMax = 10		// 探索数
+	RootLenMin = 0		// ルートの最小の長さ
+	RootLenMax = -1		// ルートの最大の長さ
+		
+	fFromID = -1	// 出発地点
+	fToID = -1		// 到着地点
+	
+	buffer 2, ginfo(20), ginfo(21)
+	color frclr.0, frclr.1, frclr.2 :boxf@hsp
+	
+	buffer 1, ginfo(20), ginfo(21)
+	color bkclr.0, bkclr.1, bkclr.2 :boxf@hsp
+	
+	
+	screen 0, ginfo(20)*2, ginfo(21)*2, 2,,, 640, 480
+//	bgscr 0, ginfo(20)-1, ginfo(21), 2, 1, 0
+	mouse
+	title APP_NAME
+	oncmd gosub *Click, WM_LBUTTONDOWN
+	oncmd gosub *Click, WM_RBUTTONDOWN
+	oncmd gosub *Click_up, WM_LBUTTONUP
+	oncmd gosub *Click_up, WM_RBUTTONUP
+	oncmd gosub *Double_Click, WM_LBUTTONDBLCLK
+	oncmd gosub *Double_Click, WM_RBUTTONDBLCLK
+	oncmd gosub *SaveIni, WM_DESTROY
+	oncmd gosub *Activate, WM_ACTIVATE
+	oncmd gosub *Close, WM_CLOSE
+	oncmd gosub *Timer, WM_TIMER
+	onkey gosub *Key
+	slong hwnd, GWL_STYLE, glong(hwnd, GWL_STYLE) | WS_MAXIMIZEBOX | WS_SIZEBOX
+	SetClassLong hwnd, GCL_STYLE, GetClassLong(hwnd, GCL_STYLE) | CS_DBLCLKS
+	
+	font msgothic, fsize
+	boxf
+	gsel 0, 1
+//	SetWindowBottom hwnd
+	SetTimer hwnd, 1000, 1000, 0
+	
+	return
+	
+*Key
+	xx = 0 :yy = 0
+	if VK_LEFT == wparam	:xx = -rNormal
+	if VK_RIGHT == wparam	:xx = rNormal
+	if VK_UP == wparam		:yy = -rNormal
+	if VK_DOWN == wparam	:yy = rNormal
+	if xx || yy {
+		// 一括移動
+		repeat ptmax
+			dID = pt.cnt
+			setpt vertex.dID, 0, getpt(vertex.dID, 0) + xx
+			setpt vertex.dID, 1, getpt(vertex.dID, 1) + yy
+		loop
+		Draw
+	}
+	if VK_CONTROL == wparam {
+		// 整列
+		r = rNormal * 2
+		repeat ptmax
+			dID = pt.cnt
+			setpt vertex.dID, 0, getpt(vertex.dID, 0) / r * r
+			setpt vertex.dID, 1, getpt(vertex.dID, 1) / r * r
+		loop
+		Draw
+	}
+	
+	return
+	
+*Double_Click
+	if 1 == wparam {
+		// 整列
+		r = rNormal * 2
+		repeat prmmax
+			setpt vertex.cnt, 0, getpt(vertex.cnt, 0) / r * r
+			setpt vertex.cnt, 1, getpt(vertex.cnt, 1) / r * r
+		loop
+		Draw
+	}
+	if 2 == wparam {
+		vmx = 0
+		vmy = 0
+		Draw 1
+		gmode 3,,, alpha
+		colorwhite
+		pos 0, 0 :mes ""+vmx+" x "+vmy
+		redraw 1
+		
+	}
+	return
+	
+*Timer	// 1秒毎に送られてくる
+	dclicked = 0
+	redrawf = 0
+	repeat prmmax
+		if prm.cnt == PRM_TEXT {
+			AddText cnt, 0, 0, 0, ""
+		}else :if prm.cnt == PRM_IMAGE {
+			AddImage cnt, 0, 0, 0, ""
+		}else :if prm.cnt == PRM_FILE {
+			AddFile cnt, 0, 0, 0, ""
+		}else :if prm.cnt == PRM_FOLDER {
+			AddFolder cnt, 0, 0, 0, ""
+		}
+		if stat != -1 :redrawf = 1
+	loop
+	if redrawf :Draw
+	return
+	
+*Activate
+//	SetWindowBottom hwnd
+	return
+	
+*Close
+	oncmd 0
+	KillTimer hwnd, 1000
+	oncmd 1
+	return
+	
+#deffunc FileQueue
+	i = -1
+	repeat filemax
+		if i == -1 {
+			if files.cnt == file :i = cnt
+		}
+		if i != -1 {
+			if filemax-1 <= cnt :break
+			files.cnt = files(cnt+1)
+		}
+	loop
+	if i != -1 :filemax--
+	files.filemax = file :filemax++
+	title ""+APP_NAME+" "+getpath(file, 8)
+	return
+	
+#deffunc Load str fname_
+	if fname_ == "" {
+		void ""
+		dialog "sut", 16, "", NULL
+		if stat == 0 :return
+		file = refstr
+	}else {
+		file = fname_
+	}
+	readf = 1
+	vmx = 0
+	vmy = 0
+	
+	FileQueue
+	
+	exist file
+	size = strsize
+	
+	sdim buf, size+1
+	bload file, buf, size
+	
+	// ヘッダ
+	bkclr = peek(buf, SUTHED_BKCLR), peek(buf, SUTHED_BKCLR+1), peek(buf, SUTHED_BKCLR+2)
+	frclr = peek(buf, SUTHED_FRCLR), peek(buf, SUTHED_FRCLR+1), peek(buf, SUTHED_FRCLR+2)
+	alpha = peek(buf, SUTHED_FRCLR+3)
+	fsize = peek(buf, SUTHED_FSIZE)
+	rNormal = wpeek(buf, SUTHED_RANGE)
+	wLine = wpeek(buf, SUTHED_WLINE)
+	ordermax = lpeek(buf, SUTHED_ORDERMAX)
+	prmmax = lpeek(buf, SUTHED_PRMMAX)
+	
+	// オーダー
+	index = SUTHED_END
+	repeat ordermax
+		order.cnt = lpeek(buf, index)
+		index += 4
+	loop
+	
+	// 要素s
+	max = prmmax
+	repeat prmmax
+		prm.cnt = PRM_NULL
+	loop
+	repeat prmmax
+		ID = lpeek(buf, index) :index += 4
+		if max <= ID :max = ID+1
+		prm.ID = lpeek(buf, index) :index += 4
+		clr.ID = lpeek(buf, index) :index += 4
+		extra.ID = lpeek(buf, index) :index += 4
+		
+		len = lpeek(buf, index) :index += 4
+		memexpand name.ID, len+2
+		memset name.ID, 0, len+1
+		memcpy name.ID, buf, len, 0, index
+		index += len
+		
+		memexpand vertex.ID, vertexsize(prm.ID)+1
+		memcpy vertex.ID, buf, vertexsize(prm.ID), 0, index
+		index += vertexsize(prm.ID)
+	loop
+	prmmax = max
+	
+	/*
+	// なんでもない変数に乱数を代入して乱数調整
+	repeat prmmax
+		repeat
+			i = RGB(rnd(255), rnd(255), rnd(255))
+			if RR(i) < 50 && GG(i) < 50 && BB(i) < 50 :continue
+			break
+		loop
+	loop
+	*/
+	
+	return
+	
+#deffunc Save str fname_
+	if fname_ == "" {
+		void ""
+		dialog "sut", 17, "", NULL
+		if stat == 0 :return
+		file = refstr
+	}else {
+		file = fname_
+	}
+	readf = 0
+	
+	FileQueue
+	
+	// ヘッダー
+	sdim buf, SUTHED_END+1
+	lpoke buf, SUTHED_BKCLR, RGB(bkclr.0, bkclr.1, bkclr.2)
+	lpoke buf, SUTHED_FRCLR, RGBA(frclr.0, frclr.1, frclr.2, alpha)
+	poke buf, SUTHED_FSIZE, fsize
+	wpoke buf, SUTHED_RANGE, rNormal
+	wpoke buf, SUTHED_WLINE, wLine
+	i = 0
+	repeat ordermax
+		if order.cnt != -1 :i++
+	loop
+	lpoke buf, SUTHED_ORDERMAX, i
+	i = 0
+	repeat prmmax
+		if prm.cnt != PRM_NULL :i++
+	loop
+	lpoke buf, SUTHED_PRMMAX, i
+	
+	// オーダー
+	index = SUTHED_END
+	repeat ordermax
+		if order.cnt == -1 :continue
+		memexpand buf, index+4+1
+		lpoke buf, index, order.cnt
+		index += 4
+	loop
+	
+	// 要素s
+	repeat prmmax
+		if prm.cnt == PRM_NULL :continue
+		memexpand buf, index+20+1
+		lpoke buf, index, cnt
+		lpoke buf, index+4, prm.cnt
+		lpoke buf, index+8, clr.cnt
+		lpoke buf, index+12, extra.cnt
+		lpoke buf, index+16, strlen(name.cnt)
+		index += 20
+		
+		memexpand buf, index+strlen(name.cnt)+1
+		memcpy buf, name.cnt, strlen(name.cnt), index, 0
+		index += strlen(name.cnt)
+		
+		memexpand buf, index+vertexsize(prm.cnt)+1
+		memcpy buf, vertex.cnt, vertexsize(prm.cnt), index
+		index += vertexsize(prm.cnt)
+	loop
+	
+	bsave file, buf, index
+	return
+	
+	#define INI_FILE	""+dir_mydoc+"\\supertree.ini"
+*LoadIni
+	exist INI_FILE
+	if strsize == -1 {
+		gosub *SaveIni
+	}else {
+		size = strsize
+		sdim loadbuf, size+1
+		bload INI_FILE, loadbuf, size
+		
+		i = 0
+		sdim recentlyfile
+		notesel@hsp loadbuf
+		repeat notemax
+			noteget@hsp inf, cnt
+			if inf == "" :continue
+			if i == 0 :if inf == "most recently used" :i = 1 :continue
+			
+			exist inf
+			if strsize != -1 {
+				if i == 1 {
+					recentlyfile = inf
+					i++
+				}else :if i == 2 {
+					files.filemax = inf :filemax++
+				}
+			}
+		loop
+	}
+	
+	return
+	
+*SaveIni
+	savebuf = "most recently used\n\nother read files\n"
+	mru = 1
+	orf = 3
+	
+	notesel@hsp savebuf
+	if readf {
+		// 読み込んだままで終了した場合
+		noteadd file, mru, 0
+		orf++
+	}
+	repeat limit(filemax, 0, 9), limit(filemax-9, 0, filemax-9)
+		noteadd files.cnt, orf, 0
+	loop
+	
+	bsave INI_FILE, savebuf, strlen(savebuf)
+	
+	return
+	

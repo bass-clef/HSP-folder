@@ -1,0 +1,19 @@
+	
+	#include "array.as"
+	
+	
+	a = 8, 4, 3, 7, 6, 5, 2, 1
+	repeat length(a)
+		b.cnt = a.cnt
+	loop
+	len = length(a)
+	
+	quickSort a, b
+	
+	repeat length(a)
+		mes a.cnt
+	loop
+	
+	
+	
+	

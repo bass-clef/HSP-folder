@@ -1,0 +1,84 @@
+	
+	x = 48 :y = 48 :cx = 8 :cy = 8
+	
+	screen 0, ginfo(20), ginfo(21), 0,,, 400, 400
+	hmwnd = hwnd@hsp
+	slong hmwnd, -16, glong(hmwnd, -16) | WS_THICKFRAME
+	font msgothic, 16
+	onclick gosub *click
+	oncmd gosub *size, WM_SIZE
+	
+	objsize 50, 30
+	button gosub "ì«çû", *Jump :bR = stat
+	button gosub "ï€ë∂", *Jump :bS = stat
+	button gosub "ïœçX", *Jump :bC = stat
+	objsize 50, 20 :objmode 2
+	input x
+	input y
+	input id
+	input cx
+	input cy
+	yyy = ginfo_cy
+	
+	stop
+*click
+	if wparam == 1 {
+		if 49 < mousex {
+			zz = img.0 / x
+			xx = id\zz
+			yy = id/zz
+			xs = (x-cx*2)
+			ys = (y-cy*2)
+			gmode 4, xs, ys, 255
+			color bclr.0, bclr.1, bclr.2
+			pos 50+((mousex-50)/xs*xs)-cx, mousey/ys*ys-cy
+			gcopy 1, xx, yy, xx+x, yy+y
+		}else {
+			objsize img.0, img.1
+			dialog "", 64
+			dlgfor :wait 1 :loop
+		}
+	}elif wparam == 2 {
+		if getkey(17) {	colorwhite :boxf 50
+		}else :			colorwhite :boxf mousex, mousey, mousex+x, mousey+y
+	}
+	return
+*size
+	title ""+(ginfo(12)-50)+"x"+ginfo(13)
+	return
+	
+*Jump
+	if bR == stat {
+		dialog "", 16
+		if not(stat) :return
+		fName = refstr
+		
+		buffer 1
+		picload fName
+		pget 0, 0 :bclr = ginfo_r, ginfo_g, ginfo_b
+		img = ginfo(12), ginfo(13)
+		gsel 0, 1
+		void bC
+		gosub *Jump
+	}elif bS == stat {
+		dialog "", 17
+		if not(stat) :return
+		fName = refstr
+		
+		xx = ginfo(12)-50
+		yy = ginfo(13)
+		buffer 2
+		pos 0, 0 :gcopy 0, 50, 50, xx+8, yy+8
+		bmpsave fName
+		gsel 0, 1
+	}elif bC == stat {
+		zz = img.0 / x
+		xx = id\zz
+		yy = id/zz
+		xs = (x-cx*2)
+		ys = (y-cy*2)
+		gmode 4, xs, ys, 255
+		color bclr.0, bclr.1, bclr.2
+		pos 0, yyy :gcopy 1, xx*x, yy*y, xx*x+x, yy*y+y
+	}
+	return

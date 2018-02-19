@@ -1,0 +1,91 @@
+	
+	// 画像を0と1に変換
+	// 濃い
+	// 8
+	// 6
+	// 9
+	// 4
+	// 3
+	// 5
+	// 2
+	// 0
+	// 7
+	// 1
+	// 薄い
+	
+	#uselib "gdi32.dll"
+	#cfunc	GetPixel	"GetPixel"	int, int, int
+	
+	num = 0, 4, 8, 6, 9, 3, 5, 2, 0, 7, 1
+	numax = 255/length(num)
+	ms = ""
+	s = 3, 6, 5
+	chk = 1
+	reading 0
+	
+	screen 0, img.0, img.1, 0
+	font msgothic, s.1
+	option
+	zeration
+	saving
+	dialog "右クリックでオプションを選択できます"
+	
+	stop
+#deffunc option
+	ms = ""
+	repeat length(num)-1, 1
+		ms += ""+num.cnt
+		if cnt < length(num)-1 :ms += ", \n"
+	loop
+	
+	objsize 300, 120
+	dialog "", 64, ""
+	pos  5,  5 :mes "文字化テーブル:"
+	objmode 2 :font msgothic, 14 :objsize 290, 20
+	pos  5, 25 :input ms
+	pos  5, 50 :chkbox "カラー", chk
+	pos  5, 75 :mes "大きさ:"
+	pos 75, 75 :input s.1, 50, 18, 2
+	
+	dlgfor :wait 1 :loop
+	s.2 = s,1-1
+	
+	split ms, ",", ms
+	dim num
+	repeat length(ms)
+		num(cnt+1) = int(ms)
+	loop
+	numax = 255/length(num)
+	return
+	
+#deffunc zeration
+	mref bmscr, 67
+	for i, 0, img.1/s.2, 1
+		repeat img.0/s.0
+			xx = cnt*s.0
+			yy = i*s.2
+			clr = GetPixel(hsdc, xx, yy)
+			ave = (RR(clr)+GG(clr)+BB(clr))/3
+			if chk :color RR(clr), GG(clr), BB(clr) :else :color ave, ave, ave
+			pos xx, yy :mes num(ave/numax)
+		loop
+	next
+	return
+	
+#deffunc saving
+	dialog "保存しますか？", 2, "option"
+	if stat == 6 :dialog "bmp", 17 :if stat :bmpsave refstr
+	return
+	
+#deffunc reading int gselect
+	dialog "bmp;*.jpg;*.gif;*.ico;*.png;*.psd;*.tga", 16
+	if not(stat) :dialog "画像が選択されていませんでした。" :end :else :fName = refstr
+	
+	bgscr 1,,, 2
+	picload fName
+	img = ginfo(10), ginfo(11)
+	hsdc = hdc@hsp
+	gsel 1, -1
+	
+	gsel gselect, 0
+	return

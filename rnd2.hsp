@@ -1,0 +1,85 @@
+
+	#module __STOPWATCH__
+	#define Gettimes(%1) %1 = gettime(5)*60000 + gettime(6)*1000 + gettime(7)
+	#defcfunc GetMonthLength int Month, int Year
+			:if Month == 1 {return 31
+		}elseif Month == 2 {return c(Year\4 == 0, 29, 28)
+		}elseif Month == 3 {return 31
+		}elseif Month == 4 {return 30
+		}elseif Month == 5 {return 31
+		}elseif Month == 6 {return 30
+		}elseif Month == 7 {return 31
+		}elseif Month == 8 {return 31
+		}elseif Month == 9 {return 30
+		}elseif Month == 10 {return 31
+		}elseif Month == 11 {return 30
+		}
+	return 31
+	
+	// r : äJénéûçè
+	// n : åªç›éûçè
+	// p : íÜíféûçè
+	
+	#deffunc StartWatch
+		if st :st = 0 :pt = 0 :else :st = 1
+		Gettimes t
+	return
+	
+	#deffunc PauseWatch
+		if pt {
+			pt = 0
+			Gettimes n
+			t += n - p
+		}else {
+			pt = 1
+			Gettimes p
+		}
+	return
+	
+	#defcfunc GetWatch int tt
+		if st == 0 :return 0
+		Gettimes n
+		i = n-t
+		if tt == 7 :return i \ 1000
+		if tt == 6 :return (i / 1000) \ 60
+		if tt == 5 :return (i / 60000) \ 60
+		if tt == 4 :return (i / 3600000) \ 24
+	return 0
+	
+	#define global WatchStop st@__STOPWATCH__
+	#define global WatchPause pt@__STOPWATCH__
+	#global
+	
+	#module
+	#deffunc rndinit int max, int min
+		mmax = max*4
+		sdim buf, mmax+4
+	
+		repeat max
+			lpoke buf, cnt*4, cnt+min
+		loop
+	return
+	
+	#defcfunc rnd2 int max, int min
+		if mmax <= 0 :rndinit max, min
+		r = rnd(mmax/4)*4
+		memcpy ret, buf, 4, 0, r
+		memcpy buf, buf, mmax-r-1, r, r+4
+		mmax -= 4
+		return ret
+	#global
+	
+ sdim buf
+ randomize
+ max = 5
+ min = 1
+ 
+ StartWatch
+
+repeat max
+buf += ""+rnd2(max, min)+"\n"
+loop
+
+ PauseWatch
+ title strf("%02d %02d %04d", GetWatch(5), GetWatch(6), GetWatch(7))
+ mesbox buf, ginfo(12), ginfo(13), 5, 0

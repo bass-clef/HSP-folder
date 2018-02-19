@@ -1,0 +1,210 @@
+	
+	// フォルダを存在していないように隠蔽
+	
+	#uselib "kernel32.dll"
+	#func	SetFileAttributes	"SetFileAttributesA"	str, int
+	#cfunc	GetFileAttributes	"GetFileAttributesA"	str
+	#define FILE_ATTRIBUTE_READONLY             0x00000001  
+	#define FILE_ATTRIBUTE_HIDDEN               0x00000002  
+	#define FILE_ATTRIBUTE_SYSTEM               0x00000004  
+	#define FILE_ATTRIBUTE_DIRECTORY            0x00000010  
+	#define FILE_ATTRIBUTE_ARCHIVE              0x00000020  
+	#define FILE_ATTRIBUTE_DEVICE               0x00000040  
+	#define FILE_ATTRIBUTE_NORMAL               0x00000080  
+	#define FILE_ATTRIBUTE_TEMPORARY            0x00000100  
+	#define FILE_ATTRIBUTE_SPARSE_FILE          0x00000200  
+	#define FILE_ATTRIBUTE_REPARSE_POINT        0x00000400  
+	#define FILE_ATTRIBUTE_COMPRESSED           0x00000800  
+	#define FILE_ATTRIBUTE_OFFLINE              0x00001000  
+	#define FILE_ATTRIBUTE_NOT_CONTENT_INDEXED  0x00002000  
+	#define FILE_ATTRIBUTE_ENCRYPTED            0x00004000  
+	#define FILE_ATTRIBUTE_VIRTUAL              0x00010000
+	
+	#uselib "calculate.dll"
+	#func	Encryption			"Encryption"			var, int, int, int, int
+	
+	#module ___FILE___
+	#uselib "kernel32.dll"
+	#cfunc	CreateFile			"CreateFileA"			str, int, int, int, int, int, int
+	#cfunc	GetFileAttributes	"GetFileAttributesA"	str
+	#func	ReadFile			"ReadFile"				int, int, int, int, int
+	#func	CloseHandle			"CloseHandle"			int
+	
+	#define	GENERIC_READ			0x80000000
+	#define	FILE_SHARE_READ			0x0001
+	#define	OPEN_EXISTING			3
+	#define	INVALID_HANDLE_VALUE	-1
+	#deffunc bfload str fName, var buf, int size
+		fAttribute = GetFileAttributes(fName)
+		hFile = CreateFile(fName, GENERIC_READ, FILE_SHARE_READ, null, OPEN_EXISTING, fAttribute, null)
+		if INVALID_HANDLE_VALUE == stat :return -1
+		
+		sdim buf, size+1
+		readsize = 0
+		
+		ReadFile hFile, varptr(buf), size, varptr(readsize), null
+		poke buf, readsize, 0
+		
+		CloseHandle hFile
+	return readsize
+	#global
+	
+	sdim fName
+	sdim iName
+	
+	screen 0, 320, 40, 0 :title "fh"
+	oncmd gosub *WindowProc, WM_DESTROY
+	objsize  70, 20
+	pos   0,  0 :button gosub "フォルダ選択", *jump :BfSelectID = stat
+	pos   0, 20 :button gosub "ファイル選択", *jump :BiSelectID = stat
+	
+	objsize 130, 20
+	pos  70,  0 :button gosub "エクスプローラーから開く", *jump :BfExplorerID = stat
+	pos  70, 20 :button gosub "関連付けされてるで開く", *jump :BfConnectedID = stat
+	
+	objsize  50, 20
+	pos 200,  0 :button gosub "隠す", *jump :BfHiddenID = stat
+	pos 250,  0 :button gosub "戻す", *jump :BfNormalID = stat
+	pos 200, 20 :button gosub "暗号化", *jump :BiEncryptID = stat
+	pos 250, 20 :button gosub "復号化", *jump :BiDecryptID = stat
+	
+	objsize 20, 20
+	pos 300,  0 :button gosub "...", *jump :BfPreview1ID = stat
+	pos 300, 20 :button gosub "...", *jump :BfPreview2ID = stat
+	
+	stop
+*jump
+	if BfSelectID == stat {gosub *fselect
+	}elif BiSelectID == stat {gosub *iselect
+	}elif BfExplorerID == stat {exec "explorer.exe "+fName
+	}elif BfConnectedID == stat {
+		exec ""+iName, 16
+	}elif BfHiddenID == stat {gosub *hidden
+	}elif BfNormalID == stat {gosub *restore
+	}elif BiEncryptID == stat || BiDecryptID == stat {
+		ID = stat
+		if e :return
+		e = 1
+		exist iName
+		if strsize == -1 :dialog "ファイルが選択されていません" :return :else :size = strsize
+		
+		if BiEncryptID == ID {// 暗号化暗号
+			title "take a random"
+			randomize
+			ennum = -rnd(INT_MAX)
+		}else {
+			ennum = ""
+			objsize 300, 40
+			dialog "", 64, "暗証番号を入力してください。"
+			objsize 300, 20
+			pos 0, 20 :button gosub "決定", *okay
+			objmode 2 :font msgothic, 16
+			pos 0,  0 :input ennum :h = objinfo(stat, 2)
+			ennum = 1
+			dlgfor :wait 1 :loop
+			goto *en_end
+			
+			*okay
+				ennum = -int(gtext(h))
+				dlgdel
+			return
+			
+			*en_end
+			if ennum == 1 :dialog "暗号が入力されていませんでした" :return
+		}
+		
+		// 暗号化テーブル作成
+		title "create encryption table"
+		CreateTable a_table, 256, 1		// ただの加算テーブル作成
+		CreateTable b_table, 256, ennum	// 暗証番号 ennum のテーブル作成
+	
+		title "loading..."
+		sdim buf, size
+		bfload iName, buf, size
+	
+		title "encryption..."
+		if BiEncryptID == ID {// 暗号化
+			Encryption buf, varptr(a_table), varptr(b_table), 256, size
+		}else {// 復号化
+			Encryption buf, varptr(b_table), varptr(a_table), 256, size
+		}
+	
+		title "saving..."
+		bsave iName, buf, size, 0
+		e = 0
+	
+		title "complete"
+		if BiEncryptID == ID {// 暗号化
+			ennum = -ennum
+			dialog "暗号化終了しました。\nファイル名["+getpath(iName, 11)+"]\nファイルサイズ["+size+"]\n\n暗証番号は["+ennum+"]ですこれを忘れると復号化できなくなります。"
+		}else {// 復号化
+			ennum = -ennum
+			dialog "暗証番号["+ennum+"]で復号化終了しました。\nファイル名["+getpath(iName, 11)+"]\nファイルサイズ["+size+"]"
+		}
+		title "fh"
+	}elif BfPreview1ID == stat {
+		if isdir(fName) != null :dialog "選択されているフォルダ:\n"+fName :else :dialog "選択されているフォルダはありません"
+	}elif BfPreview2ID == stat {
+		exist iName
+		if strsize != -1 :dialog "選択されているファイル:\n"+iName :else :dialog "選択されているファイルはありません"
+	}
+	
+	return
+	
+*iselect
+	dialog "", 16
+	if not(stat) :return
+	iName = refstr
+	return
+	
+*fselect
+	dialog "隠すフォルダを選択してください", 66, ""
+	if not(stat) :return
+	fName = refstr
+	return
+
+*restore
+	if GetFileAttributes(fName) & FILE_ATTRIBUTE_DIRECTORY :type = FILE_ATTRIBUTE_DIRECTORY
+	SetFileAttributes fName, type
+	return
+
+*hidden
+	/**/
+//	mes strf("%X", GetFileAttributes(fName))
+	if 
+	type = FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_NOT_CONTENT_INDEXED | FILE_ATTRIBUTE_OFFLINE | FILE_ATTRIBUTE_READONLY | FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_SYSTEM
+	SetFileAttributes fName, type
+//	mes strf("%X", GetFileAttributes(fName))
+	/**/
+	return
+*WindowProc
+	if iparam == WM_DESTROY {
+		
+	}
+	return
+	
+	#module
+	// テーブル作成
+	#deffunc CreateTable var buf, int countmax, int number
+		if countmax > 256 :return
+		sdim buf, countmax
+		if number > 0 {
+			repeat countmax
+				poke buf, cnt, cnt
+			loop
+		}else {
+			randomize abs(number)
+			sdim table
+			repeat countmax
+				table += ""+cnt+"\n"
+			loop
+			
+			repeat countmax
+				notesel@hsp table
+				i = rnd(notemax)
+				poke buf, cnt, int(noteget(i))
+				notedel i
+			loop
+		}
+	return
+	#global

@@ -1,0 +1,327 @@
+//モジュールここから（このモジュールはDirectX9が必須です。二年前以降にDirectXを更新してれば問題無いだろう）
+#module "mod_D3DXQuaternion"
+
+#uselib "d3dx9_39.dll"
+#func  D3DXMatrixRotationX				"D3DXMatrixRotationX" var,float
+#func  D3DXMatrixTranslation			"D3DXMatrixTranslation"  var,float,float,float
+#func  D3DXQuaternionRotationAxis		"D3DXQuaternionRotationAxis"		int,var,float
+#func  global D3DXMatRotQ		"D3DXMatrixRotationQuaternion"		var,int
+#func  D3DXQuaternionRotationYawPitchRoll	"D3DXQuaternionRotationYawPitchRoll"     int,float,float,float
+#func  D3DXQuaternionMultiply          	"D3DXQuaternionMultiply"   int,int,int
+#func  D3DXMatrixMultiply				"D3DXMatrixMultiply"   var,var,var
+#func  D3DXMatrixRotationYawPitchRoll 	"D3DXMatrixRotationYawPitchRoll"     var,float,float,float
+#func  D3DXQuaternionToAxisAngle 		"D3DXQuaternionToAxisAngle"     int,var,var
+#func  D3DXVec3Transform 				"D3DXVec3Transform"     var,var,var
+#func  D3DXQuaternionInverse 			"D3DXQuaternionInverse"     int,int
+#func  D3DXQuaternionSlerp 				"D3DXQuaternionSlerp"     int,int,int,float
+#func  D3DXMatrixRotationAxis			"D3DXMatrixRotationAxis"        var,var,float
+#func  D3DXQuaternionRotationMatrix		"D3DXQuaternionRotationMatrix"        int,int
+#cfunc global D3DXQuaternionN			"D3DXQuaternionNormalize"        int,int
+
+#const H_PI M_PI/2.0
+
+//「----クォータニオンモジュールの初期化----」
+//D3DXQuaternion_init qmax
+//qmax			[クォータニオンID使用最大数(省略時1024)]int
+#deffunc  D3DXQuaternion_init int qmax
+	if qmax<=0 {_qmax=1024}else{_qmax=qmax}
+	dim q,4*_qmax
+	q_ptr=varptr(q)
+
+	dim qid_list,_qmax
+	ddim temp_double,1
+	dim tq,4
+	tq_ptr=varptr(tq)
+	dim TurnMat,16
+	dim temp_Mat,16	
+	dim D3DXVECTOR4,4
+
+	dupptr dup_x,varptr(temp_Mat(12)),4,4
+	dupptr dup_y,varptr(temp_Mat(13)),4,4
+	dupptr dup_z,varptr(temp_Mat(14)),4,4
+
+	dupptr dup_vx,varptr(D3DXVECTOR4),4,4
+	dupptr dup_vy,varptr(D3DXVECTOR4(1)),4,4
+	dupptr dup_vz,varptr(D3DXVECTOR4(2)),4,4	
+	
+	dupptr mov,varptr(temp_Mat(12)),4*3,4
+return
+
+//「----クォータニオンから各オイラー角取得----」
+//q2xyz(%1 ,%2 ,%3 ,%4)
+//%1			[クォータニオンID(入力)]int
+//%2 ,%3 ,%4	[各オイラー角（出力）]double
+#define global QtoRxyz(%1,%2,%3,%4) D3DXMatRotQ TurnMat@mod_D3DXQuaternion,D3DXQuaternionN(tq_ptr@mod_D3DXQuaternion,qid_list@mod_D3DXQuaternion(%1)):MatToEul TurnMat@mod_D3DXQuaternion,%2,%3,%4
+
+//「----指定角度から指定QIDにクォータニオン作成----」
+// QSetXYZ  qid, rx, ry, rz
+//qid			[クォータニオンID(入力)]int
+//rx, ry, rz	[各オイラー角（入力）]double
+//使用できる最大IDを超えるとstatに-1が返る
+#deffunc QSetXYZ int qid,double rx,double ry,double rz
+	if qid<_qmax {
+		D3DXMatrixRotationYawPitchRoll temp_Mat,-ry, 0.0, rz
+		D3DXMatrixRotationX TurnMat,rx
+		D3DXMatrixMultiply temp_Mat,temp_Mat,TurnMat
+		D3DXQuaternionRotationMatrix varptr(q(qid*4)),stat
+		qid_list(qid)=stat
+	}else{
+		return -1
+	}
+return 0
+
+//「----QIDを指定して入力クォータニオンを回転後のクォータニオンにして各オイラー角も出力----」
+//QRotXYZ qid ,rx,ry,rz ,drx,dry,drz
+// qid			[クォータニオンID(入力)]int
+// rx ,ry ,rz	[回転量(入力)]double
+// drx,dry,drz	[回転後の角度(出力)]double
+#deffunc  QRotXYZ int  qid ,double rx,double ry,double rz ,var drx,var dry,var drz
+	D3DXQuaternionRotationYawPitchRoll tq_ptr,-ry,rx,rz
+	D3DXQuaternionMultiply qid_list(qid),qid_list(qid),stat
+	QtoRxyz qid ,drx,dry,drz 
+return	
+
+//「----QIDを指定して入力クォータニオンの姿勢を基準にした移動量を出力----」
+//QPosXYZ qid ,vx,vy,vz ,dvx,dvy,dvz
+// qid				[クォータニオンID(入力)]int
+// vx ,vy ,vz	[移動量(入力)]double
+// dvx ,dvy ,dvz	[回転処理された移動量(出力)]double
+//(fvdir fv,vx,vy,vz だとfvに出力されるのをdvx,dvy,dvzに出力されるようにした感じ)
+#deffunc QPosXYZ int qid,double vx,double vy,double vz ,var dvx,var dvy,var dvz 
+	D3DXMatrixTranslation temp_Mat,vx, vy, vz //移動量をfloatに変換(temp_Mat(12～14)をクローン変数movにしてある)
+	D3DXQuaternionInverse tq_ptr,qid_list(qid)
+	D3DXMatRotQ TurnMat,stat
+	D3DXVec3Transform D3DXVECTOR4,mov,TurnMat //移動量回転
+	dvx=ftd(dup_vx) //結果をdoubleにして座標に出力(dup_v?はD3DXVECTOR4(0～2)のクローン)
+	dvy=ftd(dup_vy)
+	dvz=ftd(dup_vz)		
+return	
+
+//「----QIDを指定して入力クォータニオンの姿勢を基準に軸を指定して入力クォータニオンを回転----」
+//QSetAxisRot qid, vx, vy, vz , rot
+// qid			[クォータニオンID(入力)]int
+// vx ,vy ,vz	[回転軸(入力)]double
+// rot			[回転量(入力)]double
+#deffunc QSetAxisRot int qid,double vx,double vy,double vz ,double qrot
+	D3DXMatrixTranslation temp_Mat,vx, vy, vz 
+	D3DXQuaternionRotationAxis tq_ptr,mov,qrot
+	D3DXQuaternionMultiply qid_list(qid),qid_list(qid),tq_ptr
+return
+
+//「----QIDを指定して入力ォータニオンの回転軸と回転角度を取得----」
+//QGetAxisAng qid, ax, ay, az , ang
+// qid			[クォータニオンID(入力)]int
+// ax ,ay ,az	[回転軸(出力)]double
+// ang			[クォータニオン回転角度(出力)]double
+#deffunc QGetAxisAng int qid,var ax,var ay,var az ,var ang
+	D3DXQuaternionInverse tq_ptr,qid_list(qid)
+	D3DXQuaternionToAxisAngle tq_ptr,D3DXVECTOR4,ang_f
+	ang=ftd(ang_f)
+	ax=ftd(dup_vx)
+	ay=ftd(dup_vy)
+	az=ftd(dup_vz)
+return
+
+//「----QIDを指定して球面線形補間を使って、2 つのクォータニオン間を補間する----」
+//QSlerp qid1, qid2, qid3, t
+// qid1		[補間後のクォータニオンID(入力)]int
+// qid2		[回転前のクォータニオンID(入力)]double
+// qid3		[回転後クォータニオンID(入力)]double
+// t			[補間するクォータニオン間の間隔を示すパラメータ、1.0でqid1の姿勢がqid3の姿勢になる(入力)]double
+#deffunc  QSlerp int qid1,int qid2,int qid3,double t
+	D3DXQuaternionSlerp q_ptr+qid1*16,q_ptr+qid2*16,q_ptr+qid3*16,t
+	qid_list(qid1)=stat
+return
+
+//「----QIDを指定して2つのクォータニオンを乗算する。----」
+//QSlerp qid1, qid2, qid3
+// qid1		[演算結果のクォータニオンID(入力)]int
+// qid2		[処理の基になるクォータニオンID(入力)]double
+// qid3		[処理の基になるクォータニオンID(入力)]double
+#deffunc QMultiply int qid1,int qid2,int qid3
+	D3DXQuaternionMultiply q_ptr+qid1*16,q_ptr+qid2*16,q_ptr+qid3*16
+	qid_list(qid1)=stat
+return
+
+//「----QIDを指定してクォータニオンをコピー----」
+//QCopy qid1, qid2
+// qid1		[コピー先のクォータニオンID(入力)]int
+// qid2		[コピー元のクォータニオンID(入力)]int
+#deffunc  QCopy int qid1,int qid2
+	memcpy q(qid1*4),q(qid2*4),16
+	qid_list(qid1)=varptr(q(qid1*4))
+return
+
+//「----回転行列から各オイラー角取得ー----(QtoRxyzから使われる事が前提で単体では使用しない)」
+//MatToEul Mat ,tx,ty,tz
+// Mat			[回転行列4*4(入力)]float
+// ex ,ey ,ez	[各オイラー角（出力）]double
+#deffunc  MatToEul array  Mat ,var ex,var ey,var ez
+	Mat8=limitf(ftd(Mat(8)),-1.0,1.0)
+	ey=-atan(Mat8,sqrt(1.0-Mat8*Mat8))
+	if  absf(cos(ey))<0.001{
+		ex=atan(ftd(Mat(6)),ftd(Mat(5)))
+		if Mat8>0.0 {ey=-H_PI}else{ey=H_PI}
+		ez=0.0 
+    }else{
+		ex=atan(-ftd(Mat(9)),ftd(Mat(10)))
+		ez=atan(-ftd(Mat(4)),ftd(Mat(0)))
+	}
+return
+
+//「----doubleからfloatに変換----」
+//変数 = dtf( double )
+#defcfunc dtf double _x 
+	D3DXMatrixTranslation temp_Mat,_x
+return dup_x
+
+//「----floatからdoubleに変換----」
+//変数 = ftd( float )
+#defcfunc ftd int p1 
+	temp=p1 << 29,p1 & 0x80000000 | ((p1 & 0x7fffffff) >> 3) + ((p1 & 0x7fffffff) ! 0) * 0x38000000
+	memcpy temp_double,temp,8
+return temp_double
+
+//「----回転行列初期化----」
+//D3DXMatrixIdentity Mat
+// Mat			[回転行列16要素(入力)]float
+#deffunc  D3DXMatrixIdentity array Mat
+	Mat(15)=0
+	D3DXMatrixRotationYawPitchRoll Mat
+return
+#global
+//モジュールここまで
+
+
+
+#include "hgimg3.as"
+
+
+
+//モジュール初期化（必ず必要）
+D3DXQuaternion_init
+
+screen 0,640,480,0
+cls 4
+
+
+hgini
+setfont 16,16,12,1	; font Tex select(cx,cy,px,mode)
+texload dir_exe+"\\sample\\hgimg3\\fontchr.bmp"	; フォントテクスチャの登録
+
+//親オブジェクト
+setcolor 100,100,100
+addbox mbox, 9,9
+regobj obox,mbox
+//XYZ軸視認用オブジェクト
+repeat 3
+	addline mline(cnt),-1,$ff<<(cnt*8)
+	regobj oline(cnt), mline(cnt)
+	objchild obox,oline(cnt)//親オブジェクトにジョイント
+	setwork oline(cnt),-12*(cnt=0),-12*(cnt=1),12*(cnt=2)
+loop
+
+//色パネルの貼り準
+//  3 
+//1 0 2
+//  4
+//  5
+pbx=0,-1,1,0,0,0
+pby=0,0,0,-1,1,0
+pbz=1,0,0,0,0,-1
+//色パネルオブジェクト
+repeat 6
+	setcolor (cnt<4)*255+(cnt>3)*44,((cnt=1) | (cnt=2))*255+(cnt=3)*128+(cnt=4)*175+(cnt=5)*44,(cnt=2)*255+(cnt=4)*44+(cnt=5)*175
+	addbox pmbox(cnt),0.2, 8.5
+	regobj pobox(cnt), pmbox(cnt)
+	objchild obox,pobox(cnt)//親オブジェクトにジョイント
+	setpos pobox(cnt),4.5*pbx(cnt),4.5*pby(cnt),4.5*pbz(cnt)//親オブジェクトのそれぞれの面に配置
+	setang pobox(cnt),,atan(pbz(cnt),pbx(cnt)),atan(pby(cnt),pbz(cnt))//配置された面に応じて回転
+loop
+
+selcpos
+objset3 0.0, 0.0, 35.0
+
+cammode CAM_MODE_LOOKAT		
+
+setang obox,0,0,0
+getang obox,rx,ry,rz
+
+getpos HGOBJ_CAMERA,cpx,cpy,cpz
+setscale HGOBJ_LIGHT,175,175,175
+setang HGOBJ_LIGHT,atan(cpy,cpz),atan(cpx,cpz),
+
+qid=0
+QSetXYZ qid,rx,ry,rz //初期クォータニオン作成（開始時の姿勢）
+
+rotfps=10	//一回の操作で連続で回転するフレーム数
+r_90=M_PI/2.0/rotfps	//1フレームで回転する角度
+typname="クォータニオン","オイラー角"
+title typname(typ)
+
+*main
+	
+	stick k,$fff-16
+	if k&128 : goto *owari		; [ESC]で終了
+	getkey shift,16
+	getkey ctrl,17
+
+	if k&256 {//左クリック、カメラ移動
+		selcpos
+		objset3 -0.1*(mousex-320), -0.1*(mousey-240), 35.0
+		getpos HGOBJ_CAMERA,cpx,cpy,cpz
+		setang HGOBJ_LIGHT,atan(cpy,cpz),atan(cpx,cpz),0.0
+
+	}
+
+	if k&512 {//右クリック、カメラ初期位置に戻す
+		selcpos
+		objset3 0,0, 35.0
+		getpos HGOBJ_CAMERA,cpx,cpy,cpz
+		setang HGOBJ_LIGHT,atan(cpy,cpz),atan(cpx,cpz),0.0
+	}
+
+	if k&16 {//スペースでクォータニオンとオイラー角の回転を変更します
+		typ^1
+		title typname(typ)
+		if typ=0 {getang obox,rx,ry,rz
+			QSetXYZ qid ,rx,ry,rz //クォータニオン再設定
+		}
+	}
+	
+	if shift or ctrl {k = shift*2048 | ctrl*4096}
+	if (k ! 0) and ((rotx or roty or  rotz)=0){//同時に2軸回転させると斜めに回転するので一つだけになるように処理
+	//Y軸回転（緑軸）
+		if k=1 : roty-rotfps//(←)回転カウントセット
+		if k=4 : roty+rotfps//(→)
+	//X軸回転（青軸）
+		if k=2 : rotx-rotfps//(↑)
+		if k=8 : rotx+rotfps//(↓)
+	//Z軸回転（赤軸）
+		if k=2048 : rotz+rotfps	//(Shift)
+		if k=4096 : rotz-rotfps //(Ctrl)
+	}	
+
+	if rotx {addx=rotx/abs(rotx):rotx-addx}else{addx=0}	//回転カウントが0になるまで回転方向を設定
+	if roty {addy=roty/abs(roty):roty-addy}else{addy=0}
+	if rotz {addz=rotz/abs(rotz):rotz-addz}else{addz=0}
+
+	if addx or addy or  addz {//回転方向が設定されてる
+		if typ=0 {
+			QRotXYZ qid,r_90*addx,r_90*addy,r_90*addz,rx,ry,rz
+			setang obox,rx,ry,rz	
+		}else{
+			addang obox,r_90*addx,r_90*addy,r_90*addz
+		}
+	}
+
+	hgdraw	
+	getang obox,rx,ry,rz
+	fprt strf(" rx(%.3f) ry(%.3f) rz(%.3f)",rad2deg(rx),rad2deg(ry),rad2deg(rz)),16,16
+
+
+	hgsync 16
+	goto *main
+
+*owari
+	end

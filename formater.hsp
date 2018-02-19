@@ -1,0 +1,146 @@
+	
+	
+	// フォーマッター
+	
+	
+	#module
+	// 空きウィンドウ初期化
+	#deffunc InitBlankWindow int n
+		wndbufmax = n
+		blankwndmax = 0
+	return
+	// 空きウィンドウ登録
+	#deffunc SetBlankWindow int wndID_
+		logmes "set "+abs(wndID_)
+		blankwnd.blankwndmax = abs(wndID_)
+		blankwndmax++
+	return
+	// 空きウィンドウ取得
+	#defcfunc GetBlankWindow
+		if blankwndmax {
+			i = blankwnd(blankwndmax-1)
+			blankwndmax--
+		}else {
+			i = wndbufmax
+			wndbufmax++
+		}
+		logmes "get "+i
+	return i
+	
+	
+	// 線を描画
+	#uselib "gdi32.dll"
+	#func	DeleteObject	"DeleteObject"		int, int
+	#func	SelectObject	"SelectObject"		int, int
+	#func	MoveToEx		"MoveToEx"			int, int, int, int
+	#func	LineTo			"LineTo"			int, int, int
+	#cfunc	CreatePen		"CreatePen"			int, int, int
+	#const global PS_SOLID		0	// 実線
+	#const global PS_DASH		1	// 破線
+	#const global PS_DOT		2	// 点線
+	#const global PS_DASHDOT	3	// 一点鎖線
+	#const global PS_DASHDOTDOT	4	// 二点鎖線
+	#undef line
+	#define global line(%1, %2, %3=ginfo_cx, %4=ginfo_cy, %5=0, %6=4) line__ %1, %2, %3, %4, %5, %6
+	#deffunc line__ int endx, int endy, int begx, int begy, int linetype, int lnwidth
+		pos begx, begy
+		hPen = CreatePen( linetype, lnwidth, ginfo(16)|ginfo(17)<<8|ginfo(18)<<16 )
+
+		SelectObject hdc, hPen
+
+		MoveToEx hdc, ginfo(22), ginfo(23), 0
+		LineTo hdc, endx, endy
+
+		DeleteObject hPen
+	return
+	#global
+	
+	
+	// ---------------------------------------------------------------------
+	
+	
+	Init
+	
+	CreateBottom -1, 5, 5, 20, 20 :BTN_ID_ADD = stat
+	buffer bufImg.BTN_ID_ADD, 20, 20
+	color RR(bkclr), GG(bkclr), BB(bkclr)
+	boxf@hsp
+	color RR(frclr), GG(frclr), BB(frclr)
+	boxf 0, 0, 20, 20, 0
+	line 9, 3, 9, 16, 0, 3
+	line 3, 9, 16, 9, 0, 3
+	gsel 0
+	
+*main
+	
+	Draw
+	
+	wait 1
+	goto *main
+	
+#deffunc ButtonClicked int ID_
+	if ID_ == BTN_ID_ADD {
+	}
+	return
+	
+#deffunc CreateBottom int ID_, int x_, int y_, int wdh_, int hgt_
+	if ID_ == -1 {
+		bufID = GetBlankWindow()
+		ID = maxBtn
+	}else :ID = ID_
+	
+	bufImg.ID = bufID
+	xBtn.ID = x_
+	yBtn.ID = y_
+	wdhBtn.ID = x_+wdh_
+	hgtBtn.ID = y_+hgt_
+	
+	if ID == maxBtn :maxBtn++
+	return ID
+	
+#deffunc LeftClick int mx_, int my_
+	// ボタン判定
+	repeat maxBtn
+		if xBtn.cnt <= mx_ && mx_ <= wdhBtn.cnt :if yBtn.cnt <= my_ && my_ <= hgtBtn.cnt {
+			ButtonClicked cnt
+		}
+	loop
+	return
+	
+#deffunc Draw
+	redraw 0
+	
+	color RR(bkclr), GG(bkclr), BB(bkclr)
+	boxf@hsp
+	
+	// ボタン
+	color RR(frclr), GG(frclr), BB(frclr)
+	repeat maxBtn
+		pos xBtn.cnt, yBtn.cnt :gcopy bufImg.cnt, 0, 0, wdhBtn.cnt, hgtBtn.cnt
+	loop
+	
+	redraw 1
+	return
+	
+#deffunc Init
+	
+	frclr = RGB(255, 255, 255)
+	bkclr = RGB(0, 0, 0)
+	
+	maxBtn = 0
+	dim xBtn
+	dim yBtn
+	dim wdhBtn
+	dim hgtBtn
+	
+	InitBlankWindow 3
+	screen 0, 400, 400, 0
+	oncmd gosub *Click, WM_LBUTTONDOWN
+	
+	return
+	
+*Click
+	if wparam == 1 :LeftClick loword(lparam), hiword(lparam)
+	return
+	
+	

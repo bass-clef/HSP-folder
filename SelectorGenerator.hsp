@@ -1,0 +1,167 @@
+	
+	/*
+	
+	・連想配列ジェネレータ
+	
+	作成物
+	形式はhashでC++のhashMapを使ったDLLを作成
+	getter		set("")
+	setter
+	
+	0.addition [fileName](拡張子抜き)__selector.as	でセレクタファイルを作成
+		[fileName]が無い場合 "unnamed__selector.as" でセレクタファイルを作成
+	1.作成したいID名をselectorとともに記述
+	"selectorHoge"	selector[varName]
+		(varNameの一文字目は大文字でないとダメ,１文字目だけ)
+	2.それごとコピー
+	3.指定ファイルにセレクタが作成されている
+	selectorGeneratorBaseFile.as
+	に作成されるものが書いてある
+		
+	*/
+	
+	#uselib "user32.dll"
+	#func	SetClipboardViewer		"SetClipboardViewer"	int
+	#func	ChangeClipboardChain	"ChangeClipboardChain"	int, int
+	#cfunc	GetForegroundWindow		"GetForegroundWindow"
+	
+	// 文字列ディバイダー
+	#include "StringTypeDevider.as"
+	#include "hsedsdk.as"
+	#include "hspext.as"
+	
+	#define SGB_FILE "selectorGeneratorBaseFile.as"
+	
+	sdim fileName
+	
+	sdim fileBase
+	sdim macroBase
+	sdim setterBase
+	sdim getterBase
+	
+	screen 0, 400, ginfo(21), 0,,, 400, 150
+	title "Selector Generator"
+	oncmd gosub *changedclipboard, WM_DRAWCLIPBOARD
+	oncmd gosub *changecbchain, WM_CHANGECBCHAIN
+	onexit *exit
+	SetClipboardViewer hwnd :hViewerNextWnd = stat
+	font msgothic, 10
+	
+	gosub *init
+	
+	
+	stop
+	
+*exit
+	ChangeClipboardChain hwnd, hViewerNextWnd
+	end :end
+	
+*changedclipboard
+	sendmsg hViewerNextWnd, iparam, wparam, lparam
+	gosub *file
+	gosub *makeSelector
+	return
+	
+*changecbchain
+	if wparam == hViewerNextWnd {
+		hViewerNextWnd = lparam
+	}else :if hViewerNextWnd {
+		sendmsg hViewerNextWnd, iparam, wparam, lparam
+	}
+	return
+	
+*makeSelector
+	sdim buf, 256
+	clipget buf
+	if strmid(buf, 0, 3) == "selector" {
+		varCamelName = strmid(buf, 3, strlen(buf)-3)
+		if 'A' <= peek(varName, 0) && peek(varName, 0) <= 'Z' {
+			
+		}
+	}
+	
+	return
+	
+*file
+	fileName = getWritingFile()
+	if fileName == "" {
+		fileName = "unnamed__selector.as"
+	}
+	if getWritingFile() == fileName :return
+	
+	exist fileName :size = strsize
+	if size == -1 {
+		sdim fileBuf
+		bsave fileName, fileBuf, 0
+	}else {
+		sdim fileBuf
+		sdim fileBuf, size+1
+		bload fileName, fileBuf, size
+	}
+	
+	return
+	
+*init
+	// クリップボードにコピー時にファイル作成
+	
+	// White Space [空白, タブ, 改行, コメント]
+//	addType T_WS :id = stat		// 改行
+//	addTypePrms id, TF_NEXT, ""+sstr(0xD)+sstr(0xD)
+//	addTypePrms id, TF_LAST, ""+sstr(0xA)+sstr(0xA)
+	addType _T('/') :id = stat		// コメント
+	addTypePrms id, TF_NEXT, "//"
+	addTypePrms id, TF_NEXT | TF_LOCK, "**"
+	addTypePrms id, TF_NEXT | TF_LOOP | TF_LABEL, sstr(1)+sstr('*'-1)+sstr('*'+1)+sstr(255)
+	addTypePrms id, TF_NEXT, "**"
+	addTypePrms id, TF_LAST | TF_UMGOTOLABEL, "//"
+	addType _T('_') :id = stat		// コメント
+	addTypePrms id, TF_NEXT, "//"
+	addTypePrms id, TF_NEXT | TF_LOCK, "//"
+	addTypePrms id, TF_NEXT | TF_LOOP | TF_LABEL, sstr(1)+sstr(0xC)+sstr(0xE)+sstr(255)
+	addTypePrms id, TF_NEXT, ""+sstr(0xD)+sstr(0xD)
+	addTypePrms id, TF_LAST | TF_UMGOTOLABEL, ""+sstr(0xA)+sstr(0xA)
+	// @ [@hoge]
+	addType _T('@') :id = stat
+	setInvalidStatus id, PREV_TOKEN, "09AZaz))"
+	setValidStatus id, NOW_TOKEN, sstr(1)+sstr(255)
+	addTypePrms id, TF_NEXT | TF_INTERRUPT, "@@"
+	addTypePrms id, TF_NEXT | TF_LOOP | TF_MAYBELAST | TF_INTERRUPT, "azAZ__"
+	addTypePrms id, TF_LOOP | TF_MAYBELAST | TF_INTERRUPT, "azAZ09__"
+	
+	exist SGB_FILE :size = strsize
+	sdim buf, size+1
+	bload SGB_FILE, buf, size
+	
+	devideStringType buf, prms, types, bases
+	
+	repeat length(prms)
+		prms.cnt = strtrim(prms.cnt, 0, '/')
+		prms.cnt = strtrim(prms.cnt, 0, '*')
+	
+		if types.cnt != _T('@') :continue
+		if prms.cnt == "@FileBase" {
+			fileBase = prms(cnt+1)
+		}
+		if prms.cnt == "@MacroBase" {
+			macroBase = prms(cnt+1)
+		}
+		if prms.cnt == "@Setter" {
+			setterBase = prms(cnt+1)
+		}
+		if prms.cnt == "@Getter" {
+			getterBase = prms(cnt+1)
+		}
+		logmes "["+prms.cnt+"]"
+	loop
+	return
+	
+#defcfunc getWritingFile
+	// 現在編集中のファイル取得
+	sdim actfile
+	hsed_getacttabid idTab
+	if stat == 0 {
+		hsed_getpath actfile, idTab
+	}else :if stat == 1 {
+		dialog "ＨＳＰＳＥのアクティブなタブが見つかりません。", 0, gtext(hwnd)
+	}
+	return actfile

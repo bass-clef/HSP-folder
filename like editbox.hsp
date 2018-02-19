@@ -1,0 +1,489 @@
+	
+	
+	// IMEどうにかしてください
+	
+	
+	// Shift-JIS かどうか
+	#define ctype isshiftjis(%1)	(((0x80 <= %1) && (%1 <= 0x9F)) || ((0xE0 <= %1) && (%1 <= 0xFE)))
+	// 数字かどうか
+	#define ctype isnumber(%1)	('0' <= %1 && %1 <= '9')
+	// アルファベットかどうか
+	#define ctype isalphabet(%1)	(('A' <= %1 && %1 <= 'Z') || ('a' <= %1 && %1 <= 'z'))
+	
+	
+	#uselib "user32.dll"
+	#func	GetCaretPos		"GetCaretPos"	int
+	#func	SetTimer		"SetTimer"		int, int, int, int
+	#uselib "imm32.dll"
+	#func	ImmSetCompositionWindow	"ImmSetCompositionWindow"	int, int, int
+	#func	ImmGetCompositionWindow	"ImmGetCompositionWindow"	int, int
+	#func	ImmGetCompositionString	"ImmGetCompositionStringA"	int, int, int, int
+	#cfunc	ImmGetContext			"ImmGetContext"				int
+	#include "editmes.as"
+	
+	
+	sdim buf
+	fsize = 14
+	hfsize = fsize/2
+	linenums = 4
+	xbeg = hfsize*(linenums+1)+2 :ybeg = 5+2
+	wdh = 400 :hgt = 250
+	tabsize = 4
+	
+	// 文字色
+	txclr = RGB(255, 255, 255)		// 通常時
+	tx_2_clr = txclr				// 2byte文字
+	tx_n_clr = txclr				// 数字
+	tx_A_clr = txclr				// 英字
+	tx___clr = RGB(200, 200, 255)	// その他
+	bkclr = RGB(0, 0, 0)			// 通常時の背景色
+	cbkclr = RGB(25, 25, 25)		// キャレットがある行の背景色
+	stxclr = bkclr					// 選択時
+	sbkclr = txclr					// 選択時の背景色
+	lnclr = txclr					// 行番号
+	kwclr = RGB(50, 50, 255)		// キーワード
+	kwclr.1 = RGB(255, 128, 0)		// 文字列
+	kwclr.2 = RGB(128, 255, 255)	// タグ
+	
+	
+	// コピー用バッファ
+	gsel 0, -1
+	bufid = 2
+	buffer bufid, ginfo(20), ginfo(21)
+	font msgothic, fsize
+	
+	// メイン表示用
+	mainwnd = 1
+	screen mainwnd, ginfo(20), ginfo(21), 0,,, wdh, hgt
+	slong hwnd, GWL_EXSTYLE, glong(hwnd, GWL_EXSTYLE) | WS_EX_ACCEPTFILES
+	oncmd gosub *lclick, WM_LBUTTONDOWN
+	oncmd gosub *lclicked, WM_LBUTTONUP
+	oncmd gosub *rclick, WM_RBUTTONDOWN
+	oncmd gosub *activate, WM_NCLBUTTONDOWN
+	oncmd gosub *main, WM_TIMER
+	oncmd gosub *close, WM_CLOSE
+	onkey gosub *key
+	title "Like Editor"
+	color RR(bkclr), GG(bkclr), BB(bkclr)
+	boxf
+	
+	// 隠しEDITBOX設置
+	objmode 2
+	font msgothic, fsize
+	pos -wdh, -hgt
+//	pos xbeg, ybeg
+	mesbox buf, wdh, hgt, 5, 0 :MesID = stat
+	hEdit = objinfo(MesID, 2)
+	ts = fsize*tabsize/4
+	sendmsg hEdit, EM_SETTABSTOPS, 1, varptr(ts)
+	
+	// IME位置調整
+	hIMC = ImmGetContext(hEdit)
+	
+	gosub *drawbufall
+	
+	SetTimer hwnd, 1000, 10, 0
+	stop
+	
+*main
+	// オートインデント
+	AutoIndent hEdit
+	if stat :c = 0
+	
+	// キャレット点滅
+	if ginfo_act == -1 {
+		c = 0
+		if f == 0 :return
+	}
+	if c == 0 {
+		c = 35
+		gosub *drawall
+		f = (f+1)\2
+	}else :c--
+	
+	sendmsg hEdit, EM_GETFIRSTVISIBLELINE, 0, 0 :nline = stat
+	if nline != nlined {
+		gosub *drawbufall
+	}
+	
+	return
+	
+*close
+	oncmd 0
+	return
+*activate
+	gsel mainwnd
+	objsel MesID
+	return
+	
+*moveIME
+	// IME位置移動
+	dim pt, 2
+	GetCaretPos varptr(pt)
+	x = ((pt.0-1))+xbeg
+	y = ((pt.1-1))+ybeg-1
+	
+	dim cf, 28
+	ImmGetCompositionWindow hIMC, varptr(cf)
+	
+	cf = 0x03, x+340, y+250, 0, 0, ginfo(20), ginfo(21)
+	ImmSetCompositionWindow hIMC, varptr(cf)
+	return
+	
+*drawbufall
+//	gosub *moveIME
+	gosub *drawbuf
+	gosub *drawall
+	return
+	
+*drawall
+	redraw 0
+	color RR(bkclr), GG(bkclr), BB(bkclr)
+	boxf@hsp xbeg, ybeg, wdh, hgt
+	// キャレット行背景色
+	gosub *drawcaretline
+	
+	// buf内容
+	gmode 4, 0, 0, 255
+	color RR(bkclr), GG(bkclr), BB(bkclr)
+	pos xbeg, ybeg :gcopy bufid, xbeg, ybeg, wdh-xbeg, hgt-ybeg
+	gmode 0
+	
+	// キャレット
+	gosub *drawcaret
+	
+	// 行番号
+	gosub *drawlinenum
+	
+	// ルーラー
+	
+	redraw 1
+	return
+	
+*drawlinenum
+	// 行番号表示
+	sendmsg hEdit, EM_GETFIRSTVISIBLELINE, 0, 0 :nline = stat
+	sendmsg hEdit, EM_GETLINECOUNT, 0, 0 :nmax = stat
+	sendmsg hEdit, EM_LINEFROMCHAR, -1, 0 :row = stat
+	if nmaxed != nmax || rowed != row {
+		nlined = nline
+		nmaxed = nmax
+		rowed = row
+		// 行番号
+		color RR(bkclr), GG(bkclr), BB(bkclr)
+		boxf 0, ybeg, hfsize*linenums, hgt
+		color RR(lnclr), GG(lnclr), BB(lnclr)
+		repeat limit(nmax, 0, (hgt-ybeg)/fsize+1)
+			pos 0, ybeg+cnt*14 :mes strf("%"+linenums+"d", cnt+nline+1)
+		loop
+	}
+	return
+	
+*drawcaretline
+	// キャレット行背景色変更
+	dim pt, 2
+	GetCaretPos varptr(pt)
+	x = ((pt.0-1))+xbeg
+	y = ((pt.1-1))+ybeg-1
+	color RR(cbkclr), GG(cbkclr), BB(cbkclr)
+	boxf@hsp xbeg, y, wdh-2, y+fsize
+	return
+	
+*drawcaret
+	// キャレット表示
+	if f :return
+	color RR(txclr), GG(txclr), BB(txclr)
+	line x, y, x, y+fsize
+	line x+1, y, x+1, y+fsize
+	return
+	
+*drawbuf
+	mesx = xbeg
+	mesy = ybeg
+	c = 35
+	f = 0
+	
+	// 選択領域取得
+	pBeg = 0 :pEnd = 0
+	sendmsg hEdit, EM_GETSEL, varptr(pBeg), varptr(pEnd)
+	
+	// 現在キャレット行取得
+	sendmsg hEdit, EM_LINEFROMCHAR, -1, 0 :row = stat
+	
+	// スクロール監視
+	sendmsg hEdit, EM_GETFIRSTVISIBLELINE, 0, 0 :nline = stat
+	sendmsg hEdit, EM_LINEINDEX, nline :ibeg = stat
+	
+	// バッファへ描画
+	gsel bufid
+	redraw 0
+	color RR(bkclr), GG(bkclr), BB(bkclr)
+	boxf
+	
+	// 表示行数制限
+	sendmsg hEdit, EM_GETLINECOUNT, 0, 0 :nmax = stat
+	maxrow = limit(nmax*fsize, 0, hgt-ybeg)
+	
+	buf_len = strlen(buf)
+	
+	// キーワード探索
+	dim kwpt	// キーワード出現位置
+	dim kwtp	// キーワードタイプ
+	kwmax = 0
+	kw = "if", "for", "while"		// キーワード
+	kws_len = 2, 3, 5
+	bkw = "\"\"", "''", "<>"		// 文字列キーワード
+	nws = "AZ", "az", "09", "__"	// キーワードの前後にあるとキーワードとして認識されない
+	nws_len = length(nws)
+	kw_len = length(kw)
+	bkw_len = length(bkw)
+	dim kwf, kw_len
+	
+	
+	for i, ibeg, buf_len, 1
+		token = peek(buf, i)
+		if i < buf_len-2 :nexttoken = peek(buf, i+1) :else :nexttoken = -1
+		if token == 0xD {
+			dim kwf, kw_len
+			i++
+		}else {
+			// キーワード探索
+			repeat kw_len
+				if token == peek(kw.cnt, kwf.cnt) :kwf.cnt++ :else :kwf.cnt = 0
+				if kws_len.cnt <= kwf.cnt {
+					m = 0
+					if 0 <= i-kws_len.cnt {
+						prevtoken = peek(buf, i-kws_len.cnt)
+					}else :prevtoken = -1
+					repeat nws_len
+						// 次の文字監視
+						if nexttoken != -1 :if peek(nws.cnt, 0) <= nexttoken && nexttoken <= peek(nws.cnt, 1) {
+							m = 1
+							break
+						}
+						// 前の文字監視
+						if prevtoken != -1 :if peek(nws.cnt, 0) <= prevtoken && prevtoken <= peek(nws.cnt, 1) {
+							m = 2
+							break
+						}
+					loop
+					if m :continue
+					
+					// 登録
+					kwpt.kwmax = i-kws_len.cnt+1
+					kwtp.kwmax = cnt
+					kwmax++
+					// 
+					kwf.cnt = 0
+					break
+				}
+			loop
+		}
+	next
+	
+	
+	wordlen = 0
+	t_nkwcnt = 0 :t_clrtype = -1
+	for i, ibeg, buf_len, 1
+		token = peek(buf, i)
+		if pBeg != pEnd && pBeg <= i && i < pEnd {
+			// 選択領域
+			color RR(sbkclr), GG(sbkclr), BB(sbkclr)
+			boxf@hsp mesx, mesy, mesx+hfsize, mesy+fsize
+			color RR(stxclr), GG(stxclr), BB(stxclr)
+		}else {
+			// 通常文字
+			color RR(txclr), GG(txclr), BB(txclr)
+		}
+		
+		// キーワード文字色
+		n = -1
+		if n == -1 :if t_nkwcnt == 0 {
+			// 記号キーワード開始
+			if token == peek(bkw.0, 0) :n = 1
+			if token == peek(bkw.1, 0) :n = 1
+			if token == peek(bkw.2, 0) :n = 2
+			if n != -1 :t_nkwcnt = -1
+		}
+		if n == -1 :if t_nkwcnt == 0 {
+			// 文字列キーワード探索
+			n = 0
+			repeat kwmax
+				if kwpt.cnt == i {
+					t_nkwcnt = kws_len.kwtp(cnt)
+					break
+				}
+			loop
+		}
+		if n != -1 :t_clrtype = n
+		if t_nkwcnt {
+			color RR(kwclr.t_clrtype), GG(kwclr.t_clrtype), BB(kwclr.t_clrtype)
+			if 0 < t_nkwcnt :t_nkwcnt--
+			if t_nkwcnt == -2 {
+				// 記号キーワード終了
+				repeat bkw_len
+					if token == peek(bkw.cnt, 1) :t_nkwcnt = 0
+				loop
+			}else :if t_nkwcnt == -1 :t_nkwcnt = -2
+			
+		}
+		
+		pos mesx, mesy
+		if token == 0xD {
+			// 改行
+//			mes "↓"
+			color RR(tx___clr), GG(tx___clr), BB(tx___clr)
+			mesx = xbeg
+			mesy += fsize
+			wordlen = 0
+			i++
+			if maxrow <= mesy :_break
+		}else :if token == '\t' {
+			// タブ展開
+//			mes ">"
+			color RR(tx___clr), GG(tx___clr), BB(tx___clr)
+			mesx += hfsize*tabsize - hfsize*wordlen
+			wordlen = 0
+		}else :if isshiftjis(token) {
+			// 2バイト文字
+			mes strmid(buf, i, 2)
+			mesx += fsize
+			wordlen += 2
+			i++
+		}else {
+			// 1バイト文字
+			mes spestr(token)
+			mesx += hfsize
+			wordlen++
+		}
+	next
+	redraw 1
+	gsel mainwnd
+	
+	return
+	
+*key
+	wait 1
+	gosub *drawbufall
+	return
+	
+*lclick
+	// 選択
+	fLClicked = 0
+	y = hiword(lparam)-ybeg
+	if y < 0 {
+		oldrows = 0
+	}else {
+		sendmsg hEdit, EM_LINEINDEX, limit(y/fsize, 0, INT_MAX)
+		oldrows = stat + limit((loword(lparam)-xbeg)/hfsize, 0, INT_MAX)
+	}
+	gosub *activate
+	
+	rowsed = -1
+	repeat
+		y = mousey-ybeg
+		if y < 0 {
+			rows = 0
+		}else {
+			sendmsg hEdit, EM_LINEINDEX, limit(y/fsize, 0, INT_MAX)
+			rows = stat + limit((mousex-xbeg)/hfsize, 0, INT_MAX)
+		}
+		if rowsed != rows {
+			sendmsg hEdit, EM_SETSEL, oldrows, rows
+			rowsed = rows
+			f = 0
+			gosub *drawbufall
+		}
+		
+		if fLClicked :break
+		wait 1
+	loop
+	return
+	
+*lclicked
+	fLClicked = 1
+	return
+	
+*rclick
+	return
+	
+	
+	
+	
+	// モジュール
+	
+	#module __AUTOINDENT__
+	#uselib "user32.dll"
+	#func	GetWindowText		"GetWindowTextA"		int, int, int
+	#func	SetWindowText		"SetWindowTextA"		int, int
+	#func	GetCaretPos			"GetCaretPos"			int
+	#func	SetScrollInfo		"SetScrollInfo"			int, int, int, int
+	#func	GetScrollInfo		"GetScrollInfo"			int, int, int
+	#cfunc	GetWindowTextLength	"GetWindowTextLengthA"	int
+	#define SIF_RANGE           0x0001
+	#define SIF_PAGE            0x0002
+	#define SIF_POS             0x0004
+	#define SIF_DISABLENOSCROLL 0x0008
+	#define SIF_TRACKPOS        0x0010
+	#define SIF_ALL             (SIF_RANGE | SIF_PAGE | SIF_POS | SIF_TRACKPOS)
+	#define SB_HORZ				0
+	#define SB_VERT				1
+	#define SB_CTL              2
+	// オートインデント
+	#deffunc AutoIndent int hEdit
+		sendmsg hEdit, EM_GETLINECOUNT, -1, 0
+		nmax = stat
+		indentf = 0
+		if time {
+			time--
+		}else :if notemaxed < nmax {
+			// 改行
+			if notemaxed == 0 :notemaxed = 1 :return
+			time = 2	// 初回だけ2回くるので(バグ?)回避
+			sendmsg hEdit, EM_LINEFROMCHAR, -1, 0
+			row = stat
+			
+			size = GetWindowTextLength(hEdit)
+			sdim buf, size+1
+			GetWindowText hEdit, varptr(buf), size+1
+			
+			notesel@hsp buf
+			noteget@hsp inf, row-1
+			i = 0
+			while (peek(inf, i) == ' ' || peek(inf, i) == '\t')	// インデント文字
+				i++
+			wend
+			addword = strmid(inf, 0, i)
+			if strlen(addword) {
+				// 自動インデント
+				dim vsi, 7
+				vsi = 4*7, SIF_ALL | SIF_DISABLENOSCROLL
+				GetScrollInfo hEdit, SB_VERT, varptr(vsi)
+//				title ""+hsi.5+"x"+vsi.5
+				
+				sendmsg hEdit, EM_LINEINDEX, -1, 0
+				index = stat+1
+				
+				worded = noteget(row)
+				noteadd addword+worded, row, 1
+				SetWindowText hEdit, varptr(buf)
+				
+				i--
+				sendmsg hEdit, EM_SETSEL, index+i, index+i
+				
+//				sendmsg hEdit, EM_SCROLLCARET, 0, 0
+				sendmsg hEdit, EM_LINESCROLL, hsi.5, vsi.5
+//				logmes ""+hsi.5+"x"+vsi.5
+				
+//				logmes "["+addword+"]("+strlen(addword)+")["+worded+"] row["+row+"] index["+index+"] nmax["+nmax+"]"
+				indentf = 1
+			}
+		}
+		dim hsi, 7
+		hsi = 4*7, SIF_ALL | SIF_DISABLENOSCROLL
+		GetScrollInfo hEdit, SB_HORZ, varptr(hsi)
+		notemaxed = nmax
+		return indentf
+	#global
+	
+	

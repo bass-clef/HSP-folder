@@ -1,0 +1,42 @@
+	
+	
+	
+	
+	font msgothic, 12
+	sdim buf
+	
+	fileName = dir_desktop+"\\ëfêî10thousand.txt"
+	exist fileName :size = strsize
+	sdim fileBuf, size+1
+	bload fileName, fileBuf, size
+	
+	
+	repeat 1
+		j = cnt
+		title ""+j
+		
+		repeat 41, 2
+			await
+			i = cnt
+			if -1 == instr(fileBuf, 0, ","+i+",") :continue
+	
+			repeat i-1
+				a = int(powf(cnt+powf(j, 2), 2) + cnt + i)
+				f = instr(fileBuf, 0, ","+a+",")
+				if -1 == f :break
+			loop
+			if -1 != f {
+				mes "j=["+j+"] i=["+i+"]"
+				if ginfo_winy <= ginfo_cy :pos 0, 0 :colorwhite :boxf :color
+				buf += "j=["+j+"] i=["+i+"]\n"
+			}
+		loop
+	loop
+	
+	objmode 2
+	mesbox buf, ginfo(12), ginfo(13), 5, 0
+	
+	
+	
+	
+	

@@ -1,0 +1,167 @@
+	
+	
+	#uselib "user32.dll"
+	#cfunc	WindowFromPoint	"WindowFromPoint"	int, int
+	#func	GetWindowRect	"GetWindowRect"		int, var
+	#func	ShowWindow		"ShowWindow"		int, int
+	#func	SetLayered		"SetLayeredWindowAttributes"	int, int, int, int
+	#func	SetForeground	"SetForegroundWindow"	int
+	#cfunc	GetAncestor		"GetAncestor"			int, int
+	#cfunc	GetForeground	"GetForegroundWindow"
+	#define LWA_COLORKEY	0x0001
+	#define LWA_ALPHA		0x0002
+	#define GA_ROOT				2
+	#include "targetfind.as"
+	
+	#packopt name "Traslater"
+	
+	hgt = 50
+	clr = RGB(1, 1, 1)
+	dim chk, 2
+	
+	findid = 1
+	mainid = 0
+	bgscr mainid, 200, hgt, 0, ginfo(20)-200, ginfo(21)-hgt
+	oncmd gosub *lclick, WM_LBUTTONDOWN
+	oncmd gosub *rclick, WM_RBUTTONDOWN
+	oncmd gosub *jump, WM_KEYUP
+	hMWnd = hwnd@hsp
+	slong hMWnd, GWL_EXSTYLE, WS_EX_LAYERED | WS_EX_WINDOWEDGE
+	SetLayered hMWnd, RGB(254, 254, 254), 127, /*LWA_COLORKEY | */LWA_ALPHA
+	gsel 0, 2
+	
+	title "Translater"
+	font msgothic, 10
+	
+	objmode 2
+	objsize ginfo(12), (hgt-10)/3
+	pos 0,  0 :button gosub "", *retrans :BtnID = stat
+	btnwdh = 14+5*5
+	btnhgt = (hgt-10)/2
+	
+	objsize btnwdh, btnwdh
+	pos      0, 10 :button gosub "Color", *chkbtn :hBtn1 = objinfo(stat, 2)
+	pos btnwdh, 10 :button gosub "Alpha", *chkbtn :hBtn2 = objinfo(stat, 2)
+	chks = hBtn1, hBtn2
+	repeat length(chks) :sendmsg chks.cnt, 0x00F4, 3 :loop
+	
+	objmode 1
+	objsize btnhgt, btnhgt
+	pos btnwdh*2, btnhgt :button gosub "...", *selclr :hBtn3 = objinfo(stat, 2)
+	clrs = hBtn3, hBtn4
+	
+	sendmsg hBtn2, 0x00F4, 3
+	
+	trans = 175
+	gosub *draw
+	
+	onexit gosub *exit
+	
+	
+*main
+	if GetForeground() != hwnd :spos hwnd, -1, 0, 0, 0, 0, 0x3
+	wait 100
+	goto *main
+	
+*exit
+	if wparam == mainid :end
+	hideFindWindow
+	return
+	
+*draw
+	redraw 0
+	colorwhite :boxf :color
+	title gtext(hTar), objinfo(BtnID, 2)
+	
+	color
+	boxf 2, hgt-10+2, double(ginfo(12)-2)/255*trans, hgt-10+8
+	boxf 2, hgt-10+2, double(ginfo(12)-2), hgt-10+8, 0
+	
+	color RR(clr), GG(clr), BB(clr)
+	boxf btnwdh+btnhgt, btnhgt, btnwdh+btnhgt*2, btnhgt*3
+	color
+	boxf btnwdh+btnhgt, btnhgt, btnwdh+btnhgt*2, btnhgt*3, 0
+	
+	redraw 1
+	return
+	
+*lclick
+	sendmsg hwnd, WM_NCLBUTTONDOWN, 2
+	if hgt-10 < mousey {
+		trans = limit(255.0/(ginfo(12)-4)*(mousex+2), 0, 255)
+		if hTar :gosub *translate
+		gosub *draw
+	}
+	return
+	
+*rclick
+	if hTar :gosub *retrans
+	wait 40
+	end :end
+	
+*chkbtn
+	id = stat
+	i = -1
+	repeat length(chks)
+		if objinfo(id, 2) == chks.cnt :i = cnt :break
+	loop
+	if i == -1 :return
+	sendmsg chks.i, 0xF0
+	chk.i = stat
+	
+	if hTar :gosub *translate
+	gosub *draw
+	return
+	
+*selclr
+	color RR(clr), GG(clr), BB(clr)
+	dialog "", 35, ""
+	if stat == 0 :return
+	clr = RGB(ginfo_r, ginfo_g, ginfo_b)
+	if hTar :gosub *translate
+	gosub *draw
+	return
+	
+*jump
+	if hTar {
+		if iswin(hTar) {
+			slong hTar, GWL_EXSTYLE, exstyle
+			hTared = hTar
+		}else :hTared = null
+	}
+	
+	hTar = WindowFromPoint(ginfo(0), ginfo(1))
+	
+*found
+	t = GetAncestor(hTar, GA_ROOT)
+	if t != null :hTar = t
+	if hTared == hTar || hTar == null :hTar = NULL :gosub *draw :return
+	exstyle = glong(hTar, GWL_EXSTYLE)
+	exflag = 0
+	if not(exstyle & WS_EX_LAYERED) :slong hTar, GWL_EXSTYLE, WS_EX_LAYERED :exflag = 1
+	spos hTar, -1, 0, 0, 0, 0, 0x3
+	gosub *translate
+	return
+	
+*retrans
+	if hTar == null {
+		repeat
+			hTar = FindWindow(findid)
+			if hTar :break
+		loop
+		if hTar != hwnd@hsp :gosub *found
+		return
+	}
+	slong hTar, GWL_EXSTYLE, exstyle
+	spos hTar, -2, 0, 0, 0, 0, 0x3
+	SetLayered hTar, 0, 255, 0
+	hTar = null
+	hTared = hTar
+	gosub *draw
+	return
+	
+*translate
+	transvalue = (LWA_COLORKEY*chk.0) | (LWA_ALPHA*chk.1)
+	SetLayered hTar, clr, trans, transvalue
+	gosub *draw
+	return

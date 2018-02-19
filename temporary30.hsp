@@ -1,0 +1,365 @@
+	
+	
+	// 文字列ディバイダー
+	#include "StringTypeDevider.as"
+	
+	#include "vector.as"
+	
+//	#enum	global	T_COMMENT
+	#enum	global	T_COMMENTS				= T_MAX
+	#enum	global	T_LITERAL
+	#enum	global	T_LEFT_CURLY_BRACKET
+	#enum	global	T_RIGHT_CURLY_BRACKET
+	#enum	global	T_LEFT_PARENTHESIS
+	#enum	global	T_RIGHT_PARENTHESIS
+	
+	#enum	global	T_SEMICOLON
+	
+	#enum	global	T_OPERATOR
+	
+	
+	#module
+	// Perser prm, prmtype
+	#deffunc Perser array prm, array prmtype, array operator
+		/*
+		// 変換前
+		var hoge = 0 , foo , bar = "ABC" '+' "DEF" + + 4 , piyo ;
+		// 変換後
+		0 "ABC" '+' "DEF" 4 piyo , + + = bar , foo , = hoge var
+		
+		1.番号のみに変換
+		var hoge = 0 , foo ,  bar =  "ABC" '+' "DEF" +  +  4  ,  piyo ;
+		0   2    4 6 9 11  12 14  19 21    23  25    26 27 29 30 32
+		
+		2-1.数字と文字列リテラルだけ脇以外
+		// ・変数,関数,定数,その他 などは全て演算子として扱う
+		// ・T_WSは無視
+		// ・式区切りは セミコロン[;]
+		*/
+		
+		len = length(prm)
+		
+		// 復号演算子変更チェック
+		// 後置,前置,複合 演算子に対応するためあらかじめキーワードの順序を列挙
+		/**
+		sdim dbope
+		dim max
+		ope_len = length(operator)
+		i = 0
+		repeat ope_len
+			m = strlen(operator.cnt)
+			if 1 < m {
+				dbope.i = operator.cnt
+				max.i = m
+				i++
+			}
+		loop
+		
+		dbope_len = length(dbope)
+		dim flag, dbope_len
+		repeat len
+//			if prmtype.cnt == T_WS :continue
+			token = peek(prm.cnt, 0)
+			n = -1
+			// 演算子判定
+			repeat dbope_len
+				if token == peek(dbope.cnt, flag.cnt) {
+					flag.cnt++
+					if max.cnt <= flag.cnt :n = cnt :break
+				}else :flag.cnt = 0
+			loop
+			
+			if 0 <= n {
+				logmes "change ["+prm.cnt+"] ["+operator.n+"]"
+				j = cnt
+				repeat max.n-1
+					prm(j-cnt) = ""
+					prmtype(j-cnt) = T_WS
+				loop
+				prm(cnt-max.n+1) = dbope.n
+			}
+		loop
+		/**/
+		
+		// 1.
+		// 式を数える
+		max = 0
+		dim submax
+		alsubmax = 0
+		repeat len
+			if prmtype.cnt != T_WS@ {
+				submax.max++
+				if prmtype.cnt == T_LEFT_CURLY_BRACKET@ || prmtype.cnt == T_RIGHT_CURLY_BRACKET@ || prmtype.cnt == T_SEMICOLON@/* || prmtype.cnt == T_COMMA@*/ {
+					if alsubmax < submax.max :alsubmax = submax.max
+					max++
+				}
+			}
+		loop
+//		max = 1
+		
+		// 2.
+		// 式に分割
+		i = 0 :j = 0
+		dim tree, alsubmax, max
+		repeat len
+			if prmtype.cnt != T_WS@ {
+				tree(j, i) = cnt
+				logmes "["+j+","+i+"] => ["+cnt+"]("+prm.cnt+")"
+				i++
+				if submax.j <= i :j++ :i = 0 :logmes ""
+			}
+		loop
+		logmes ""
+		
+		// 3.
+		// 逆ポーに変換
+		// 演算子の優先順位 -1:識別子 0-:operator[num]
+		
+		// 優先演算子 括弧
+		OPEEX = "{}","[]","()"
+		OPEEX_len = 3
+		dim opeex_stack, OPEEX_len :osmax = 0
+		
+		vUsing stack
+		error = 0
+		
+		repeat max
+			j = cnt
+			i = 0
+			dim tprm :tmax = 0
+			repeat
+				token = tree(j, i)
+				i++
+				logmes "Check("+i+"]["+token+")["+prm.token+"]["+(prm.token == "(")+"]"
+				
+				if submax.j <= i {
+					// スタックが空になるまでプル
+					while vSize()
+						tprm.tmax = vBack()
+						tmax++
+						vPop
+					wend
+					break
+				}
+				
+				// T_NUM | T_STR チェック
+				if prmtype.token == T_NUM@ || prmtype.token == T_STR@ || prmtype.token == T_ID@ {
+					tprm.tmax = token
+					tmax++
+					continue
+				}
+				
+				// 優先演算子 チェック
+				// 終わり チェック
+				n = -1
+				repeat OPEEX_len
+					if prm.token == strmid(OPEEX.cnt, 1, 1) :n = cnt :break
+				loop
+				if n != -1 {
+					logmes "Backets End"
+					repeat vSize()
+						logmes "("+cnt+")["+prm.vAt(cnt)+"]"
+					loop
+					vPush token
+					
+					while vSize()
+						back = vBack()
+						vPop
+						tprm.tmax = back
+						tmax++
+						if prm.back == strmid(OPEEX.n, 0, 1) :_break
+					wend
+					if prm.back != strmid(OPEEX.n, 0, 1) {
+						error = -1
+						void "Prm:"+i+""
+						break
+					}
+					osmax--
+					continue
+				}
+				
+				// 始まりチェック
+				n = -1
+				repeat OPEEX_len
+					if prm.token == strmid(OPEEX.cnt, 0, 1) :n = cnt :break
+				loop
+				if n != -1 {
+					logmes "Backets Begin"
+					vPush token
+					opeex_stack.osmax = n
+					osmax++
+					continue
+				}
+				
+				
+				*EmptyStack
+				await
+				if vSize() {
+					// stackのbackよりtokenの演算子の優先順位が低いか
+					// 演算子の優先順位探索
+					n = INT_MAX
+					back = vBack()
+					
+					l = -1
+					repeat OPEEX_len
+						if prm.back == strmid(OPEEX.cnt, 0, 1) :l = cnt :break
+					loop
+					if l == -1 {
+						repeat ope_len	// backの演算子の順位
+							if prm.back == operator.cnt :n = cnt :break
+						loop
+						m = INT_MAX
+						repeat ope_len	// tokenの演算子の順位
+							if prm.token == operator.cnt :m = cnt :break
+						loop
+					}
+					if m < n && l == -1 {
+						// back > token
+						tprm.tmax = back
+						tmax++
+						vPop
+						goto *EmptyStack
+					}else :vPush token
+				}else :vPush token
+			loop
+//			if error < 0 :break
+			
+			// 移し変え
+			repeat tmax
+				tree(j, cnt) = tprm.cnt
+			loop
+			tree(j, tmax) = tree(j, submax.j-1)
+			submax.j = tmax+1
+		loop
+		if error < 0 :return error
+		
+		// prmを入れ替え
+		dim tprm
+		dim tprmtype
+		i = 0
+		repeat max
+			j = cnt
+			repeat submax.j
+				n = tree(j, cnt)
+				tprm.i = prm.n
+				tprmtype.i = prmtype.n
+				i++
+			loop
+		loop
+		dim prm
+		dim prmtype
+		repeat i
+			prm.cnt = tprm.cnt
+			prmtype.cnt = tprmtype.cnt
+		loop
+	return i
+	#global
+	
+	operator = ",","+=","-=","*=","/=","%=","<<=",">>=","&=","^=","|=","=","||","&&","|","^","&","!=","==","<=",">=","-","+","%","/","*","!","~","--","++","]","[","->",".","#","=>","+=>"
+	initialize
+	/*
+	func text ) ( ) ( print text ;
+	main {
+		func "Hello World." ) ( ) ( { ; }
+*/
+	source = {"
+	func ( text num ) = ( print ( text ) )
+	main ( ) = (
+		func ( "Hello World." )
+		a = 12 * 123 + 5 * 6
+	)
+	"}
+	
+	devideStringType source, allPrms, allTypes, allBases
+	
+	Perser allPrms, allTypes, operator
+	
+	logmes "---------------"
+	repeat length(allTypes)
+		logmes "["+ allPrms.cnt +"]("+ allTypes.cnt +")"
+	loop
+	
+	stop
+	
+	#deffunc initialize
+	
+	initTypes
+	// エスケープシーケンス
+	addType T_THROUGHT :id = stat
+	setInvalidStatus id, PREV_TOKEN, sstr(0x80)+sstr(0x9F)+sstr(0xE0)+sstr(0xFE)
+	addTypePrms id, TF_NEXT | TF_LOCK | TF_INTERRUPT, "\\\\"
+	addTypePrms id, TF_LAST | TF_LASTDELETE, sstr(1)+sstr(255)
+	
+	// 文字列
+	addType T_STR :id = stat
+	addTypePrms id, TF_NEXT | TF_LOCK, "\"\""
+	addTypePrms id, TF_NEXT | TF_LOOP, sstr(1)+sstr('\"'-1)+sstr('\"'+1)+sstr(255)
+	addTypePrms id, TF_LAST, "\"\""
+	addType T_STR :id = stat
+	addTypePrms id, TF_NEXT | TF_LOCK, "''"
+	addTypePrms id, TF_NEXT | TF_LOOP, sstr(1)+sstr('\''-1)+sstr('\''+1)+sstr(255)
+	addTypePrms id, TF_LAST, "''"
+	
+	addType T_NUM :id = stat		// 12345 3.14
+	setInvalidStatus id, PREV_TOKEN | NEXT_TOKEN, "AZaz09__"
+	setValidStatus id, NOW_TOKEN, sstr(1)+sstr('.'-1)+sstr('.'+1)+sstr('0'-1)+sstr('9'+1)+sstr(255)
+	addTypePrms id, TF_NEXT | TF_LOOP | TF_MAYBELAST, "09"
+	addTypePrms id, TF_NEXT | TF_LOOP | TF_MAYBELAST, "09.."
+	addTypePrms id, TF_LOOP | TF_MAYBELAST, "09"
+	
+	// White Space [空白, タブ, 改行, コメント]
+//	addType T_WS :id = stat		// 改行
+//	addTypePrms id, TF_NEXT, ""+sstr(0xD)+sstr(0xD)
+//	addTypePrms id, TF_LAST, ""+sstr(0xA)+sstr(0xA)
+
+	addType T_COMMENTS :id = stat		// コメント
+	addTypePrms id, TF_NEXT, "//"
+	addTypePrms id, TF_NEXT | TF_LOCK, "**"
+	addTypePrms id, TF_NEXT | TF_LOOP | TF_LABEL, sstr(1)+sstr('*'-1)+sstr('*'+1)+sstr(255)
+	addTypePrms id, TF_NEXT, "**"
+	addTypePrms id, TF_LAST | TF_UMGOTOLABEL, "//"
+	addType T_COMMENT :id = stat		// コメント
+	addTypePrms id, TF_NEXT, "//"
+	addTypePrms id, TF_NEXT | TF_LOCK, "//"
+	addTypePrms id, TF_NEXT | TF_LOOP | TF_LABEL, sstr(1)+sstr(0xC)+sstr(0xE)+sstr(255)
+	addTypePrms id, TF_NEXT, ""+sstr(0xD)+sstr(0xD)
+	addTypePrms id, TF_LAST | TF_UMGOTOLABEL, ""+sstr(0xA)+sstr(0xA)
+	
+	// ID [hoge, abc]
+	addType T_ID :id = stat		// hoge foo_
+	setInvalidStatus id, PREV_TOKEN, "09AZaz"
+	setValidStatus id, NOW_TOKEN, sstr(1)+sstr('A'-1)+sstr('Z'+1)+sstr('_'-1)+sstr('_'+1)+sstr('a'-1)+sstr('z'+1)+sstr(255)
+	addTypePrms id, TF_NEXT | TF_LOOP | TF_MAYBELAST, "azAZ__"
+	addTypePrms id, TF_LOOP | TF_MAYBELAST, "azAZ09__"
+	
+	addType T_LEFT_PARENTHESIS :id = stat
+	addTypePrms id, TF_LAST, "(("
+	addType T_RIGHT_PARENTHESIS :id = stat
+	addTypePrms id, TF_LAST, "))"
+	
+	addType T_LEFT_CURLY_BRACKET :id = stat
+	addTypePrms id, TF_LAST, "{{"
+	addType T_RIGHT_CURLY_BRACKET :id = stat
+	addTypePrms id, TF_LAST, "}}"
+	
+	addType T_SEMICOLON :id = stat
+	addTypePrms id, TF_LAST, ";;"
+//	addType T_COMMA :id = stat
+//	addTypePrms id, TF_LAST, ",,"
+	
+//	extword = "!#$%&*+-./:<=>?@[\\]^_`|~"
+	
+	for i, 0, length(operator), 1
+		addType T_OPERATOR :id = stat
+		len = strlen(operator.i)
+		repeat len
+			s = strmid(operator.i, cnt, 1)
+			if cnt == len-1 {
+				addTypePrms id, TF_LAST, ""+ s + s
+			}else {
+				addTypePrms id, TF_NEXT, ""+ s + s
+			}
+		loop
+	next
+	
+	return

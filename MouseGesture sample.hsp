@@ -1,0 +1,112 @@
+	
+	#include "MouseGesture.as"
+	#define db double
+	
+	r = 150				// 判定の際に使用の半径
+	mar = 0.1			// 縮小率
+	mov = 0				// 初期位置をマウス座標に
+	timeouttime = 2000	// タイムアウト時間
+	wdx = db(ginfo(20)) :wdy = db(ginfo(21))
+	wcx = db(ginfo(12)) :wcy = db(ginfo(13))
+	
+	font msgothic, 10
+	
+	gosub *MouseGestureSetting
+	
+*main
+	mx = ginfo(0) :my = ginfo(1)
+	dststr = "" :nowstr = ""
+	repeat MGMax
+		now.cnt = MGNow(cnt)
+//		if mov.cnt :if now.cnt == 0 :MGSetInitPoint mx, my, cnt
+		MGOnPointer mx, my, cnt
+		dst.cnt = stat
+		dststr += dst.cnt :if cnt < MGMax-1 :dststr += ", "
+		nowstr += now.cnt :if cnt < MGMax-1 :nowstr += ", "
+	loop
+	
+	gosub *draw
+	stick@hsp key
+	if key & 256 :gosub *MouseGestureSetting
+	
+	wait 1
+	goto *main
+	
+*MouseGestureSetting
+	n = MGMax
+	mov.n = 1 :now.n = 0
+	MGInit 0, 0, r, timeouttime, n
+	
+	/* N角形 *
+	
+	/**/
+	
+	/* ユーザー指定 */
+	repeat
+		stick@hsp key
+		if key & 256 :MGSetPoint (wdx/wcx)*db(mousex), (wdy/wcy)*db(mousey), n
+		if key & 512 :MGDelPoint n
+		if key & 32 :break
+		
+		mx = (wdx/wcx)*db(mousex) :my = (wdy/wcy)*db(mousey)
+		gosub *draw
+		wait 1
+	loop
+	/**/
+	
+	return
+	
+*draw
+	redraw 0
+	colorwhite :boxf
+	
+	// マウス座標表示
+	color 255, 0, 255
+	pset cx+db(mx)*mar, cy+db(my)*mar
+	circle@hsp cx+db(mx)*mar-2, cy+db(my)*mar-1, cx+db(mx)*mar+1, cy+db(my)*mar+2
+	
+	color
+	pos 0, 0
+	mes " 左クリックで要素追加開始\n\t右クリックで１要素削除\n\tEnterで決定\r"
+	mes "mouse  : "+mx+" x "+my
+	mes "Dst    : "+dststr
+	mes "Max    : "+MGMax
+	mes "ArgMax : "+MGArgMax(0)
+	ip = MGGetInitPoint(0)
+	mes "Initpt : "+wtoi(loword(ip))+" x "+wtoi(hiword(ip))
+	mes "Nowcnt : "+nowstr
+	mes "Range  : "+r
+	mes "r@     : "+MG(r)
+	
+	rm = mar*r
+	cx = 50 :cy = ginfo_cy+50
+	
+	// 縮小枠表示
+	cex = cx+db(ginfo(20))*mar
+	cey = cy+db(ginfo(21))*mar
+	line cx, cy, cx, cey
+	line cx, cy, cex, cy
+	line cex, cy, cex, cey
+	line cx, cey, cex, cey
+	
+	// 判定円表示
+	clr = 255.0/db(MGMax)
+	for i, 0, MGMax, 1
+		repeat MGArgMax(i)
+			p = MGGetPoint(cnt, i)
+			if now.i == cnt :color 255 :else :color clr*i, clr*i, clr*i
+			x = db(wtoi(loword(p)))*mar+db(wtoi(loword(ip)))*mar
+			y = db(wtoi(hiword(p)))*mar+db(wtoi(hiword(ip)))*mar
+			circle@hsp x-rm+cx, y-rm+cy, x+rm+cx, y+rm+cy, 0
+			color clr*i, clr*i, clr*i
+			pos x+cx, y+cy :mes ""+i+"."+cnt
+		loop
+	next
+	
+	redraw 1
+	
+	return
+	
+*MGEvent
+	dialog "要素ID : "+stat+" が実行されました", 0, "MG"
+	return

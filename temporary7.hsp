@@ -1,0 +1,38 @@
+	
+	title "file encript"
+	screen 0, 160, 40, 0, (ginfo(20)-160)/2, (ginfo(21)-40)/2
+	
+	objsize 160, 20
+	button gosub "画像ファイル -> 数値配列as", *write :writeID = stat
+	button "終了", *quit
+	
+	stop
+*quit
+	end
+	end
+	
+*write
+//	dialog "jpg;*.bmp;*.gif;*.png;", 16, ""
+//	if stat == 0 :return
+//	fname = refstr
+	
+//	script = "await"
+	objsize 300, 200
+	dialog "1", 64, "行端に埋め込むスクリプト"
+	hdlg = hwnd@hsp
+	mes ginfo_sel
+	mes hwnd@hsp
+	mes ghwnd(0)
+	mes ghwnd(1)
+	
+//	objmode 2 :font msgothic, 16
+//	input script, 300, 18, 0
+	
+	dlgfor
+		title ""+iswin(hdlg)+":"+c :c++
+		wait 1
+	loop
+	
+	gsel 0, 1
+	dialog "ijasd", 0, "asdblas", NULL
+	return

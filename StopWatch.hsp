@@ -1,0 +1,183 @@
+	
+	
+	// ÉXÉgÉbÉvÉEÉIÉbÉ`
+	
+	#module
+	#uselib "winmm.dll"
+	#cfunc	timeGetTime		"timeGetTime"
+//	#define Gettimes(%1) %1 = gettime(4)*360000 + gettime(5)*6000 + gettime(6)*100 + gettime(7)/10
+	#deffunc Gettimes var time
+		time = timeGetTime()/10
+	return
+	#defcfunc GetMonthLength int Month, int Year
+			:if Month == 1 {return 31
+		}elseif Month == 2 {return c(Year\4 == 0, 29, 28)
+		}elseif Month == 3 {return 31
+		}elseif Month == 4 {return 30
+		}elseif Month == 5 {return 31
+		}elseif Month == 6 {return 30
+		}elseif Month == 7 {return 31
+		}elseif Month == 8 {return 31
+		}elseif Month == 9 {return 30
+		}elseif Month == 10 {return 31
+		}elseif Month == 11 {return 30
+		}
+	return 31
+	
+	// r : äJénéûçè
+	// n : åªç›éûçè
+	// p : íÜíféûçè
+	
+	#deffunc StartWatch
+		if st :st = 0 :pt = 0 :else :st = 1
+		Gettimes t
+	return
+	
+	#deffunc PauseWatch
+		if pt {
+			pt = 0
+			Gettimes n
+			t += n - p
+		}else {
+			pt = 1
+			Gettimes p
+		}
+	return
+	
+	#defcfunc GetWatch int tt
+		if st == 0 :return 0
+		Gettimes n
+		i = n-t
+		if tt == 7 :return i \ 100
+		if tt == 6 :return (i / 100) \ 60
+		if tt == 5 :return (i / 6000) \ 60
+		if tt == 4 :return (i / 360000) \ 24
+	return 0
+	
+	#define global WatchStop st@m0
+	#define global WatchPause pt@m0
+	#global
+	
+	#uselib "gdi32.dll"
+	#cfunc	GetStockObject	"GetStockObject"	int
+	
+	wx = 60
+	sdim str_
+	
+	// ÉÅÉCÉì
+	screen 0, 200, ginfo(21), 0,,, 200, 40
+	title "Stop Watch"
+	hMainDC = hdc@hsp
+	hMainWnd = hwnd@hsp
+	oncmd gosub *WindowProc, 0x0138
+	oncmd gosub *WindowProc, WM_CLOSE
+	
+	// main view
+	objsize 80, 20
+	pos   0, 20 :button gosub "ÇrÇsÇ`ÇqÇs", *ButtonJump :StartID = stat
+	objsize 100, 20
+	pos  80, 20 :button gosub "ÇoÇ`ÇtÇrÇd", *ButtonJump :PauseID = stat
+	objenable PauseID, 0
+	objsize 20, 20
+	pos 180, 20 :button gosub "...", *ButtonJump :ExtendID = stat
+	
+	// extend
+	objsize 70, 20
+	pos   0, 40 :button gosub "Split add...", *ButtonJump :AddEBID = stat
+	pos  70, 40 :button gosub "All Clear", *ButtonJump :AllEBID = stat
+	objsize 60, 20
+	pos 140, 40 :button gosub "Option ", *ButtonJump :OptEBID = stat
+	
+	// time
+	objmode 2
+	pos   0,  0 :input str_, 200, 20, 0, 0
+	hTime = objinfo(stat, 2)
+	sendmsg hTime, 0x00CF, 1
+	objsel 0
+	
+	gosub *draw
+	
+*main
+	wait 1
+	if (WatchStop == 1) && (WatchPause == 0) {
+		gosub *draw
+	}
+	goto *main
+	
+*draw
+	redraw 0
+	colorwhite :boxf 50, 0, 150, 20, 1, hMainDC :color
+	title strf("%8d:%02d %02d %02d", GetWatch(4), GetWatch(5), GetWatch(6), GetWatch(7)), hTime
+	redraw 1
+	return
+	
+*ButtonJump
+	if StartID == stat {
+		if WatchStop {
+			title "ÇrÇsÇ`ÇqÇs", objinfo(StartID, 2)
+			title "ÇoÇ`ÇtÇrÇd", objinfo(PauseID, 2)
+			objenable PauseID, 0
+		}else {
+			title "ÇrÇsÇnÇo", objinfo(StartID, 2)
+			objenable PauseID, 1
+		}
+		StartWatch
+		gosub *draw
+	}elseif PauseID == stat {
+		if WatchPause {
+			title "ÇoÇ`ÇtÇrÇd", objinfo(PauseID, 2)
+		}else {
+			title "ÇqÇdÇrÇtÇlÇd", objinfo(PauseID, 2)
+		}
+		PauseWatch
+	}elseif ExtendID == stat {
+		if e {
+			wx = ginfo(13)
+			width 200, 40
+			e = 0
+		}else {
+			e = 1
+			width 200, wx
+		}
+	}elseif AddEBID = stat {
+		if ginfo(13) < ginfo(21)-60 {
+			width 200, ginfo(13)+20
+			
+			str_ = strtrim(gtext(hTime), 1, ' ')
+			xx = 100 :yy = ginfo(13)-20
+			pos     0, yy+2 :mes ""+splitmax
+			pos    20, yy   :input str_, xx, 20, 0, 0
+			if splitmax == 0 :mod = stat \ 6
+			sendmsg objinfo(stat, 2), 0x00CF, 1
+			objsize 40, 20 :objmode 1
+			pos xx+20, yy   :button gosub "Renew", *AddButtonJump
+			if splitmax == 0 :RenewID = stat
+			pos xx+60, yy   :button gosub "Clear", *AddButtonJump
+			if splitmax == 0 :DelID = stat
+			objmode 2
+			splitmax ++
+		}else :objenable AddEBID, 0 :dialog "Ç±ÇÍà»è„í«â¡Ç≈Ç´Ç‹ÇπÇÒ"
+	}elseif AllEBID == stat {
+		repeat splitmax
+			void RenewID - 1 + cnt * 3
+			gosub *AddButtonJump
+		loop
+	}
+	return
+	
+*AddButtonJump
+	if stat \ 3 == (mod+1)\3 {// renew
+		ren = (stat - RenewID) / 3
+		title strtrim(gtext(hTime), 1, ' '), objinfo(RenewID + ren * 3 - 1, 2)
+	}elseif stat \ 3 == (mod+2)\3 {// delete
+		del = (stat - DelID) / 3
+		title "0:00 00 00", objinfo(RenewID + del * 3 - 1, 2)
+	}
+	return
+	
+*WindowProc
+	if iparam == WM_CLOSE :PauseWatch
+	if iparam == 0x0138 {
+		return GetStockObject(0)
+	}
+	return

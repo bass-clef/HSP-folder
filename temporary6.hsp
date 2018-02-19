@@ -1,0 +1,130 @@
+	
+		
+	#module __TABCONTROL__
+	
+	#uselib	"user32.dll"
+	#func	GetClientRect		"GetClientRect"		int, int
+	#func	SetParent			"SetParent"			int, int
+	
+	#uselib	"gdi32.dll"
+	#cfunc	GetStockObject "GetStockObject" int
+	
+	#uselib "PointerEx.dll"
+	#cfunc	getpt			"GetStrPointer"			sptr
+	#cfunc	refer			"IntReference"			int
+	#func	allow			"IntDereference"		int, int
+	
+	#define TCN_FIRST               (0-550)       // tab control
+	#define TCN_SELCHANGE           (TCN_FIRST - 1)
+	#define	TCM_GETCURSEL			(0x130B)
+	#define	TCM_INSERTITEM			(0x1307)
+	#define	TCM_ADJUSTRECT			(0x1328)
+	#define	TCM_DELETEALLITEMS		(0x1309)
+	#define	WC_TABCONTROL			"systabcontrol32"
+	
+	#deffunc CreateTab int mainID, int StartID
+		if fnotify {
+			if iswin(hTabControl) {
+				sendmsg hTabControl, TCM_DELETEALLITEMS
+			}
+		}else {
+			oncmd gosub *notify, WM_NOTIFY
+		}
+		minID = StartID
+		mID = mainID
+		obj_wdh = winfo(31)
+		obj_hgt = winfo(32)
+	
+		winobj WC_TABCONTROL, "", 0, WS_CHILD | WS_CLIPSIBLINGS | WS_VISIBLE, obj_wdh, obj_hgt, 0x10, hinstance
+		TabControlID = stat
+		hTabControl = objinfo(TabControlID, 2)
+		
+		sendmsg hTabControl, 0x30, GetStockObject(17)
+		
+		dim rc, 4
+	return TabControlID
+	#deffunc CreateEndTab
+		prevID = 0
+		gsel minID, 1
+		gsel mID, 1
+		fnotify = 1
+	return
+	
+	#deffunc InsertTab str location, int TabItem
+		GetClientRect hTabControl, varptr(rc)
+		sendmsg hTabControl, TCM_ADJUSTRECT, 0, varptr(rc)
+		rc.2 -= 2
+		rc.3 -= 21
+	
+		bgscr minID+TabItem, rc.2, rc.3, 2, rc.0-2, rc.1
+		slong hwnd, GWL_STYLE, WS_CHILD
+		SetParent hwnd, hTabControl
+		
+		pszText = location
+		dim tcitem, 7
+		tcitem = 1, 0, 0, varptr(pszText)
+		tcitem.6 = hwnd
+		sendmsg hTabControl, TCM_INSERTITEM, TabItem, varptr(tcitem)
+	return
+	
+	#deffunc ChangeTab int lp
+		sendmsg hTabControl, TCM_GETCURSEL
+		wID = stat
+		gsel minID+prevID, -1
+		gsel minID+wID, 1
+		gsel mID, 1
+		prevID = wID
+	return
+	
+	*notify
+		if refer(lparam) == hTabControl {
+			if refer(lparam+8) == TCN_SELCHANGE {
+				ChangeTab
+			}
+		}
+	return
+	
+	#global
+	
+	
+	pos 0, 0
+	button gosub "add", *modal
+	y = 20
+	
+*main
+	oncmd 0
+	gsel 0
+	redraw 0
+	colorwhite :boxf :color
+	pos 0, y
+	mes ""+c :c++
+	mes "ê∂ë∂;"+iswin(hTabControl)
+	if dc {
+		repeat 2
+			hgw = ghwnd(4+cnt)
+			mes ""+(4+cnt)+":"+iswin(hgw)+" "+winfo(4, hgw)+"x"+winfo(5, hgw)+"-"+winfo(12, hgw)+"x"+winfo(13, hgw)
+		loop
+	}
+	redraw 1
+	oncmd 1
+	
+	wait 1
+	goto *main
+	
+*modal
+	objsize 300, 200
+	dialog "1", 64, ""+dc :dc++
+
+	objsize ginfo(12)-10, ginfo(13)-10
+	pos 5, 5 :CreateTab 1, 4
+	hTabControl = objinfo(stat, 2)
+	
+	InsertTab "ABC", 0
+	mes "Ç®Å[ÇÍÇÕÇ∂Ç·Ç¢Ç†ÇÒ"
+	
+	InsertTab "DEF", 1
+	mes "Ç⁄Ç≠Ç«ÇÁÇ¶Ç‡ÇÒ"
+	
+	CreateEndTab
+	
+	return

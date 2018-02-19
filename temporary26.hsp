@@ -1,0 +1,181 @@
+	
+	
+	buffer 1
+	picload "Tetrimino.bmp"
+	wimg = ginfo(12)
+	himg = ginfo(13)
+	dim tetres, wimg*himg
+	repeat wimg*himg
+		pget@hsp cnt\wimg, cnt/wimg
+		tetres.cnt = (ginfo_r == 0)
+		logmes ""+ginfo_r+","+ginfo_g+","+ginfo_b
+	loop
+	setResourceInfo wimg, himg, 4, 4
+	
+	screen 0
+	
+	id = 'O'-'A'
+	gosub *init
+	gosub *draw
+	
+	
+*main
+	if time {
+		time--
+	}else {
+		left = -1
+		if getkey('Z') & 0x8000 :left = 0
+		if getkey('X') & 0x8000 :left = 1
+		if -1 != left {
+			time = 10
+			rotaTetrimino ary, x, y, 2, 2, wdh, hgt, left, 1
+			gosub *draw
+		}
+	}
+	if ctime {
+		ctime--
+	}else {
+		if getkey(13) & 0x8000 {
+			ctime = 10
+			id = (id+1)\26
+			gosub *init
+			gosub *draw
+		}
+	}
+	
+	await 10
+	goto *main
+	
+*init
+	wdh = 10
+	hgt = 20
+	x = 0
+	y = 0
+	dim ary, wdh*hgt
+	
+	setTetrimino ary, tetres, 0, 0, wdh, hgt, id, 1
+	return
+	
+*draw
+	redraw 0
+	colorwhite :boxf :color
+	for i, 0, hgt, 1
+		repeat wdh
+			if cnt == x && i == y :color 0, 255, 0 :else :color
+			if peek(ary(i*wdh+cnt), 0) {
+				boxf cnt*50, i*50, cnt*50+50, i*50+50
+			}else {
+				boxf cnt*50, i*50, cnt*50+50, i*50+50, 0
+			}
+		loop
+	next
+	redraw 1
+	return
+	
+	#module
+	// テトリミノリソースを設定
+	#deffunc setResourceInfo int wdh, int hgt, int onewdh, int onehgt
+		reswdh = wdh
+		reshgt = hgt
+		resonewdh = onewdh
+		resonehgt = onehgt
+	return
+	// テトリミノを配列に代入
+	// 配列, リソースID, 代入位置x, y, 画面wdh, hgt, 代入タイプ, 代入値
+	#deffunc setTetrimino array ary, array res, int x, int y, int wdh, int hgt, int type, int prm
+		// 画像から
+		// 1.代入する場所が空か確認(上に移動)
+		// 3.1,2を壁まで繰り返す
+		// 4.壁だとgameover
+		// 5.当てはめ
+		
+		nif = 0
+		
+		// 1.代入する場所が空か確認	//(上に移動)
+		for i, 0, resonehgt, 1
+			repeat resonewdh
+				if res(reswdh*i + type*resonewdh + cnt) {
+					nif = peek(ary((y+i)*wdh + x+cnt), 0)
+					if nif :break
+				}
+			loop
+		next
+		if nif :return nif
+		
+		for i, 0, resonehgt, 1
+			repeat resonewdh
+				if res(reswdh*i + type*resonewdh + cnt) {
+					poke ary((y+i)*wdh + x+cnt), 0, prm
+				}
+			loop
+		next
+	return
+	#global
+	
+	#module
+	// 回転 配列, 抜取開始x, y, wdh, hgt, 画面wdh, hgt, 回転角度(0:90 1:-90), 抜き取る値
+	#deffunc rotaTetrimino array ary, int x, int y, int wdh, int hgt, int alwdh, int alhgt, int type, int prm
+		// 1.抜き取り & 回転
+		// 2.確認(移動)
+		// 3.当てはめ
+	
+		wdh_ = wdh
+		hgt_ = hgt
+		hwdh_ = wdh_
+		hhgt_ = hgt_
+		mwdh_ = wdh_-1
+		mhgt_ = hgt_-1
+		
+		dim dst, wdh_*hgt_
+		dim del :dmax = 0
+		nif = 0
+		
+		logmes "center "+hwdh_+"x"+hhgt_+" : "+wdh_+"x"+hgt_
+		// 1.抜き取り & 回転
+		for i, 0, hgt_, 1
+			repeat wdh_
+				del.dmax = (i+y)*alwdh + cnt+x
+				if peek(ary(del.dmax), 0) != prm :continue
+				
+				xfrom = cnt
+				yfrom = i
+				if type {
+					// 左
+					x_ = mhgt_ - yfrom
+					y_ = xfrom
+				}else {
+					x_ = yfrom
+					y_ = mwdh_ - xfrom
+				}
+				
+				
+				// 2.確認	//(移動)
+				id = (y_+y)*hgt_ + x_+x
+				logmes ""+cnt+"x"+i+"("+x_+"x"+y_+") => "+id
+				nif = peek(ary(id), 0)
+				if nif != prm && nif != 0 :break
+				
+				dst(y_*wdh_ + x_) = ary(del.dmax)
+				dmax++
+			loop
+		next
+		
+		// 3.当てはめ
+		if nif == prm || nif == 0 {
+			// 削除
+			repeat dmax
+				ary.del(cnt) = 0
+			loop
+			
+			xmar = alwdh-wdh_
+			ymar = alhgt-hgt_
+			for i, 0, hgt_, 1
+				repeat wdh_
+					if dst(i*wdh_ + cnt) == 0 :continue
+					ary((y+i)*alwdh + x+cnt) = dst(i*wdh_ + cnt)
+				loop
+			next
+		}
+	return nif
+	#global
+	

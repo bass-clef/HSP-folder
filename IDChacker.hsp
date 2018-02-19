@@ -1,0 +1,196 @@
+	
+	sdim buf
+	sdim dir
+	
+	title "config file chacker"
+	
+	dir = "C:\\Users\\"+sysinfo(1)+"\\AppData\\Roaming\\.minecraft\\config"
+	gosub *chack
+	
+	stop
+	
+*Chack
+	sdim filename
+	sdim list
+	sdim nlist
+	
+	chdir ""+dir
+	dirlist nlist, "*.*", 2
+	notesel@hsp nlist
+	repeat notemax
+		noteget@hsp filename, cnt
+		noteadd ""+dir+"\\"+filename, cnt, 1
+	loop
+	
+	repeat// フォルダファイル列挙
+		notesel@hsp nlist
+		if notemax == 0 :break
+		noteget@hsp filename, 0
+		notedel 0
+		if isdir(filename) {
+			sdim tempnlist
+			chdir filename
+			dirlist tempnlist, "*.*", 2
+			notesel@hsp tempnlist
+			dir = filename
+			repeat notemax
+				noteget@hsp filename, cnt
+				noteadd ""+dir+"\\"+filename, cnt, 1
+			loop
+			nlist += ""+tempnlist
+		}else {
+			list += filename+"\n"
+		}
+	loop
+	
+//	screen 0
+//	mesbox list, ginfo(12), ginfo(13), 5, 0
+//	return
+	
+	sdim IDlist, 1, 2
+	sdim IDused, 1, 2
+	IDName = "block", "item"
+	
+	repeat
+		notesel@hsp list
+		if notemax <= cnt :break
+		noteget@hsp filename, cnt
+		exist filename
+		if strsize == -1 :continue
+		sdim buff, strsize
+		bload filename, buff
+	
+		sdim tempIDlist, 1, length(IDname)
+		flag = -1
+		
+		ncff = 0
+		notesel@hsp buff
+		repeat notemax// configか？, IDname列挙
+			sdim inf
+			noteget@hsp inf, cnt
+			if cnt == 0 :if peek(inf, 0) != '#' :ncff = 1 :break
+			if flag == -1 {
+				sdim prm
+				split inf, " ", prm
+				if 1 < length(prm) :if prm.1 == "{" {
+					str_ = getpath(strtrim(prm.0, 3, ' '), 16)
+					repeat length(IDname)
+						if IDname.cnt == prm.0 :flag = cnt :break
+					loop
+					if flag == -1 :flag = length(IDname) :IDname.flag = str_
+//					if getpath(strtrim(prm.0, 3, ' '), 16) == "block" :flag = 0
+//					if getpath(strtrim(prm.0, 3, ' '), 16) == "item" :flag = 1
+				}
+			}else {
+				// 数値列挙
+				if instr(inf, 0, "}") != -1 :flag = -1 :continue
+				tempIDlist(flag) += ""+inf+"\n"
+			}
+		loop
+		if ncff :continue
+		
+		sdim IDnamemax :i = 0
+		sdim log
+		log = "chacked ID name :\n"
+		repeat length(IDname)
+			IDnamemax += ""+IDname.cnt+"&"
+			i += strlen(tempIDlist.cnt)
+			log += IDname(cnt)+", "
+		loop
+		log += "\n"
+		
+		IDlist += "MOD名:"+getpath(filename, 9)+"\n"
+		if i = 0 {
+			IDlist += "AllID なし ??\n"
+		}else {
+			repeat length(IDname)
+				minID = INT_MAX
+				maxID = 0x80000000
+				
+				actnameID = cnt
+				notesel@hsp tempIDList.cnt
+				maxlp = notemax
+				repeat maxlp
+					sdim inf
+					noteget@hsp inf, cnt
+					sdim prm
+					split inf, "=", prm
+					if 1 < length(prm) {
+						if prm.1 == "true" {
+							i = 1
+						}elif prm.1 == "false" {
+							i = 0
+						}else {
+							i = int(prm.1)
+						}
+						if i < minID :minID = i
+						if maxID < i :maxID = i
+						
+						if (-65534 <= i) && (i <= 65535) {
+							IDsize(actnameID) = i+0xFFFF+1
+							memexpand IDused(actnameID), IDsize(actnameID)
+							j = peek(IDused(actnameID), i+0xFFFF)
+							if j & 0x80 {
+								// 競合
+								log += "既に"+(j-0x80)+"がID"+i+"を使用しています\n"
+								log += ""+IDname(actnameID)+"はID"+i+"を使用できていません\n"
+							}else {
+								poke IDused(actnameID), i+0xFFFF, actnameID+0x80
+							}
+						}
+					}
+				loop
+	
+				if (IDname(cnt) == "dimensions") || (1) {
+					if (minID != INT_MAX) && (maxID != 0x80000000) {
+						sdim exceptions :excf = 0 :serialf = 1 :nold = 0
+						// IDチェック
+						lpmax = (maxID+65535)-(minID+65535)
+						i = minID+65535
+						if IDsize(cnt) < lpmax+i :lpmax = IDsize(cnt)-i
+						log += "index:"+i+" lpmax:"+lpmax+"\n"
+						actnameID = cnt
+						repeat lpmax, i
+							if peek(IDused(actnameID), cnt) {
+								if cnt-1 != nold :serialf = 0
+								excf++
+								exceptions += ""+(cnt-65535)
+								if lpmax-1 != cnt :exceptions += ","
+								nold = cnt
+							}
+						loop
+						
+						only = 0
+						IDList += IDName(cnt)+"ID : "
+						if minID == maxID {
+							IDlist += ""+minID
+							only = 1
+						}else {
+							IDlist += ""+minID
+							if serialf :IDlist += " - " :else :IDlist += ":"
+							IDlist += ""+maxID
+						}
+						if excf :IDlist += " list("+excf+"):"+exceptions
+						if not(only) :if minID*2 <= maxID :IDlist += " ??"
+						IDlist += " \n"
+					}
+				}
+				
+			loop
+		}
+		IDlist += "\n"
+		
+		// use block id write
+		
+	loop
+	
+	screen 0
+	xx = ginfo(12)
+	yy = ginfo(13)/4
+	objmode 2 :font msgothic, 12
+	pos 0,    0 :mesbox IDList.0, xx, yy*2, 5, 0
+	pos 0, yy*2 :mesbox log, xx, yy, 5, 0
+	
+	return
+	
+	

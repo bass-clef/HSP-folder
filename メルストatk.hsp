@@ -1,0 +1,87 @@
+	
+	#enum	TP_HP = 0
+	#enum	TP_AT
+	
+	
+	name =	"ジェラルド",	"メザノッテ",	"ククリ",	"フィニ",	"ソワレ"
+	hp =	9000f,			3024f,			2740f,		3100f,		2016f
+	qui =	3.00,			2.66,			2.60,		2.24,		3.35
+	att =	5000f,			3717f,			3880f,		6000f,		6846f
+	num =	3,				3,				2,			1,			1
+	
+	
+	hp_lune = 26.974, 25.178, 25.139
+	at_lune = 27.135, 16.966
+	qc_lune = 26.936, 25.354, 16.373
+	
+	hplmax = length(hp_lune)
+	atlmax = length(at_lune)
+	qclmax = length(qc_lune)
+	nmmax = length(name)
+	
+	dim lune, nmmax
+	dim rank, nmmax
+	repeat nmmax	:lune.cnt = -1	:loop
+	
+	
+	// タイプによって攻撃力かＨＰかを決める
+	// それによって当てるルーンを決めて、それぞれ算出
+	// したのちに一番高い対象にルーンを装着
+	
+	count = 0
+	while count < nmmax
+		await 
+		almax = -1 :almaxvalue = 0.0
+		nname = -1
+		repeat nmmax
+			if lune.cnt != -1 :continue
+			attack = att.cnt
+			quick = qui.cnt
+			number = double(num.cnt)
+			max = -1
+			maxvalue = 0.0
+			
+			repeat atlmax
+				value = double(attack*(1.0+at_lune.cnt*0.01)) * (100.0/quick) * number
+				i = cnt
+				repeat nmmax
+					if lune.cnt == i :i = -1 :break
+				loop
+				if i != -1 {
+					if maxvalue < value :max = cnt :maxvalue = value
+				}
+			loop
+			repeat qclmax
+				value = double(attack*(1.0+qc_lune.cnt*0.01)) * (100.0/quick) * number
+				i = cnt+qclmax
+				repeat nmmax
+					if lune.cnt == i :i = -1 :break
+				loop
+				if i != -1 {
+					if maxvalue < value :max = cnt+qclmax :maxvalue = value
+				}
+			loop
+			
+			if almaxvalue < maxvalue {
+				almax = max :almaxvalue = maxvalue
+				nname = cnt
+				logmes ""+name.cnt+":"+maxvalue
+			}
+		loop
+		if almax != -1 {
+			count++
+			lune.nname = almax
+			rank.nname = count
+		}
+	wend
+	
+	repeat nmmax
+		if lune.cnt == -1 :continue
+		if qclmax <= lune.cnt {
+			mes strf("%d. 名前[%s] ルーン(Q)[%2g] [%1.0d]", rank.cnt, name.cnt, qc_lune(lune.cnt\qclmax), double(att.cnt*(1.0+qc_lune(lune.cnt\qclmax)*0.01)) * (100.0/qui.cnt) * num.cnt )
+		}else {
+			mes strf("%d. 名前[%s] ルーン(A)[%2d] [%1.0d]", rank.cnt, name.cnt, at_lune(lune.cnt\qclmax), double(att.cnt*(1.0+at_lune(lune.cnt\qclmax)*0.01)) * (100.0/qui.cnt) * num.cnt )
+		}
+	loop
+	
+	

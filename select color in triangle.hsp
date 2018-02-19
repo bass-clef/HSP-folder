@@ -1,0 +1,109 @@
+	
+	
+	#module __GFIGURE__
+	// GTriangle ãóó£, âÒì](ìx), êF1, êF2, êF3
+	#deffunc GTriangle double r, double a, int clr1, int clr2, int clr3
+		dim xx, 4
+		dim yy, 4
+		repeat 3
+			xx.cnt = int(cos(deg2rad((120*cnt+a-90)\360))*r)+ginfo_cx
+			yy.cnt = int(sin(deg2rad((120*cnt+a-90)\360))*r)+ginfo_cy
+		loop
+		xx.4 = xx.3
+		yy.4 = yy.3
+		xx.3 = xx.2
+		yy.3 = yy.2
+		col = clr1, clr2, clr3
+		gsquare gsquare_grad, xx, yy, col
+	return
+	
+	// GCircle ãóó£, êF1, êF2
+	#deffunc GCircle double r, int clr1, int clr2
+		repeat 360
+			xx = ginfo_cx, int(cos(deg2rad(cnt))*r)+ginfo_cx, int(cos(deg2rad(cnt+1))*r)+ginfo_cx
+			yy = ginfo_cy, int(sin(deg2rad(cnt))*r)+ginfo_cy, int(sin(deg2rad(cnt+1))*r)+ginfo_cy
+			xx.3 = xx.2
+			yy.3 = yy.2
+			col = clr1, clr2, clr2
+			gsquare gsquare_grad, xx, yy, col
+		loop
+	return
+	
+	// GCircleThreeColor ãóó£
+	#deffunc GCircleThreeColor double r
+		fromclr = 255, 0, 0
+		
+		repeat 6
+			if cnt == 0 :toclr = 255,   0, 255
+			if cnt == 1 :toclr =   0,   0, 255
+			if cnt == 2 :toclr =   0, 255, 255
+			if cnt == 3 :toclr =   0, 255,   0
+			if cnt == 4 :toclr = 255, 255,   0
+			if cnt == 5 :toclr = 255,   0,   0
+			GCircleThreeColor6 r, cnt*60
+			fromclr = toclr.0, toclr.1, toclr.2
+		loop
+	return
+	#deffunc GCircleThreeColor6 double r, int count
+		addclr_r = double(toclr.0-fromclr.0)/60.0		// ãt
+		addclr_g = double(toclr.1-fromclr.1)/60.0		// ãt
+		addclr_b = double(toclr.2-fromclr.2)/60.0		// ãt
+		col.0 = $FFFFFF//RGB(fromclr.2+int(addclr_b*30.0), fromclr.1+int(addclr_g*30.0), fromclr.0+int(addclr_r*30.0))
+		col.1 = RGB(fromclr.2, fromclr.1, fromclr.0)
+		col.2 = col.1
+		repeat 60, count
+			xx = ginfo_cx, int(cos(deg2rad(cnt))*r)+ginfo_cx, int(cos(deg2rad(cnt+1))*r)+ginfo_cx
+			yy = ginfo_cy, int(sin(deg2rad(cnt))*r)+ginfo_cy, int(sin(deg2rad(cnt+1))*r)+ginfo_cy
+			xx.3 = xx.2
+			yy.3 = yy.2
+			if cnt != count+59 {
+				col.2 = RGB(fromclr.2+int(double(cnt\60)*addclr_b), fromclr.1+int(double(cnt\60)*addclr_g), fromclr.0+int(double(cnt\60)*addclr_r))
+			}else {
+				col.2 = RGB(toclr.2, toclr.1, toclr.0)
+			}
+			gsquare gsquare_grad, xx, yy, col
+			col.1 = col.2
+		loop
+	return
+	#global
+	
+	x = 200
+	y = 200
+	r = 70.0
+	
+	buffer 1, r*2, r*2
+	boxf
+	pos r, r
+	GCircleThreeColor r
+	pos r, r
+	GCircle r/10.0*8.2, 0, 0
+	
+	gsel
+	
+	
+*main
+	redraw 0
+	color :boxf :colorwhite
+	
+	gmode 2
+	pos x-r, y-r :gcopy 1, 0, 0, r*2, r*2
+	gmode 1
+	
+	xx = cos(deg2rad(( (a-90) )\360))*(r-2)+x
+	yy = sin(deg2rad(( (a-90) )\360))*(r-2)+y
+	pget xx, yy
+	line xx, yy, xx, yy
+	
+	pos x, y :GTriangle r/10.0*8, a, RGB(ginfo_b, ginfo_g, ginfo_r), $FFFFFF, 0
+	
+	clr = ginfo_r/5*5, ginfo_g/5*5, ginfo_b/5*5
+	color
+	pos 0, 0 :mes ""+clr.0+", "+clr.1+", "+clr.2
+	redraw 1
+	
+	a = rad2deg(atan(y-mousey, x-mousex))-90
+//	a = (a+6)\360
+	
+	wait 1
+	goto *main
+	

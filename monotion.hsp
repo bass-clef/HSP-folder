@@ -1,0 +1,61 @@
+	
+	#include "gdi32.as"
+	
+	
+	dialog "*.*", 16
+	if stat == 0 :end
+	fname = refstr
+	
+	bgscr 0
+	picload fname
+	htdc = hdc@hsp
+	
+	redraw 0
+	
+	/* normal convert */
+	for i, 0, ginfo(13), 1
+		repeat ginfo(12)
+			GetPixel htdc, cnt, i
+			clr = RR(stat)+GG(stat)+BB(stat)
+			clr /= 3
+			SetPixel htdc, cnt, i, RGB(clr, clr, clr)
+		loop
+	next
+	/**/
+	
+	/* not convert *
+	for i, 0, ginfo(13), 1
+		repeat ginfo(12)
+			GetPixel htdc, cnt, i
+			clr = RR(stat)+GG(stat)+BB(stat)
+			clr /= 3
+			SetPixel htdc, cnt, i, RGB(255-clr, 255-clr, 255-clr)
+		loop
+	next
+	/**/
+	
+	/* special convert *
+	GetPixel htdc, 0, 0
+	clred = RR(stat)+GG(stat)+BB(stat)
+	clred /= 3
+	clred = limit(clr+127, 1, 255)
+	for i, 0, ginfo(13), 1
+		repeat ginfo(12)
+			GetPixel htdc, cnt, i
+			clr = RR(stat)+GG(stat)+BB(stat)
+			clr /= 3
+			//if clr >= 128 :
+			if clred != clr :clr += 127
+			clr = limit(clr, 1, 255)
+			
+			if clr == clred :clr++
+			clr = RGB(clr, clr, clr)
+			SetPixel htdc, cnt, i, clr
+		loop
+	next
+	/**/
+	
+	redraw 1
+	bmpsave getpath(fname, 32)+"__"+getpath(fname, 11)
+	
+	

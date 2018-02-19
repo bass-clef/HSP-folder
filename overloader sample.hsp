@@ -1,0 +1,60 @@
+	
+	#define global mul(%1) echo_1 = %1 :if vartype("str") == vartype(echo_1){ echo_str %1 } else :if vartype("int") == vartype(echo_1){ echo_int %1 } else :if vartype("double") == vartype(echo_1){ echo_double %1 }
+	
+	#define global mul(%1, %2, %3) mul_1 = %1 :mul_2 = %2 :mul_3 = %3 :if vartype("int") == vartype(mul_1){ mul_int %1 } else :if vartype("int") == vartype(mul_1) && if vartype("int") == vartype(mul_2){ mul_int_int %1, %2 } else :if vartype("int") == vartype(mul_1) && if vartype("int") == vartype(mul_2) && if vartype("int") == vartype(mul_3){ mul_int_int_int %1, %2, %3 }
+	
+	#module
+	#deffunc mul_int int p1
+	return p1
+	#deffunc mul_int_int int p1, int p2
+	return p1*p2
+	#deffunc mul_int_int_int int p1, int p2, int p3
+	return p1*p2*3
+	#global
+	
+	/*
+	
+	
+	*/
+	
+		//
+		//
+	
+	#module
+	#deffunc echo_str str p1
+		mes p1
+	return
+	#deffunc echo_int int p1
+		mes p1
+	return
+	#deffunc echo_double double p1
+		mes p1
+	return
+	#global
+	
+	/*
+	#module
+	#deffunc echo str p1
+		mes p1
+	return
+	#deffunc echo int p1
+		mes p1
+	return
+	#deffunc echo double p1
+		mes p1
+	return
+	#global
+	*/
+	/*
+	#module
+	#deffunc mul int p1
+	return p1
+	#deffunc mul int p1, int p2
+	return p1*p2
+	#deffunc mul int p1, int p2, int p3
+	return p1*p2*3
+	#global
+	*/
+	
+	
+	

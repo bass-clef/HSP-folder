@@ -1,0 +1,93 @@
+	
+	#enum	KEY_LEFT	= 0
+	#enum	KEY_UP
+	#enum	KEY_RIGHT
+	#enum	KEY_DOWN
+	#enum	KEY_DASH
+	#enum	KEY_SNEAK
+	#enum	KEY_RUN
+	
+	keys.KEY_LEFT	= 'A'
+	keys.KEY_UP		= 'W'
+	keys.KEY_RIGHT	= 'D'
+	keys.KEY_DOWN	= 'S'
+	keys.KEY_DASH	= VK_SPACE
+	keys.KEY_SNEAK	= VK_NONCONVERT
+	keys.KEY_RUN	= 6
+	
+	buffer 1, ginfo(20), ginfo(21)
+	imgx = ginfo(12)
+	imgy = ginfo(13)
+	
+	screen 0, 1000, 1000, 0, 1000, 0
+	winx = ginfo(12)
+	winy = ginfo(13)
+	prev = makelong(winx*10/2, winy*10/2)
+	
+	move = 0
+	moveSpeed = 2
+	dash = 0
+	mar = 10
+	
+	mx = ginfo(0)
+	angle = 0.0
+	buf = ""
+	font msgothic, 10
+	
+*main
+	
+	if 0x8000 & getkey(keys.KEY_DASH)	:dash = 1 :else :dash = 0
+	if 0x8000 & getkey(keys.KEY_SNEAK)	:dash--
+	if 0x8000 & getkey(keys.KEY_RUN)	:dash++
+	if 0x8000 & getkey(keys.KEY_LEFT)	:x -= moveSpeed + dash
+	if 0x8000 & getkey(keys.KEY_UP)		:y -= moveSpeed + dash
+	if 0x8000 & getkey(keys.KEY_RIGHT)	:x += moveSpeed + dash
+	if 0x8000 & getkey(keys.KEY_DOWN)	:y += moveSpeed + dash
+	if ginfo(0) != mx :a = ginfo(0)-mx :mx = ginfo(0)
+	if 0 == a :preva = 0
+	
+	if x || y || a {
+		title ""+ x +"x"+ y +":"+ a
+		if a {
+			if preva {
+				preva += a
+			} else {
+				a_ = M_PI*2 / 100 * a
+				angle += a_
+				buf += "["+ a_ +"]\n"
+				preva = a
+			}
+			buf += ""+ preva +" "
+			a = 0
+		}
+		
+		prevx = loword(prev)
+		prevy = hiword(prev)
+		prev = makelong(prevx+x, prevy+y)
+	
+		gsel 1
+		color
+		line prevx / mar, prevy / mar, loword(prev) / mar, hiword(prev) / mar
+		l = 100
+		colorwhite :boxf prevx / mar -l, prevy / mar -l, loword(prev) / mar +l, hiword(prev) / mar+l
+		color :line loword(prev) / mar, hiword(prev) / mar, loword(prev) / mar + cos(angle)*l, hiword(prev) / mar + sin(angle)*l
+		gsel 0
+		
+		x = 0
+		y = 0
+		move = 0
+	}
+	
+	
+	redraw 0
+	colorwhite :boxf :color
+	pos 0, 0 :gzoom winx, winy, 1, 0, 0, imgx, imgy, 1
+	color
+	pos 0, 0 :mes ""+ prevx +"x"+ prevy
+	mes ""+ buf
+	redraw 1
+	
+	wait 1
+	goto *main
+	
+	

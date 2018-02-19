@@ -1,0 +1,297 @@
+	
+	#packopt name "joykeyboard.exe"
+	#packopt hide 1
+	
+	#include "mod_joystick.as"
+	#uselib "user32.dll"
+	#func	keybd_event			"keybd_event"		int, int, int, int
+	#func	mouse_event			"mouse_event"		int, int, int, int, int
+	#func	SetTimer			"SetTimer"			int, int, int, int
+	#cfunc	GetKeyNameText		"GetKeyNameTextA"	int, int, int
+	#cfunc	GetSystemMetrics	"GetSystemMetrics"	int
+	#cfunc	MapVirtualKey		"MapVirtualKeyA"	int, int
+	#uselib "shell32.dll"
+	#cfunc	ShellExecute	"ShellExecuteA"		int, str, str, str, str, int
+	
+	#module
+	#uselib "gdi32.dll"
+	#func	TextOut				"TextOutA"				int, int, int, sptr, int
+	#func	GetTextExtentPoint32"GetTextExtentPoint32A"	int, sptr, int, int
+	#define global tmes(%1, %2 = INT_MAX) tmes__ %1, %2
+	#deffunc tmes__ str mes_, int hdc_
+		dim size, 2
+		if hdc_ == INT_MAX {
+			TextOut hdc@hsp, ginfo_cx, ginfo_cy, mes_, strlen(mes_)
+			GetTextExtentPoint32 hdc@hsp, mes_, strlen(mes_), varptr(size)
+		}else {
+			TextOut hdc_, ginfo_cx, ginfo_cy, mes_, strlen(mes_)
+			GetTextExtentPoint32 hdc_, mes_, strlen(mes_), varptr(size)
+		}
+		pos ginfo_cx, ginfo_cy+size.1
+	return
+	#global
+
+	#define MI_H(%1) (%1 * 65535 / (GetSystemMetrics(SM_CXSCREEN) - 1))
+	#define MI_V(%1) (%1 * 65535 / (GetSystemMetrics(SM_CYSCREEN) - 1))
+	
+	#define SM_CXSCREEN				0
+	#define SM_CYSCREEN				1
+	#define	KEYEVENTF_KEYUP			0x2
+	#define MOUSEEVENTF_MOVE        0x0001 /* mouse move */
+	#define MOUSEEVENTF_LEFTDOWN    0x0002 /* left button down */
+	#define MOUSEEVENTF_LEFTUP      0x0004 /* left button up */
+	#define MOUSEEVENTF_RIGHTDOWN   0x0008 /* right button down */
+	#define MOUSEEVENTF_RIGHTUP     0x0010 /* right button up */
+	#define MOUSEEVENTF_MIDDLEDOWN  0x0020 /* middle button down */
+	#define MOUSEEVENTF_MIDDLEUP    0x0040 /* middle button up */
+	#define VK_PRIOR          0x21
+	#define VK_NEXT           0x22
+	#define VK_END            0x23
+	#define VK_HOME           0x24
+	#define VK_LEFT           0x25
+	#define VK_UP             0x26
+	#define VK_RIGHT          0x27
+	#define VK_DOWN           0x28
+	#define VK_INSERT         0x2D
+	#define VK_DELETE         0x2E
+	#define VK_DIVIDE         0x6F
+	#define VK_NUMLOCK        0x90
+	
+	if dir_cmdline != "/A" {
+		*retry
+		hInst = ShellExecute(NULL, "runas", ""+dir_exe+"\\joykeyboard.exe", "/A", "", SW_HIDE)
+		if hInst != 2 :end
+		dialog "管理者権限で起動できませんでした。", 8
+		if stat == 4 :goto *retry
+	}
+
+	dim joy
+	dim joyd
+	dim key
+	sdim str_
+	sdim keysname :sdim nkey
+	repeat 126, 1
+		if (0x20 < cnt){
+			sdim keyname
+			poke keyname, 0, cnt
+			keysname += ""+ keyname +"\n"
+			nkey += ""+ cnt +"\n"
+		}else {
+			sdim keyname
+			switch cnt
+			case 1 :keyname = "左クリック" :swbreak
+			case 2 :keyname = "右クリック" :swbreak
+			case 3 :keyname = "真ん中クリック" :swbreak
+			swend
+			if strlen(keyname) > 0 {
+				keysname += ""+ keyname +"\n"
+				nkey += ""+ cnt +"\n"
+			}else {
+				nScanCode = MapVirtualKey(cnt, 0)
+				if nScanCode {
+					switch cnt
+					case VK_LEFT: case VK_UP: case VK_RIGHT: case VK_DOWN:
+					case VK_PRIOR: case VK_NEXT: case VK_END: case VK_HOME:
+					case VK_INSERT: case VK_DELETE: case VK_DIVIDE: case VK_NUMLOCK:
+						nScanCode |= 0x100 :break
+					swend
+					sdim keyname, 256
+					if (GetKeyNameText(nScanCode << 16, varptr(keyname), 255)) {
+						keysname += ""+ keyname +"\n"
+						nkey += ""+ cnt +"\n"
+					}
+				}else {
+					keysname += "キーコード:"+ cnt +"\n"
+					nKey += ""+ cnt +"\n"
+				}
+			}
+		}
+	loop
+	keysname += "マウス移動 左上\n" :nKey += str(128)+"\n"
+	keysname += "マウス移動 右上\n" :nKey += str(129)+"\n"
+	keysname += "マウス移動 左下\n" :nKey += str(130)+"\n"
+	keysname += "マウス移動 右下\n" :nKey += str(131)+"\n"
+	fontsize = 14 :fsh = fontsize/2
+	m_sp = 3
+	delobj = 0
+	
+	screen 0,,, 2
+	screen 1, fsh*47, 300
+	title "Joystick"
+	oncmd gosub *timer, WM_TIMER
+	oncmd gosub *close, WM_CLOSE
+	hmdc = hdc@hsp :hmwnd = hwnd@hsp
+	
+	objsize ginfo(12), 20
+	button gosub "登録", *Jump
+	font msgothic, fontsize
+	SetTimer hwnd@hsp, 1000, 10, 0
+	stop
+	
+*close
+	oncmd 0
+	return
+*timer
+	jstick j
+	
+	xx = 0 :yy = 0
+	repeat jmax
+		if j & joy.cnt {
+			if joyd.cnt == 0 {
+				joyd.cnt = 1
+				title "Joystick "+key.cnt, hmwnd
+				switch key.cnt
+				case 1	:mouse_event MOUSEEVENTF_LEFTDOWN, 0, 0, 0, NULL :swbreak
+				case 2	:mouse_event MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, NULL :swbreak
+				case 3	:mouse_event MOUSEEVENTF_MIDDLEDOWN, 0, 0, 0, NULL :swbreak
+				default :keybd_event key.cnt, 0, 0, 0 :swbreak
+				swend
+			}else {
+				switch key.cnt
+				case 127 :xx -= m_sp :yy -= m_sp :swbreak
+				case 128 :xx += m_sp :yy -= m_sp :swbreak
+				case 129 :xx -= m_sp :yy += m_sp :swbreak
+				case 130 :xx += m_sp :yy += m_sp :swbreak
+				swend
+			}
+		}else :if joyd.cnt {
+			joyd.cnt = 0
+			title "Joystick", hmwnd
+			switch key.cnt
+			case 1	:mouse_event MOUSEEVENTF_LEFTUP, 0, 0, 0, NULL :swbreak
+			case 2	:mouse_event MOUSEEVENTF_RIGHTUP, 0, 0, 0, NULL :swbreak
+			case 3 	:mouse_event MOUSEEVENTF_MIDDLEUP, 0, 0, 0, NULL :swbreak
+			default :if key.cnt < 128 :keybd_event key.cnt, 0, KEYEVENTF_KEYUP, 0 :swbreak
+			swend
+		}
+	loop
+	if (xx != 0) || (yy != 0) :mouse_event MOUSEEVENTF_MOVE, xx, yy, 0, NULL
+	
+	pos 0, 20
+	redraw 0
+		color 255, 255, 255 :boxf ,,,,, hmdc :color
+		notesel@hsp nKey
+		repeat kmax
+			if key.cnt == 0 :continue
+			str_ = strf("ジョイのキー[%4d] ", joy.cnt)
+			if key.cnt < 127 { str_ += strf("押されるキー[%3d]", int(noteget(key.cnt-1)))
+			}else {
+				switch key.cnt
+				case 127 :str_ += strf("マウス移動  左上 ") :swbreak
+				case 128 :str_ += strf("マウス移動  右上 ") :swbreak
+				case 129 :str_ += strf("マウス移動  左下 ") :swbreak
+				case 130 :str_ += strf("マウス移動  右下 ") :swbreak
+				swend
+			}
+			if joyd.cnt :str_ += " ON" :else :str_ += " OFF"
+			tmes str_, hmdc
+		loop
+	redraw 1
+	return
+	
+*Jump
+	if jumpf :return
+	jumpf = 1
+	objsize 300, 40
+	dialog "", 64, "ジョイパッド"
+	pos 0, 0 :tmes "ジョイパで登録するキー押して", hdc@hsp
+	jf= 0
+	dlgfor
+		if jf == 0 :jstick jf
+		if jf :deldialog
+		wait 1
+	loop
+	gsel 1, 1
+	
+	if jf {
+		objsize 300, 100
+		dialog "", 64, "押されるキー"
+		pos 0, 0 :tmes "押される予定のキー押すか選択してください", hdc@hsp
+		objsize 300, 20
+		pos 0, 60
+		combox com, 0, keysname
+		button gosub "決定", *button_down
+		k = 0
+		onkey gosub *key_down
+		onclick gosub *click_down
+		dlgfor :wait 1 :loop
+		onclick 0 :onkey 0
+		goto *key_end
+		
+		*key_down
+			k = wparam
+			deldialog
+		return
+	
+		*click_down
+			k = wparam
+			deldialog
+		return
+	
+		*button_down
+			k = com+1
+			deldialog
+		return
+		
+		*key_end
+		if k {
+			i = -1
+			repeat kmax
+				if key.cnt == 0 :i = cnt :break
+			loop
+			if i == -1 {
+				key.kmax = k :kmax ++
+			}else {
+				key.i = k
+			}
+			
+			i = -1
+			repeat jmax
+				if joy.cnt == 0 :i = cnt
+			loop
+			if i == -1 {
+				joy.jmax = jf
+				joyd.jmax = 0
+				jmax++
+			}else {
+				joy.i = jf
+				joyd.i = 0
+			}
+			gsel 1, 1
+			objsize fsh*4, fontsize
+			pos ginfo(12)-fsh*4, (nArray(key)-1)*fontsize+20
+			button gosub "del", *JoyDel
+			if delobj == 0 :StartID = stat
+			delobj++
+		}else :gsel 1, 1
+	}
+	jumpf = 0
+	return
+	
+*JoyDel
+	ID = stat-StartID
+	clrobj StartID+delobj-1, -1
+	
+	joy.ID = 0
+	joyd.ID = 0
+	title "Joystick", hmwnd
+	switch key.ID
+	case 1	:mouse_event MOUSEEVENTF_LEFTUP, 0, 0, 0, NULL :swbreak
+	case 2	:mouse_event MOUSEEVENTF_RIGHTUP, 0, 0, 0, NULL :swbreak
+	case 3 	:mouse_event MOUSEEVENTF_MIDDLEUP, 0, 0, 0, NULL :swbreak
+	default :if key.ID < 128 :keybd_event key.ID, 0, KEYEVENTF_KEYUP, 0
+	swend
+	key.ID = 0
+	
+	if ID == jmax-1 :jmax-- :kmax--
+	delobj--
+	return
+	
+	#module
+	#defcfunc nArray array ary
+		i = 0
+		repeat length(ary)
+			if ary.cnt :i++
+		loop
+	return i
+	#global

@@ -1,0 +1,26 @@
+	
+	// 真偽に変換
+	#define ctype boolean(%1)	(0 != (%1))
+	// ビット取得(数値)
+	#define ctype bGet(%1, %2)	boolean( (%1) & ( 1<<(%2) ) )
+	// ビット取得(バイナリ)
+	#define ctype sbGet(%1, %2)	bGet( peek(%1, (%2)/8), ((%2)\8) )
+	
+	#define CHECK_BIT 31
+	#define ctype getType(%1)			sbGet(%1, CHECK_BIT)
+	#define ctype getValue(%1)			((%1) & ((1<<CHECK_BIT)-1))
+	#define setType(%1, %2)				lpoke %1, 0, (getValue(%1) | (boolean(%2)<<CHECK_BIT))
+	#define setValue(%1, %2)			lpoke %1, 0, ((%2) | (getType(%1)<<CHECK_BIT))
+	#define ctype makePrmType(%1, %2=1)	((%1) | (boolean(%2)<<CHECK_BIT))
+	
+	
+	
+	a = makePrmType(65535, 1)
+	setType a, 1
+	setValue a, 255
+	
+	mes a
+	mes "checkbit ["+getType(a)+"]"
+	mes strf("%X : %d", getValue(a), getValue(a))
+	
+	

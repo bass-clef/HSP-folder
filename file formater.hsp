@@ -1,0 +1,500 @@
+	
+	
+	
+	#define global dec double
+	
+	// 真偽に変換
+	#define global ctype boolean(%1)	(0 != (%1))
+	// ビット取得(数値)
+	#define global ctype gbit(%1, %2)	( boolean( %1 & ( 1<<(%2) ) ) )
+	// ビットセット false
+	#define global sbit_0(%1, %2)		%1 &= 0xFFFFFFFF ^ ( 1<<(%2) )
+	// ビットセット true
+	#define global sbit_1(%1, %2)		%1 |= ( 1<<(%2) )
+	// ビット取得(バイナリ)
+	#define global ctype sgbit(%1, %2)	gbit( peek(%1, (%2)/8), ((%2)\8) )
+	// ビットセット(バイナリ) false
+	#define global ssbit_0(%1, %2)		poke %1, (%2)/8, peek(%1, (%2)/8) & (0xFFFFFFFF ^ (1 << ((%2)\8) ) )
+	// ビットセット(バイナリ) true
+	#define global ssbit_1(%1, %2)		poke %1, (%2)/8, peek(%1, (%2)/8) | (1 << (%2)\8)
+	
+	#define	global ctype tSet(%1, %2, %3)	1 :poke type%1, %2, %3
+	#define	global ctype tGet(%1, %2)		peek(type%1, %2)
+	
+	
+	sdim nowtypeall
+	// 1Bit [b]  1Byte [c]  2Byte [s]  4Byte [i]
+	// それ以外は
+	tlen = 0, 1, 8, 16, 32
+	tstr = 0, 'b', 'c', 's', 'i'
+	tmin = 0, 0, -0x80, -0x8000, -2147483648
+	tmax = 0, 1, 0xFF, 0xFFFF, 2147483647
+	tclr = 0, 0x55FF, 0xDD00, 0xFF8000, 0xEEFF
+	
+	sdim typeall, 32+1
+	sdim buf
+	sdim type, 32+1	// 0:なし 1:Bit 2:1Byte 3:2Byte 4:4Byte
+	sdim typeold, 32+1
+	dim prm, 32
+	dim oldprm, 32
+	oWdh = 13
+	oHgt = 15
+	begin = -1
+	index = -1
+	fIndex = 0
+	fMax = 1
+	readf = 0
+	
+	screen 0, oWdh*32 +(32/8-1)*2 +10, 10+(oHgt+5)*6+oHgt*3 +20
+	oncmd gosub *command, WM_COMMAND
+	title "Formater"
+	MenuInit hwnd, hMenu
+	font msgothic, oHgt
+	objmode 2
+	color :boxf :colorwhite
+	y = 5
+	
+	pos 5, y:mes "フォーマット"
+	pos 100+5, y :input nowtypeall, oWdh*32 +(32/8-1)*2 -100, oHgt, 0, 0
+	nowtypeallID = stat
+	y += oHgt+5
+	
+	objsize oWdh*32 +(32/8-1)*2, oHgt*2
+	pos 5, y :button gosub "フォーマットを更新", *refresh
+	y += oHgt*2+5
+	
+	yFileIndex = y-1
+	objsize 24, oHgt
+	pos 5, y :button gosub "<-", *prevpage				:pPageID = stat
+	pos ginfo(12)-5-24, y :button gosub "->", *nextpage	:nPageID = stat
+	objenable pPageID, 0
+	y += oHgt+5
+	
+	pos 5, y :mes "入力"
+	y += oHgt+5
+	
+	yRefresh = y
+	gosub *refresh
+	y += oHgt+5
+	
+	pos 5, y :mes "バイナリ"
+	y += oHgt+5
+	yDraw = y
+*main
+	gosub *calc
+	gosub *draw
+	wait 5
+	goto *main
+	
+	#enum	global	MI_QUIT = 10
+	#enum	global	MI_OPEN
+	#enum	global	MI_SAVE
+	#enum	global	MI_FILE
+*command
+	wID = loword(wparam)
+	if wID == MI_QUIT {
+		// 終了
+		end :end
+	}else :if wID == MI_OPEN {
+		// 開く
+		dialog "", 16, ""
+		if stat == 0 :return
+		fname = refstr
+		readf = 1
+		
+		exist fname
+		fsize = strsize
+		sdim fileBuf, fsize+5
+		bload fname, fileBuf, fsize
+		
+		sdim buf, 4+1, fsize/4+5
+		repeat fsize/4+1
+			memexpand buf.cnt, 4+1
+			memcpy buf.cnt, fileBuf, 4, 0, cnt*4
+		loop
+		
+		gosub *refresh
+		gosub *readbuf
+		gosub *writebuf
+	}else :if wID == MI_SAVE {
+		// 保存
+		dialog "", 17, ""
+		if stat == 0 :return
+		fname = refstr
+		bsave fname, fileBuf, fileSize
+	}
+	return
+	
+*readbuf
+	// 読み取り
+	dim prm, 32
+	i = 0
+	repeat
+		if 32 <= i :break
+		if tGet(.fIndex, cnt) == 0 :break
+		if tGet(.fIndex, cnt) == 1 {
+			prm.cnt = sgbit(buf.fIndex, i)
+		}else :if tGet(.fIndex, cnt) {
+			j = cnt
+			repeat tlen(tGet(.fIndex, cnt))
+				if sgbit(buf.fIndex, i+cnt) {	ssbit_1 prm.j, cnt
+				}else :							ssbit_0 prm.j, cnt
+			loop
+		}
+		i += tlen(tGet(.fIndex, cnt))
+		objprm begin+cnt, prm.cnt
+	loop
+	return
+	
+*writebuf
+	// 書き込み
+	memexpand buf.fIndex, 4+1
+	i = 0
+	repeat
+		if 32 <= i :break
+		if tGet(.fIndex, cnt) == 0 :break
+		if tGet(.fIndex, cnt) == 1 {	if prm.cnt :ssbit_1 buf.fIndex, i :else :ssbit_0 buf.fIndex, i
+		}else :if tGet(.fIndex, cnt) {
+			j = prm.cnt
+			repeat tlen(tGet(.fIndex, cnt))
+				if gbit(j, cnt) :ssbit_1 buf.fIndex, i+cnt :else :ssbit_0 buf.fIndex, i+cnt
+			loop
+		}
+		i += tlen(tGet(.fIndex, cnt))
+	loop
+	return
+	
+*calc
+	// 下限上限監視
+	repeat 32
+		t = tGet(.fIndex, cnt)
+		if t == 0 :break
+		if prm.cnt < tmin(t) :prm.cnt = tmin(t) :objprm begin+cnt, prm.cnt
+		if tmax(t) < prm.cnt :prm.cnt = tmax(t) :objprm begin+cnt, prm.cnt
+	loop
+	
+	// 変更監視
+	n = 0 :j = 0
+	repeat 32
+		t = tGet(.fIndex, cnt)
+		if oldprm.cnt != prm.cnt :oldprm.cnt = prm.cnt :n++
+		if tGet(old.fIndex, cnt) != tGet(.fIndex, cnt) :if tSet(old.fIndex, cnt, tGet(.fIndex, cnt)) :j = 1
+	loop
+	if j :gosub *readbuf
+	if n :gosub *writebuf
+	return
+	
+*draw
+	redraw 0
+	color :boxf 0, yDraw :colorwhite
+	
+	// ファイルインデックス
+	x = 5+11+24
+	color :boxf x-3, yFileIndex-1, x+fMax*32+1, yFileIndex+oHgt+3
+	lpmin = limit(fIndex-10, 0, INT_MAX)
+	lpmax = limit(fMax, 0, 11)
+	repeat lpmax, lpmin
+		i = cnt
+		n = 0
+		index = 0
+		repeat 32
+			if n :n--
+			if n == 0 {
+				t = tGet(.i, index)
+				n = tlen.t
+				index++
+			}
+			color RR(tclr.t), GG(tclr.t), BB(tclr.t)
+			x = 5+11+24 +(i-lpmin)*32 +cnt
+			line x, yFileIndex, x, yFileIndex+oHgt
+		loop
+	loop
+	colorwhite
+	x = 5+11+24 +limit(fIndex, 0, 10)*32
+	boxf x-1, yFileIndex, x+32+1, yFileIndex+oHgt+2, 0
+	color 170, 170, 170
+	
+	if fsize {
+		x = 5+11+24 +fsize/4*32 -fIndex*32 +(lpmax-1)*32 +fsize\4*8
+		line x, yFileIndex-2, x, yFileIndex+oHgt+2
+	}
+	
+	// 実値
+	i = 31
+	repeat 32
+		if tGet(.fIndex, cnt) == 0 :break
+		t = tGet(.fIndex, cnt)
+		color RR(tclr.t), GG(tclr.t), BB(tclr.t)
+		x = 5 +(i+1)*oWdh +i/8*2
+		boxf x -oWdh*tlen.t, yDraw, x, yDraw+oHgt, 0
+		
+		x -= oWdh*tlen.t
+		str_ = str(prm.cnt)
+		slen = double( strlen(str_) ) *double(oHgt)/2.0
+		pos x +( oWdh*tlen.t -slen)/2, yDraw :mes str_
+		i -= tlen.t
+	loop
+	
+	// 全ビット
+	colorwhite
+	i = 31
+	repeat 32
+		x = 5 +oWdh*i +i/8*2
+		str_ = str(sgbit(buf.fIndex, cnt))
+		slen = double( strlen(str_) ) *double(oHgt)/2.0
+		pos x +( oWdh -slen)/2, yDraw+oHgt :mes str_
+		boxf x, yDraw+oHgt, x+oWdh, yDraw+oHgt*2, 0
+		i--
+	loop
+	
+	redraw 1
+	return
+	
+	// 
+*prevpage
+	if fIndex == 0 :return
+	fIndex--
+	if fIndex == 0 :objenable pPageID, 0
+	objenable nPageID, 1
+	
+	notesel@hsp typeall
+	noteget@hsp nowtypeall, fIndex
+	
+	gosub *refresh
+	gosub *readbuf
+	gosub *writebuf
+	return
+*nextpage
+	fIndex++
+	if fIndex == fMax :memexpand buf.fMax, 32+1 :fMax++
+	objenable pPageID, 1
+	
+	notesel@hsp typeall
+	noteget@hsp nowtypeall, fIndex
+	
+	gosub *refresh
+	gosub *readbuf
+	gosub *writebuf
+	return
+	
+	// 更新
+*refresh
+	// パラメーター読み取り
+	// 1Bit [1:b]  Char [2:c]  Short [3:s]  Int [4:i]
+	// Froat[5:f]  Double[6:d]
+	nowtypeall = strtrim(nowtypeall, 3, ' ')
+	nowtypeall = getpath(nowtypeall, 16)
+	index = 32 :i = 0
+//	dim type, 32
+	memexpand type(fIndex), 32+1
+	memset type(fIndex), 0, 32, 0
+	repeat
+		token = peek(nowtypeall, cnt)
+		if token == 0 :break
+		repeat length(tlen)
+			if (token == tstr.cnt) && (0 <= index- tlen.cnt) {
+				//type.i = cnt
+				if tSet(.fIndex, i, cnt)
+				index -= tlen.cnt
+				token = -1
+				i++
+				break
+			}
+		loop
+		if token != -1 :poke nowtypeall, cnt, ' '
+	loop
+	nowtypeall = strtrim(nowtypeall, 2, ' ')
+	objprm nowtypeallID, nowtypeall
+	notesel@hsp typeall
+	noteadd@hsp nowtypeall, fIndex, 1
+	
+	// パラメーター設置
+	y = yRefresh
+	if 0 < begin :clrobj begin, begin+endid-1
+	objsize oWdh, oHgt
+	objmode 2
+	index = -1
+	begin = -1
+	endid = 0
+	i = 31
+	repeat 32
+		index++
+		t = tGet(.fIndex, index)
+		if t == 0 :break
+		
+		x = 5 +(i+1)*oWdh +i/8*2
+		pos x-oWdh*tlen.t, y
+		i -= tlen.t
+		
+		continuef = 0
+		if t == 1 {
+			chkbox "", prm.index
+			if index == 0 :begin = stat
+			continuef = 1
+		}else {
+			repeat length(tlen)-2, 2
+				if t != cnt :continue
+				input prm.index, oWdh* tlen.cnt, oHgt, 0, 0
+				if index == 0 :begin = stat
+				hObj = objinfo(stat, 2)
+				slong hObj, GWL_STYLE, glong(hObj, GWL_STYLE) | 0x1
+				continuef = tlen.cnt
+			loop
+		}
+		if continuef {
+			endid++
+			continue cnt+continuef
+		}
+	loop
+	/*
+	repeat 32
+		index++
+		if type.index == 0 :break
+		pos 5 +oWdh*cnt +cnt/8*2, y
+		
+		continuef = 0
+		if type.index == 1 {
+			chkbox "", prm.index
+			if index == 0 :begin = stat
+			continuef = 1
+		}else {
+			repeat length(tlen)-2, 2
+				if type.index != cnt :continue
+				input prm.index, oWdh* tlen.cnt, oHgt, 0, 0
+				if index == 0 :begin = stat
+				hObj = objinfo(stat, 2)
+				slong hObj, GWL_STYLE, glong(hObj, GWL_STYLE) | 0x1
+				continuef = tlen.cnt
+			loop
+		}
+		if continuef {
+			endid++
+			continue cnt+continuef
+		}
+	loop
+	*/
+	logmes ""+begin+" : "+endid
+	return
+	
+	#module __MENU__
+	#uselib "user32.dll"
+	#cfunc	CreateMenu				"CreateMenu"
+	#cfunc	CreatePopupMenu			"CreatePopupMenu"
+	#func	InsertMenuItem			"InsertMenuItemA"	int, int, int, var
+	#func	SetMenuItemInfo			"SetMenuItemInfoA"	int, int, int, var
+	#func	SetMenu					"SetMenu"			int, int
+	#func	DestroyMenu				"DestroyMenu"		int
+	#func	DrawMenuBar				"DrawMenuBar"		int
+	
+	#enum	cbSize = 0
+	#enum	fMask
+	#enum	fType
+	#enum	fState
+	#enum	wID
+	#enum	hSubMenu
+	#enum	hbmpChecked
+	#enum	hbmpUnchecked
+	#enum	dwItemData
+	#enum	dwTypeData
+	#enum	cch
+	#enum	hbmpItem
+	
+	// メニュー削除
+	#deffunc MenuDelete int hWnd_, var hMenu_ onexit
+		if hMenu_ :DestroyMenu hMenu_ :hMenu_ = 0
+	return
+	
+	// メニュー非表示
+	#deffunc MenuDisable int hWnd_
+		SetMenu hWnd_, NULL
+		DrawMenuBar hWnd_
+	return
+	
+	// メニュー表示
+	#deffunc MenuEnable int hWnd_, int hMenu_
+		SetMenu hWnd_, hMenu_
+	return
+	
+	//メニュー作成
+	#deffunc MenuInit int hWnd_, array hMenu_
+		hMenu_.1 = CreatePopupMenu()
+		if hMenu_.1 == 0 :return FALSE
+		AddMenuItem hMenu_.1, "開く (&O)", MI_OPEN, 0, "書き込み対象のファイルを読み込みます"
+		AddMenuItem hMenu_.1, "保存 (&S)", MI_SAVE, 0, "書き込み対象のファイルを保存します"
+		AddMenuItem hMenu_.1, "", 1, 0, ""
+		AddMenuItem hMenu_.1, "終了 (&Q)", MI_QUIT, 0, "終了します"
+		
+		hMenu_.0 = CreateMenu()
+		if hMenu_.0 == 0 :return FALSE
+		AddMenuItem hMenu_.0, "ファイル (&F)", MI_FILE, hMenu_.1, ""
+		
+		SetMenu hWnd_, hMenu_
+	return TRUE
+	// メニューアイテム追加
+	#deffunc AddMenuItem int hMenu_, str ItemName, int nId, int hSMenu, str ItemDate
+		dim mii, 12	//MENUITEMINFO
+		
+		mii.cbSize		= 48		//sizeof(MENUITEMINFO)
+		mii.fMask		= $32		//MIIM_TYPE | MIIM_ID | MIIM_DATA
+		mii.wID			= nId
+		dwItemDate		= ItemDate
+		mii.dwItemData	= varptr(dwItemDate)
+	
+		if ItemDate == "__RightJostify__" {
+			mii.fType	= 0x4000	//MFT_STRING | MFT_RIGHTJUSTIFY
+			dwTypeDate	= ItemName
+			mii.dwTypeData	= varptr(dwTypeDate)
+		}else :if ItemName != "" {			// NULL = セパレーター
+			mii.fType	= 0			//MFT_STRING
+			dwTypeDate	= ItemName
+			mii.dwTypeData	= varptr(dwTypeDate)
+		}else :if ItemDate == "__MenuDisabled__" {
+			mii.fMask	|= $1		//MIIM_STATE
+			mii.fState	= $3
+			mii.fType	= 0			//MFT_STRING
+			dwTypeDate	= ItemName
+			mii.dwTypeData	= varptr(dwTypeDate)
+		}else :mii.fType	= $800	//MFT_SEPARATOR
+		
+		if hSMenu != NULL {			// サブメニュー
+			mii.fMask	   |= $4	//MIIM_SUBMENU
+			mii.hSubMenu	= hSMenu
+		}
+		
+		InsertMenuItem hMenu_, nId, FALSE, mii
+	return
+	
+	// メニューアイテム変更
+	#deffunc ChangeMenuItem int hWnd_, int hMenu_, int nId, int uState, str ItemName, str ItemDate
+		dim mii, 12	//MENUITEMINFO
+		
+		mii.cbSize = 48
+		mii.fMask  = $3	//MIIM_ID | MIIM_STATE
+		mii.fState = uState
+		mii.wID    = nId
+		
+		if ItemName != "" {
+			mii.fMask	   |= $10	//MIIM_TYPE
+			mii.fType		= 0
+			dwTypeDate		= ItemName
+			mii.dwTypeData	= varptr(dwTypeDate)
+		}
+		if ItemDate == "__MenuDisabled__" {
+			mii.fState	= $3
+			mii.fType	= 0			//MFT_STRING
+			dwTypeDate	= ItemName
+			mii.dwTypeData	= varptr(dwTypeDate)
+		}else :if ItemDate == "__RightJostify__" {
+			mii.fType	= 0x4000	//MFT_STRING | MFT_RIGHTJUSTIFY
+		}else :if ItemDate != "" {
+			mii.fMask	   |= 0x20	//MFT_DATA
+			dwItemDate		= ItemDate
+			mii.dwItemData	= varptr(dwItemDate)
+		}
+	
+		SetMenuItemInfo hMenu_, nId, FALSE, mii
+		DrawMenuBar hWnd_
+	return
+	#global
+
+	

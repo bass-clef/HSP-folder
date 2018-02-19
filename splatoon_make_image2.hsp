@@ -1,0 +1,82 @@
+	
+//	#define IMAGE_MODE
+	
+	chdir "G:\\wiiU\\case4_data values\\"
+	
+	screen 0, 300
+	
+	#ifdef IMAGE_MODE
+	screen 0, ginfo(20), ginfo(21)
+	#endif
+	
+	hMainWnd = hwnd
+	
+	
+	byte = 690
+	yy = 100
+	min = 0//711.0
+	max = 715.0
+	clrbase = RGB(255, 255, 0) / 157.0
+	dim prm
+	ddim clr, 0
+	dim byteList
+	dim byteShowedTime
+	sdim buf
+	sdim byteNumbers
+	
+	sdim findMsg
+	
+	redraw 0
+	colorwhite :boxf :color
+	repeat 999, 9100
+		fileName = "pkt"+ cnt +".dat"
+		exist fileName :size = strsize
+		if -1 == size :continue
+	
+		flag = -1
+		repeat byteLen
+			if byteList.cnt == size :flag = cnt :break
+		loop
+		if -1 == flag {
+			byteList.byteLen = size
+			byteMax.byteLen = 1
+			byteShowedTime.byteLen = 0
+			byteNumbers.byteLen = ""+ cnt
+			byteLen++
+		} else {
+			byteMax.flag++
+			byteNumbers.flag += ","+ cnt
+		}
+		continue
+	
+		sdim fileBuffer, size+1
+		bload fileName, fileBuffer, size
+	
+		token = peek(fileBuffer, 0x42)
+		if 0x24 != token :continue
+		if 0x03 != peek(fileBuffer, 0x4A) :continue
+		if 0xD3 != peek(fileBuffer, 0x4B) :continue
+		findMsg += ""+ cnt +"("+ token +"),"
+	
+		x = 0
+		y = 0
+		z = 0
+		memcpy x, fileBuffer, 3, 0, 0x4E
+		memcpy y, fileBuffer, 3, 0, 0x51
+		memcpy z, fileBuffer, 3, 0, 0x53
+		line x, z, loword(prev), hiword(prev)
+		prev = makelong(x, z)
+	loop
+	redraw 1
+	
+	repeat byteLen
+		buf += ""+ cnt +" = "+ byteList.cnt +" ("+ byteMax.cnt +")‰ñ ["+ byteNumbers.cnt +"]\n"
+	loop
+	buf += "\n find["+ findMsg +"]"
+	
+	#ifndef IMAGE_MODE
+	pos 0, 20 :mesbox buf, ginfo(12), ginfo(13)-20, 5, 0
+	#endif
+	wait 1
+	
+	

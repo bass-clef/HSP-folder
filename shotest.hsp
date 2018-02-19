@@ -1,0 +1,108 @@
+//左クリック:弾発射
+
+#define S_MAX 30	//弾の数
+#define S_HEIGHT 10	//弾の長さ
+#define S_SPEED 10	//弾の速さ
+#define S_TIME 10	//弾を発射するまでの時間
+
+// ウィンドウ初期化
+screen 0, 640, 480
+fheight = 16
+fwidth = fheight/2
+font msgothic, fheight
+
+// 弾用配列
+dim shot, S_MAX		// 弾のフラグ用
+ddim spx, S_MAX		// 弾のx座標
+ddim spy, S_MAX		// 弾のy座標
+key = 0
+time = 0
+
+// 敵？
+sdim ene
+ene = "   これはシューティングのサンプルです\\"
+ene += "しかもこのメッセージが敵として出現。どうする？\\\\"
+ene += "  A, 倒す          B, 無視する\\\\"
+ene += "      あなたの決断は！？\\"
+ene += "しかもこのメッセージが敵として出現。どうする？\\\\"
+ene += "  A, 倒す          B, 無視する\\\\"
+ene += "      あなたの決断は！？\\"
+ene += "しかもこのメッセージが敵として出現。どうする？\\\\"
+ene += "  A, 倒す          B, 無視する\\\\"
+ene += "      あなたの決断は！？\\"
+
+E_MAX = strlen(ene)
+sdim enebuf, 2
+dim enef, E_MAX
+dim epx, E_MAX
+dim epy, E_MAX
+enepx = 15 :enepy = 3 :j = 1
+
+repeat E_MAX		// [＝]はめんどいｗ
+	i=peek(ene, cnt)
+	enepx++
+	if i=='\\' :enepx = 15 :enepy++ :continue
+	if i==' ' :enepx++ :continue
+	if j==1 :if ((0x81 <= i) && (i <= 0x9F)) || ((0xE0 <= i) && (i <= 0xFC)) :j = 2 :continue
+	epx.cnt = fwidth*enepx
+	epy.cnt = fheight*enepy
+	enef.cnt = j
+	j = 1
+loop
+
+*main
+gosub *player
+gosub *draw
+await 10
+goto *main
+
+*player
+	getkey@hsp key, 1
+	for i, 0, S_MAX, 1
+		if shot.i {
+			repeat S_SPEED	// 位置加算は当たり判定と共に
+				spy.i-=1.0	// 弾を進ませる
+				
+				// 当たり判定
+				repeat E_MAX
+					// 生きているかのフラグ
+					if enef.cnt {
+						// ( (敵x座標 <= 自機弾位置) && (自機弾位置 <= 敵座標x+敵のx大きさ) )  &&  ( (敵y座標 <= 自機弾位置) && (自機弾位置 <= 敵座標y+敵のy大きさ) )
+						if ((epx.cnt <= spx.i) && (spx.i <= epx.cnt+enef.cnt*fwidth)) && ((epy.cnt <= spy.i) && (spy.i <= epy.cnt+fheight)){
+							// 敵と自機弾を消す
+							enef.cnt = 0 :shot.i = 0 :break
+						}
+					}
+				loop
+			loop
+			if spy.i < -S_HEIGHT :shot.i = 0	// 画面から出たら消す
+		}else :if (time == 0) && (key) {		// 空き時間無しとｸﾘｯｸ
+			// 弾番号iの出現
+			shot.i = 1
+			spx.i = double(mousex)
+			spy.i = double(mousey)
+			
+			// クリックしてなかった事にする
+			key = 0
+			// 次の出現まで時間を空ける
+			time = S_TIME
+		}
+	next
+	if time :time--
+return
+
+*draw
+	redraw 0
+	color :boxf :color 255, 255, 255
+	 
+	// 敵？
+	repeat E_MAX
+		if enef.cnt :pos epx.cnt, epy.cnt :mes strmid(ene, cnt-(enef.cnt-1), enef.cnt)
+	loop
+	
+	repeat S_MAX
+		// 弾番号cntが発射されていたら
+		if shot.cnt :line spx.cnt, spy.cnt, spx.cnt, spy.cnt+S_HEIGHT
+	loop
+	redraw 1
+return

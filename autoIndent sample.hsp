@@ -1,0 +1,94 @@
+	
+	
+	#module
+	#uselib "user32.dll"
+	#func	GetWindowText		"GetWindowTextA"		int, int, int
+	#func	SetWindowText		"SetWindowTextA"		int, int
+	#func	GetCaretPos			"GetCaretPos"			int
+	#func	SetScrollInfo		"SetScrollInfo"			int, int, int, int
+	#func	GetScrollInfo		"GetScrollInfo"			int, int, int
+	#cfunc	GetWindowTextLength	"GetWindowTextLengthA"	int
+	#define SIF_RANGE           0x0001
+	#define SIF_PAGE            0x0002
+	#define SIF_POS             0x0004
+	#define SIF_DISABLENOSCROLL 0x0008
+	#define SIF_TRACKPOS        0x0010
+	#define SIF_ALL             (SIF_RANGE | SIF_PAGE | SIF_POS | SIF_TRACKPOS)
+	#define SB_HORZ				0
+	#define SB_VERT				1
+	#define SB_CTL              2
+	
+	#define EM_SETSEL			0x00B1
+	#define EM_GETLINECOUNT		0x00BA
+	#define EM_LINEINDEX		0x00BB
+	#define EM_SCROLLCARET		0x00B7
+	#define EM_LINEFROMCHAR		0x00C9
+	// オートインデント
+	#deffunc AutoIndent int hEdit
+		sendmsg hEdit, EM_GETLINECOUNT, -1, 0
+		nmax = stat
+		if time {
+			time--
+		}else :if notemaxed < nmax {
+			// 改行
+			if notemaxed == 0 :notemaxed = 1 :return
+			time = 2	// 初回だけ2回くるので(バグ?)回避
+			sendmsg hEdit, EM_LINEFROMCHAR, -1, 0
+			row = stat
+			
+			size = GetWindowTextLength(hEdit)
+			sdim buf, size+1
+			GetWindowText hEdit, varptr(buf), size+1
+			
+			notesel@hsp buf
+			noteget@hsp inf, row-1
+			i = 0
+			while (peek(inf, i) == ' ' || peek(inf, i) == '\t')	// インデント文字
+				i++
+			wend
+			addword = strmid(inf, 0, i)
+			if strlen(addword) {
+				// 自動インデント
+				dim vsi, 7
+				vsi = 4*7, SIF_ALL | SIF_DISABLENOSCROLL
+				GetScrollInfo hEdit, SB_VERT, varptr(vsi)
+				title ""+hsi.5+"x"+vsi.5
+				
+				sendmsg hEdit, EM_LINEINDEX, -1, 0
+				index = stat+1
+				
+				worded = noteget(row)
+				noteadd addword+worded, row, 1
+				SetWindowText hEdit, varptr(buf)
+				
+				i--
+				sendmsg hEdit, EM_SETSEL, index+i, index+i
+				
+//				sendmsg hEdit, EM_SCROLLCARET, 0, 0
+				sendmsg hEdit, 0x00B6, hsi.5, vsi.5
+				logmes ""+hsi.5+"x"+vsi.5
+				
+				logmes "["+addword+"]("+strlen(addword)+")["+worded+"] row["+row+"] index["+index+"] nmax["+nmax+"]"
+			}
+		}
+		dim hsi, 7
+		hsi = 4*7, SIF_ALL | SIF_DISABLENOSCROLL
+		GetScrollInfo hEdit, SB_HORZ, varptr(hsi)
+		notemaxed = nmax
+		return
+	#global
+	
+	sdim buf
+	
+	objmode 2 :font msgothic, 16
+	pos 0, 0
+	mesbox buf, ginfo(12), ginfo(13), 5, 0
+	hEdit = objinfo(stat, 2)
+	
+*main
+	AutoIndent hEdit
+	wait 1
+	goto *main
+	
+	
+	

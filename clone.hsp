@@ -1,0 +1,113 @@
+	
+	#uselib "gdi32.dll"
+	#func	BitBlt	"BitBlt"	int, int, int, int, int,  int, int, int, int
+	#uselib "user32.dll"
+	#func	ReleaseDC	"ReleaseDC"		int, int
+	#func	sclass		"SetClassLongA"	int, int, int
+	#cfunc	FindWindow	"FindWindowA"	sptr, sptr
+	#cfunc	GetDC		"GetDC"			int
+	#cfunc	gclass		"GetClassLongA"	int, int
+	#uselib "shell32.dll"
+	#func	DragAcceptFiles	"DragAcceptFiles"	int, int
+	#uselib "getwindow.dll"
+	#func	MakeGetWindowHandleObject	"MakeGetWindowHandleObject"		int, int, int, int, int
+	
+	htWnd = FindWindow(null, "clicked")
+	repeat 
+		if getkey(13) & 0x8000 :break
+		wait 1
+	loop
+	htWnd = hwnd(ginfo(0), ginfo(1))
+	
+	if htWnd == NULL :end
+	wndcw = winfo(12, htWnd)
+	wndch = winfo(13, htWnd)
+	wnddw = ginfo(20)
+	wnddh = ginfo(21)
+	mar = double(wnddh)/double(wndch)
+	smar = double(wndch)/double(wnddh)
+	wndccw = mar*wndcw
+	wndcch = mar*wndch
+	xpos = (wnddw-wndccw)/2
+	countinit = 10
+	csize = (wndcw-2)*(wndch-2)*3
+	
+	buffer 1, wndcw-2, wndch-2
+	bgscr 0, wnddw-2, wnddh-2, 0, 1, 1
+	title "clone"
+	DragAcceptFiles hwnd@hsp, 1
+	sclass hwnd@hsp, -26, gclass(hwnd@hsp, -26) | 0x08
+	
+	oncmd gosub *click, WM_LBUTTONDOWN
+	oncmd gosub *click, WM_LBUTTONUP
+	oncmd gosub *click, WM_RBUTTONDOWN
+	oncmd gosub *click, WM_RBUTTONUP
+	oncmd gosub *click, WM_MBUTTONDOWN
+	oncmd gosub *click, WM_MBUTTONUP
+	oncmd gosub *click, WM_MOUSEMOVE
+	oncmd gosub *click, WM_LBUTTONDBLCLK
+	oncmd gosub *click, WM_RBUTTONDBLCLK
+	oncmd gosub *activate, WM_ACTIVATE
+	oncmd gosub *parry, WM_MOUSEWHEEL
+	oncmd gosub *parry, WM_KEYDOWN
+	oncmd gosub *parry, WM_KEYUP
+	oncmd gosub *parry, WM_CHAR
+	oncmd gosub *parry, WM_COMMAND
+	oncmd gosub *parry, WM_NOTIFY
+	oncmd gosub *parry, WM_DROPFILES
+	oncmd gosub *parry, WM_MOUSEHOVER
+	oncmd gosub *parry, WM_MOUSELEAVE
+	boxf 
+	
+	#define SWP_NOSIZE          0x0001
+	#define SWP_NOMOVE          0x0002
+	#define SWP_NOACTIVATE      0x0010
+	#define SWP_NOCOPYBITS      0x0100
+	mask = SWP_NOACTIVATE | SWP_NOCOPYBITS | SWP_NOMOVE | SWP_NOSIZE
+	
+	drawmode = 1
+	
+*main
+	gosub *draw
+	
+	wait 10
+	goto *main
+	
+*draw
+	gsel 1
+	htdc = GetDC(htWnd)
+	BitBlt hdc@hsp, -1, -1, wndcw-1, wndch-1, htdc, 0, 0, SRCCOPY
+	redraw 1
+	ReleaseDC htWnd, htdc
+	
+	if drawmode {
+		gsel 0
+		redraw 0
+		pos xpos, 0
+		gzoom wnddw, wnddh, 1, 0, 0, wndcw-1, wndch-1, 1
+	}else {
+		mref vram1, 66
+	
+		gsel 0
+		mref vram2, 66
+		memcpy vram2, vram1, csize
+	}
+	redraw 1
+	return
+	
+*activate
+	postmsg htWnd, iparam, wparam, lparam
+	spos hwnd@hsp, 1, 0, 0, 0, 0, mask
+	return
+	
+*parry
+	postmsg htWnd, iparam, wparam, lparam
+	return
+	
+*click
+	mx = loword(lparam)-xpos
+	my = hiword(lparam)
+	mx = double(mx)*smar
+	my = double(my)*smar
+	if (0 <= mx) && (mx <= wndcw) :postmsg htWnd, iparam, wparam, makeword(int(mx), int(my))
+	return

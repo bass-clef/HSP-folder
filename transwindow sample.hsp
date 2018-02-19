@@ -1,0 +1,291 @@
+	
+	// Dir music 3.0
+	
+	#uselib "user32.dll"
+	#func	SetLayered				"SetLayeredWindowAttributes" int, int, int, int
+	#func	SetClassLong			"SetClassLongA"			int, int, int
+	#func	SetTimer				"SetTimer"				int, int, int, int
+	#func	KillTimer				"KillTimer"				int, int
+	#func	SetActiveWindow			"SetActiveWindow"		int
+	#cfunc	GetClassLong			"GetClassLongA"			int, int
+	#cfunc	LoadImage				"LoadImageA"			int, sptr, int, int, int, int
+	
+	#uselib "gdi32.dll"
+	#func	AddFontResourceEx		"AddFontResourceExA"	sptr, int, int
+//	#func	BitBlt					"BitBlt"				int, int, int, int, int,  int, int, int,  int
+	#func	DeleteObject			"DeleteObject"			int
+//	#func	DeleteDC				"DeleteDC"				int
+	#func	SelectObject			"SelectObject"			int, int
+	#func	RemoveFontResourceEx	"RemoveFontResourceExA"	sptr, int, int
+//	#cfunc	CreateCompatibleBitmap	"CreateCompatibleBitmap"int, int, int
+//	#cfunc	CreateCompatibleDC		"CreateCompatibleDC"	int
+	#cfunc	CreateFont				"CreateFontA"			int, int, int, int, int,  int, int, int, int, int,  int, int, int, sptr
+	
+	#uselib "DMModule.dll"
+	#func	AddTaskBarButton		"AddTaskBarButton"		int, sptr, int
+	#func	MakeTaskBar				"MakeTaskBar"			int, int
+	#func	ApplyTaskBarButton		"ApplyTaskBarButton"
+	
+	#uselib "PointerEx.dll"
+	#func	allow					"IntDereference"		int, int
+	#cfunc	getpt					"GetStrPointer"			sptr
+	#cfunc	refer					"IntReference"			int
+	
+	#define	global	FONT_FILE			"LEDBOARD.ttf"
+	#define	global	FONT_NAME			"LED BOARD"
+	#define	global	FR_PRIVATE			0x10
+	#define	global	FW_NORMAL			400
+	#define	global	SHIFTJIS_CHARSET	1
+	#define	global	OUT_DEFAULT_PRECIS	0
+	#define	global	CLIP_DEFAULT_PRECIS	0
+	#define	global	DEFAULT_QUALITY		0
+	#define	global	FIXED_PITCH			0x1
+	#define	global	LWA_COLORKEY		0x0001
+	#define	global	LWA_ALPHA			0x0002
+	#define	global	CS_DROPSHADOW		0x00020000
+	#define	global	GCL_STYLE			-26
+	#define	global	SWP_NOSIZE			0x0001
+	#define	global	SWP_NOMOVE			0x0002
+	#define	global	SWP_FRAMECHANGED	0x0020
+	#define	global	THBN_CLICKED		0x1800
+	#define	global	IMAGE_ICON			1
+	#define	global	LR_LOADFROMFILE		0x10
+	
+	
+	#define global	TI_DRAW				1234
+	
+	#enum	global	MWND			= 0
+	#enum	global	MASK
+	#enum	global	IMG_BACK
+	#enum	global	IMG_PLAY
+	#enum	global	IMG_PREV
+	#enum	global	IMG_NEXT
+	#enum	global	IMG_SOUND_ON
+	#enum	global	IMG_SOUND_OFF
+	#enum	global	IMG_CYCLE
+	#enum	global	IMG_CYCING
+	#enum	global	IMG_OPTION
+	// end of images ids
+	#enum	global	IMG_MAX
+	
+	#enum	global	BMP_ACTIVE		= 0
+	#enum	global	BMP_NONACTIVE
+	#enum	global	BMP_ACTIVEDRAW
+	#enum	global	BMP_NONACTIVEDRAW
+	#enum	global	BMP_MAX
+	
+	#enum	global	TB_PREV			= 0
+	#enum	global	TB_PLAY
+	#enum	global	TB_NEXT
+	
+	
+	#include "updatelayeredwindow.as"
+	#include "alphaBmp.as"
+	
+	
+*Main
+	Init
+	
+	#ifdef _DEBUG
+*mainlp
+	sendmsg hMWnd, WM_TIMER, TI_DRAW, 0
+	wait 1
+	goto *mainlp
+	#endif
+	
+	stop
+	
+*WindowProc
+	switch iparam
+	case WM_DESTROY
+		DeleteObject hFont
+		repeat BMP_MAX
+			DeleteObject hBmp(cnt)
+		loop
+		RemoveFontResourceEx ""+dir+FONT_FILE, FR_PRIVATE, NULL
+		swbreak
+	case WM_TIMER
+		waitCalc
+		if wparam == TI_DRAW :Draw
+		swbreak
+	case WM_MOVING
+		if refer(lparam+4) < -15 {
+			allow lparam+4, -15
+			allow lparam+12, -15+whgt
+		}
+		swbreak
+	case WM_COMMAND
+		if hiword(wparam) == THBN_CLICKED {
+			switch loword(wparam)
+			case TB_PREV :MPrev :swbreak
+			case TB_PLAY :MPlay :swbreak
+			case TB_NEXT :MNext :swbreak
+			swend
+		}
+		swbreak
+	case WM_LBUTTONDOWN
+		sendmsg hMWnd, WM_NCLBUTTONDOWN, 2, 0
+		swbreak
+	case WM_RBUTTONDOWN
+		sleep 5
+		sendmsg hMWnd, WM_CLOSE
+		swbreak
+	case WM_ACTIVATE
+		if loword(wparam) == 0 {
+//			lbgscr_Update 0, wwdh, whgt, hBmp(BMP_NONACTIVE), 0, 0, 1
+//			hActBmp = hBmp(BMP_NONACTIVE)
+		}else {
+//			lbgscr_Update 0, wwdh, whgt, hBmp(BMP_ACTIVE), 0, 0, 1
+//			hActBmp = hBmp(BMP_ACTIVE)
+		}
+		swbreak
+	case WM_CLOSE
+		KillTimer hMWnd, TI_DRAW
+		swbreak
+	swend
+	return
+	
+	
+#deffunc Draw
+	SelectObject dc.MWND, hActBmp
+	hdc_ = stat
+	setBmpHandle hActBmp
+	
+	
+	
+	SelectObject dc.MWND, hdc_
+	lbgscr_Update MWND, wwdh, whgt, hActBmp, 0, 0, 1
+	return
+	
+#deffunc Init
+	// 変数
+	#ifdef _DEBUG
+	dir = "D:\\Program Files\\HSP 3.31\\"
+	#else
+	dir = ""+dir_exe+"\\"
+	#endif
+	
+	// 変数
+	dim dc, BMP_MAX
+	wwdh = 200 :whgt = 60
+	xbeg = 20
+	ybeg = 20
+	
+	// リソース
+	chdir dir
+	; フォント
+	AddFontResourceEx ""+dir+FONT_FILE, FR_PRIVATE, NULL
+	hBackFont = CreateFont(18, 8, 0, 0, FW_NORMAL, false, false, false, SHIFTJIS_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, FIXED_PITCH, FONT_NAME)
+	hFont = CreateFont(16, 8, 0, 0, FW_NORMAL, false, false, false, SHIFTJIS_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, FIXED_PITCH, msgothic)
+	
+	; イメージ
+	hPrevIcon = LoadImage(0, ""+dir+"btn_prev.ico", IMAGE_ICON, 32, 32, LR_LOADFROMFILE)
+	hPlayIcon = LoadImage(0, ""+dir+"btn_play.ico", IMAGE_ICON, 32, 32, LR_LOADFROMFILE)
+	hNextIcon = LoadImage(0, ""+dir+"btn_next.ico", IMAGE_ICON, 32, 32, LR_LOADFROMFILE)
+	
+	ips.MWND = -1 :isz.MWND = makelong(wwdh, whgt)
+	imgload ""+dir+"Metrize_Icons\\play.png", IMG_PLAY, -1
+	imgload ""+dir+"Metrize_Icons\\pause.png", IMG_PAUSE, -1
+	imgload ""+dir+"Metrize_Icons\\stop.png", IMG_STOP, -1
+	imgload ""+dir+"Metrize_Icons\\previous-fast-step.png", IMG_PREV, -1
+	imgload ""+dir+"Metrize_Icons\\next-fast-step.png", IMG_NEXT, -1
+	imgload ""+dir+"Metrize_Icons\\sound-on.png", IMG_SOUND_ON, -1
+	imgload ""+dir+"Metrize_Icons\\sound-off.png", IMG_SOUND_OFF, -1
+	imgload ""+dir+"Metrize_Icons\\arrow-cycle.png", IMG_CYCLE, -1
+	imgload ""+dir+"Metrize_Icons\\arrow-cycling.png", IMG_CYCLING, -1
+	imgload ""+dir+"Metrize_Icons\\options-settings.png", IMG_OPTION, -1
+	
+	// マスク作成
+	buffer IMG_BACK, wwdh, whgt
+	hBmp.IMG_BACK = CreateImage(dc.IMG_BACK, wwdh, whgt, 0, 0)
+	
+	// ウィンドウ
+	lbgscr MWND, wwdh, whgt, 6, -1, -1, hBmp.IMG_BACK, 0, 0, 1
+	title "Dir Music"
+	dc.MWND = hdc@hsp
+	hMWnd = hwnd@hsp
+	hActBmp = hBmp.IMG_BACK
+	
+	oncmd gosub *WindowProc, WM_LBUTTONDOWN
+	oncmd gosub *WindowProc, WM_RBUTTONDOWN
+	oncmd gosub *WindowProc, WM_COMMAND
+	oncmd gosub *WindowProc, WM_TIMER
+	oncmd gosub *WindowProc, WM_CLOSE
+	oncmd gosub *WindowProc, WM_DESTROY
+	oncmd gosub *WindowProc, WM_ACTIVATE
+	oncmd gosub *WindowProc, WM_MOVING
+	
+	gsel MWND, 1
+	
+	SelectObject dc.MWND, hActBmp
+	hdc_ = stat
+	setBmpHandle hActBmp
+	color 0, 0, 0
+	boxf 0, 0, wwdh, whgt
+	setAlpha 127
+	aboxf 0, 0, wwdh, whgt
+	makeLayeredImage wwdh, whgt, 10
+	SelectObject dc.MWND, hdc_
+	
+	// タスクバー
+	MakeTaskBar hMWnd, 3
+	AddTaskBarButton 0, "前へ", hPrevIcon
+	AddTaskBarButton 1, "再生", hPlayIcon
+	AddTaskBarButton 2, "次へ", hNextIcon
+	ApplyTaskBarButton
+	
+	#ifndef _DEBUG
+	SetTimer hMWnd, TI_DRAW, 16, 0
+	#endif
+	
+	return
+	
+*labelButton
+	return
+	
+#deffunc MPlay
+	dialog "play"
+	return
+#deffunc MPrev
+	dialog "prev"
+	return
+#deffunc MNext
+	dialog "next"
+	return
+	
+#deffunc imgload str filename, int imgid, int location
+	buffer imgid
+	picload filename
+	isz@.imgid = makelong(ginfo(12), ginfo(13))
+	ips@.imgid = location
+	dc.imgid = hdc@hsp
+	return
+	
+	#module
+	#deffunc makeLayeredImage int width_, int height_, int size
+		clr = 255.0/size
+		repeat size
+			setAlpha limit(clr*(cnt-1), 0, 255)
+			aboxf cnt, cnt, width_-cnt*2, height_-cnt*2
+		loop
+		setAlpha 255
+		aboxf size, size, width_-size*2, height_-size*2
+	return
+	#global
+	
+	#module
+	#deffunc waitCalc
+		if waittime :waittime--
+	return
+	#deffunc sleep int sleeptime
+		#ifndef _DEBUG
+		waittime = sleeptime
+		repeat
+			if not(waittime) :break
+			await
+		loop
+		#else
+		wait sleeptime*16
+		#endif
+	return
+	#global

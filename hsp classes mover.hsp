@@ -1,0 +1,57 @@
+	
+	#include "targetfind.as"
+	
+	dim pt
+	
+	screen 0, 200, 40, 2
+	title "window mover"
+	font msgothic, 14
+	gsel 0, 2
+	
+	dim handle
+	classes = "hspwnd0", "HSP3DEBUG"
+	windows = "Hot Soup Processor ver.3.31", "Debug Window"
+	pt = 0, 0
+	
+	objsize ginfo(12), 20
+	pos 0, 0 :button gosub "‹L‰¯", *save
+	
+	font msgothic, 10
+	
+	repeat
+		repeat length(classes)
+			findWindows handle.cnt, classes.cnt, windows.cnt, pt.cnt
+		loop
+		
+		redraw 0
+		colorwhite :boxf :color
+		pos 0, 20
+		repeat length(classes)
+			mes ""+strmid(windows.cnt, 0, 10)+"... : ["+loword(pt.cnt)+"x"+hiword(pt.cnt)+"] "+handle.cnt
+		loop
+		redraw 1
+		
+		wait 10
+	loop
+	
+	stop
+*save
+	repeat length(handle)
+		pt.cnt = makelong(winfo(4, handle.cnt), winfo(5, handle.cnt))
+	loop
+	return
+	
+	#module
+	#deffunc findWindows var handle, str class, str location, var pt
+		if handle == null {
+			handle = FindWindow(-1, class, location)
+			if handle {
+				smove loword(pt), hiword(pt), handle
+			}
+		}
+		if iswin(handle) == 0 {
+			handle = null
+		}
+	return handle
+	#global
+	

@@ -1,0 +1,321 @@
+	
+	
+	
+	
+	//sin( PI*2 / 周期 * Count ) * 振幅
+	
+	#uselib "user32.dll"
+	#func	SetTimer		"SetTimer"						int, int, int, int
+	#func	KillTimer		"KillTimer"						int, int
+	#func	SetLayered		"SetLayeredWindowAttributes"	int, int, int, int
+	#func	GetLayered		"GetLayeredWindowAttributes"	int, sptr, sptr, sptr
+	#func	SetCursor		"SetCursor"						int
+	#func	GetWindowRect	"GetWindowRect"					int, int
+	#cfunc	LoadImage		"LoadImageA"					int, sptr, int, int, int, int
+	
+	#uselib "kernel32.dll"
+	#cfunc	GetSystemPowerStatus	"GetSystemPowerStatus"	var
+	
+	#uselib "PointerEx.dll"
+	#cfunc	getpt			"GetStrPointer"			sptr
+	#cfunc	refer			"IntReference"			int
+	#func	allow			"IntDereference"		int, int
+	
+	#define ctype BatteryLifePercent(%1)	peek(%1, 2)
+	#define ctype BatteryFlag(%1)			peek(%1, 1)
+	#define ctype ptop(%1, %2)				sqrt(powf(%1, 2)+powf(%2, 2))
+	#define msGettime					gettime(4)*360000 + gettime(5)*6000 + gettime(6)*100 + gettime(7)/10
+	
+	#define BATTERY_PERCENTAGE_UNKNOWN		255
+	#define OCR_NORMAL          32512
+	#define OCR_IBEAM           32513
+	#define OCR_WAIT            32514
+	#define OCR_CROSS           32515
+	#define OCR_UP              32516
+	#define OCR_SIZE            32640   /* OBSOLETE: use OCR_SIZEALL */
+	#define OCR_ICON            32641   /* OBSOLETE: use OCR_NORMAL */
+	#define OCR_SIZENWSE        32642
+	#define OCR_SIZENESW        32643
+	#define OCR_SIZEWE          32644
+	#define OCR_SIZENS          32645
+	#define OCR_SIZEALL         32646
+	#define OCR_ICOCUR          32647   /* OBSOLETE: use OIC_WINLOGO */
+	#define OCR_NO              32648
+	#define OCR_HAND            32649
+	#define OCR_APPSTARTING     32650
+	#define	IMAGE_CURSOR		2
+	#define	LR_DEFAULTSIZE		0
+	#define LR_SHARED			0x00008000
+	#define	DI_DEFAULTSIZE		8
+	#define	LWA_COLORKEY		0x0001
+	#define LWA_ALPHA			0x0002
+	
+	#define TI_RECD		1048
+	#define DB			double
+	
+	#enum	WND_MAIN			= 0
+	#enum	WND_IMG
+	#enum	WND_SUB
+	
+	#include "color.as"
+	#include "MouseGesture.as"
+	
+*main
+	Init
+	
+	stop
+	
+*exit
+	if wparam == WND_SUB :gsel WND_SUB, -1 :gsel WND_MAIN, 2 :hSWnd = NULL :return
+	end :end
+	
+*WindowProc
+	switch iparam
+	case WM_TIMER
+		if wparam == TI_RECD {
+			gsel WND_MAIN, 2
+			Calc
+		}
+		swbreak
+	case WM_MOUSEMOVE
+		MoveWindow
+		if mmf == 2 :swbreak
+		if mmf == 1 :mmf = 0 :sendmsg hMWnd, WM_MOUSEMOVE, wparam, lparam :swbreak
+		mmf = 1
+		BeginTime = msGetTime
+		repeat
+			if BeginTime+300 <= msGetTime :mmf = 2
+			if ginfo(0) != 0 :mmf = 0
+			if mmf != 1 :break
+			wait 1
+		loop
+		if mmf == 2 :Option :mmf = 0
+		
+		MoveWindow
+		repeat MGMax
+			MGOnPointer ginfo(0), ginfo(1), cnt
+		loop
+		
+		swbreak
+	case WM_MOVING
+		if flag {
+			if refer(lparam) < 0 :allow lparam, 0
+			allow lparam+4, 0
+			allow lparam+12, wdy
+		}else {
+			allow lparam, 0
+			allow lparam+8, wdx
+		}
+		swbreak
+	case WM_KEYDOWN
+		
+		swbreak
+	case WM_LBUTTONDOWN
+		sendmsg hMWnd, WM_NCLBUTTONDOWN, 2
+		swbreak
+	case WM_RBUTTONDOWN
+		KillTimer hMWnd, TI_RECD
+		wait 50
+		sendmsg hMWnd, WM_CLOSE
+		swbreak
+	case WM_CLOSE
+		KillTimer hMWnd, TI_RECD
+		swbreak
+	swend
+	return
+	
+*MGEvent
+	
+	return
+	
+#deffunc Option
+	oncmd 0
+	screen WND_SUB, 300, 200, 2, (wdx-300)/2, (wdy-200)/2
+	hSWnd = hwnd@hsp
+	slong hSWnd, GWL_EXSTYLE, glong(hSWnd, GWL_EXSTYLE) | WS_EX_TOOLWINDOW
+	gsel WND_SUB, 1
+	title "設定"
+	button gosub "", *OptionJump
+	
+	repeat
+		if hSWnd == NULL :break
+		wait 1
+	loop
+	
+	oncmd 1
+	return
+	
+*OptionJump
+	
+	return
+	
+#deffunc MoveWindow
+	dim rc, 4
+	GetWindowRect hMWnd, varptr(rc)
+	if flag {// 縦長
+		if abs(ginfo(0)-rc.0) < 50 :SetCursor hCrossCursor
+		if ginfo(0) == 0 {
+			if rc.0 == 0 :smove 1, 0, hMWnd
+		}elif rc.0 == 1 {
+			smove 0, 0, hMWnd
+		}
+	}
+	return
+	
+#deffunc BatteryBar
+	colorto RGB(255, 0, 0), RGB(255, 255, 0), yellowline
+	redraw 0
+	repeat toi(flag, wdy, wdx)
+		if csetct() == 0 {
+			colorto RGB(255, 255, 0), RGB(0, 128, 255), toi(flag, wdy, wdx)-yellowline
+		}
+		if flag {
+			y = wdy-cnt
+			line -1, y, size, y
+		}else {
+			x = wdx-cnt
+			line x, -1, x, size
+		}
+	loop
+	redraw 1
+	return
+	
+#deffunc Calc
+	dim sps, 3
+	if GetSystemPowerStatus(sps) {
+		nowbt = BatteryLifePercent(sps.0)
+		if nowbt != BATTERY_PERCENTAGE_UNKNOWN {
+			//バッテリー
+			title "バッテリー残量 "+nowbt+"%"
+			if oldbt != nowbt :Draw :oldbt = nowbt
+			
+		}
+	}
+	return
+	
+#deffunc Draw int boot
+	KillTimer hMWnd, TI_RECD
+	if flag {
+		x = size
+		y = db(wdy)/100.0*db(oldbt)
+		px = 0
+		py = wdy-y
+		i = y - db(wdy)/100.0*db(nowbt)
+		ax = 0
+		ay = int(i/abs(i))
+	}else {
+		x = db(wdx)/100.0*db(oldbt)
+		y = size
+		px = wdx-x
+		py = 0
+		i = x - db(wdx)/100.0*db(nowbt)
+		ax = int(i/abs(i))
+		ay = 0
+	}
+	
+	repeat abs(i)
+		redraw 0
+		colorwhite :boxf@hsp
+		pos px, py :gcopy WND_IMG, px, py, x+ax*cnt, y+ay*cnt
+		redraw 1
+		if 30 < abs(i) :wait 1 :else :wait 5
+	loop
+	SetTimer hMWnd, TI_RECD, 16, 0
+	return
+
+#deffunc Init
+	
+	wdx = ginfo(20) :wdy = ginfo(21)
+	size = 2
+	redline = 0.15
+	mgmax = 0
+	
+	hCrossCursor = LoadImage(NULL, OCR_CROSS, IMAGE_CURSOR, 0, 0, LR_DEFAULTSIZE | LR_SHARED);
+	
+	// タスクバーの位置取得
+	//FindWindow("Shell_TrayWnd", )
+	p = makeword(1, 0)	// 1< 0:横に大きい 1:縦に大きい >, 2< position >
+	flag = loword(p)
+	yellowline = db(toi(flag, wdy, wdx))*redline
+	
+	DateInit
+	WindowInit 1
+	
+	return
+	
+#deffunc DateInit
+	if flag :buffer WND_IMG, 100, wdy :else :buffer WND_IMG, wdx, 100
+	BatteryBar
+	
+	return
+	
+#deffunc WindowInit int boot
+	if flag {// 縦長
+		bgscr WND_MAIN, size+160, wdy, 2, hiword(p), 0
+	}else {// 横長
+		bgscr WND_MAIN, wdx, size, 2, 0, hiword(p)
+	}
+	title "Battery Viewer"
+	wait 5
+	hMWnd	= hwnd@hsp
+	hMDC	= hdc@hsp
+	slong hMWnd, GWL_EXSTYLE, glong(hMWnd, GWL_EXSTYLE) | WS_EX_LAYERED// | WS_EX_TOOLWINDOW
+	SetLayered hwnd, RGB(255, 255, 255), 255, LWA_COLORKEY | LWA_ALPHA
+	font msgothic, 16
+	
+	if boot {
+		oncmd gosub *WindowProc, WM_TIMER
+		oncmd gosub *WindowProc, WM_CLOSE
+		oncmd gosub *WindowProc, WM_LBUTTONDOWN
+		oncmd gosub *WindowProc, WM_RBUTTONDOWN
+		oncmd gosub *WindowProc, WM_MOVING
+		oncmd gosub *WindowProc, WM_MOUSEMOVE
+		oncmd gosub *WindowProc, WM_KEYDOWN
+		onexit gosub *exit
+		SetTimer hMWnd, TI_RECD, 16, 0
+	}
+	gsel 0, 2
+	
+	return
+	
+	#module
+	// 三項演算子
+	#defcfunc toi int exp, int i1, int i2
+		if exp :return i1
+	return i2
+	#global
+	
+	#module
+	#uselib "kernel32.dll"
+	#cfunc	GetCurrentProcess		"GetCurrentProcess"
+	#func	SetSystemPowerState		"SetSystemPowerState"	int, int
+	
+	#uselib "advapi32.dll"
+	#cfunc	OpenProcessToken		"OpenProcessToken"		int, int, int
+	#func	LookupPrivilegeValueA	"LookupPrivilegeValueA"	int, int, int
+	#func	AdjustTokenPrivileges	"AdjustTokenPrivileges"	int, int, int, int, int, int
+	
+	#define TOKEN_ADJUST_PRIVILEGES	32
+	#define SE_PRIVILEGE_ENABLED	2
+	#define SE_SHUTDOWN_NAME		"SeShutdownPrivilege"
+	
+	//SystemSleep
+	#deffunc SystemSleep int SystemSleepFlag
+		phToken = varptr(hToken)
+		void GetCurrentProcess()
+		void OpenProcessToken(stat, TOKEN_ADJUST_PRIVILEGES, phToken)
+		
+		ssn = SE_SHUTDOWN_NAME
+		pssn = varptr(ssn)
+		pluid = varptr(tpl.1)
+		LookupPrivilegeValueA 0, pssn, pluid
+		
+		tpl.0 = 1
+		tpl.3 = SE_PRIVILEGE_ENABLED
+		ptpl = varptr(tpl)
+		AdjustTokenPrivileges hToken, 0, ptpl, 0, 0, 0
+	
+		//最初の0を1にするとスタンバイ、後の0を1にすると強制実行
+		SetSystemPowerState SystemSleepFlag, 0
+	return
+	#global

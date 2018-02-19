@@ -1,0 +1,626 @@
+	
+	
+	/**
+	 *
+	 * Black Borad
+	 *
+	 * ver 6.0
+	 *
+	 */
+	
+	
+	/*
+	:フォーマット:
+	・全ての Identifier は {識別子(4b),型(4b),内容(4b)}typedef Identifier を持っている
+	・Identifier の種類を判別させるために Identifier の前に 4byte 領域がある
+	・valueは 値 の前にサイズがある
+	
+	:バイナリ:
+	・大きく領域を分けると
+		0. バージョン領域
+		1. 定義領域
+		2. 情報領域
+		に分かれて保存する
+	・バージョン領域
+		BB{major ver}{miner ver}	.4byte
+		{定義領域インデックス}		.4byte
+	・定義領域は必ず 4byte*4 毎に並んでいる {UUID, ID, TYPE, CONTENTS}
+	・情報領域には 型 に応じて 内容 が静的確保されている
+	
+	:要素:
+	<object><"hoge"><type><value>		// object	関数,クラス,名前空間,演算子,変数
+	<value><"hoge"><type><size><value>	// 値		リテラル,アドレス
+	
+	*例*
+	// ソース
+	func(text) print text;
+	main {
+		func("Hello World.");
+	}
+	// 定義
+	<object><"func"><><> <object><"("><><> <object><"text"><><> <object><")"><><> <object><"print"><><> <object><"text"><><> <object><><><>
+	<object><"main"><><> <object><"{"><><>
+		<object><"func"><><> <object><"("><><> <value><"value1"><><> <object><")"><><> <object><><><>
+	<object><><><>
+	// 情報
+	<value><"value1"><><12><Hello World.>
+	**
+	
+	:仕様:
+	・IDのスコープの定義は { から } までが生存範囲とする
+	・IDは 大/小文字 を区別する
+	・式の格納形式は逆ポーランド
+	・定義済みのリテラルの種類は	"string" 'string' num 3.1415
+	・定義済みのオブジェクトの種類は
+	main ( ) { } ; , += -= *= /= %= <<= >>= &= ^= |= = || && | ^ & != == <= >= - + % / * ! ~ -- ++ ] [ -> . # => ::
+	*/
+	
+	allBuf = {"
+	bar {
+		hoge(s1, s2) print << s1 + s2;
+	}
+	
+	classHoge {
+		piyo = 0;
+		abc = "";
+	}
+	
+	foo(s1) {
+		print << s1;
+		if (s1) {
+			print " ver 6.0";
+		}
+		else
+		{
+			print " this is foo function"
+		}
+	}
+	
+	main
+	{
+		hello = new classHoge;
+		hello.abc = "Hello";
+		classHoge.abc = "world";
+		bar::hoge(hello.abc, classHoge.abc);
+		efd = new foo("Black Board");
+		efd();
+		a = 12 * 123 + 5 * 6;
+	}
+	"}
+	/*
+	bar {
+		hoge s1 s2 ) , ( print s1 s2 + ;
+	}
+	classHoge {
+		piyo 0 = ;
+		abc = "" ;
+	}
+	foo s1 ) ( {
+		print s1 ;
+		if s1 ) ( {
+			print " ver 6.0" ;
+		}
+		else {
+			print " this is foo function"
+		}
+	}
+	main {
+		hello new classHoge = ;
+		hello abc "Hello" = . ;
+		classHoge abc "world" = . ;
+		bar hoge hello abc classHoge abc ) . , . ( :: ;
+		efd new foo "Black Board" ) ( = ;
+		efd ) ( ;
+		a 12 123 5 6 * + * = ;
+	}
+	*/
+	
+	/**/
+	allBuf = {"
+	func(text) print text;
+	main {
+		func("Hello World.");
+		a = 12 / (123 + 3) * 6;
+		func(a);
+	}
+	object "=<" (defineText) {
+		b = func;
+		b(defineText);
+	}
+	"}
+	allBuf = {"
+	func(foo) return 12 / (123 + 3) * (foo);
+	print(func(2));
+	"}
+	/**
+	func text ) ( print text ;
+	hoge foo bar {
+		
+	}
+	main {
+		func "Hello World." ) ( ;
+		a 12 123 3 ) + ( 6 * / =
+		func a ) ( ;
+	}
+	object "=<" defineText ) ( {
+		b func = ;
+		b defineText ) ( ;
+	}
+	*/
+	operator = ",","+=","-=","*=","/=","%=","<<=",">>=","&=","^=","|=","=","||","&&","|","^","&","!=","==","<=",">=","-","+","%","*","/","!","~","--","++","]","[","->",".","=>","::"
+	
+	initialize
+	
+	operator.length(operator) = "{"
+	operator.length(operator) = "}"
+	operator.length(operator) = "("
+	operator.length(operator) = ")"
+	operator.length(operator) = ";"
+	operator.length(operator) = "print"
+	convert DIR_HSPWORK+"\\sample.bb", allBuf, fileBuf, operator
+	
+	stop
+	
+	// 文字列ディバイダー
+	#include "StringTypeDevider.as"
+	
+	#enum	global	T_COMMENT				= T_MAX
+	#enum	global	T_COMMENTS
+	#enum	global	T_LITERAL
+	#enum	global	T_SEMICOLON
+	#enum	global	T_LEFT_CURLY_BRACKET
+	#enum	global	T_RIGHT_CURLY_BRACKET
+	#enum	global	T_LEFT_PARENTHESIS
+	#enum	global	T_RIGHT_PARENTHESIS
+	
+	#enum	global	T_OPERATOR
+	
+
+
+	#deffunc initialize
+	
+	initTypes
+	// エスケープシーケンス
+	addType T_THROUGHT :id = stat
+	setInvalidStatus id, PREV_TOKEN, sstr(0x80)+sstr(0x9F)+sstr(0xE0)+sstr(0xFE)
+	addTypePrms id, TF_NEXT | TF_LOCK | TF_INTERRUPT, "\\\\"
+	addTypePrms id, TF_LAST | TF_LASTDELETE, sstr(1)+sstr(255)
+	
+	// 文字列
+	addType T_STR :id = stat
+	addTypePrms id, TF_NEXT | TF_LOCK, "\"\""
+	addTypePrms id, TF_NEXT | TF_LOOP, sstr(1)+sstr('\"'-1)+sstr('\"'+1)+sstr(255)
+	addTypePrms id, TF_LAST, "\"\""
+	addType T_STR :id = stat
+	addTypePrms id, TF_NEXT | TF_LOCK, "''"
+	addTypePrms id, TF_NEXT | TF_LOOP, sstr(1)+sstr('\''-1)+sstr('\''+1)+sstr(255)
+	addTypePrms id, TF_LAST, "''"
+	
+	addType T_NUM :id = stat		// 12345 3.14
+	setInvalidStatus id, PREV_TOKEN | NEXT_TOKEN, "AZaz09__"
+	setValidStatus id, NOW_TOKEN, sstr(1)+sstr('.'-1)+sstr('.'+1)+sstr('0'-1)+sstr('9'+1)+sstr(255)
+	addTypePrms id, TF_NEXT | TF_LOOP | TF_MAYBELAST, "09"
+	addTypePrms id, TF_NEXT | TF_LOOP | TF_MAYBELAST, "09.."
+	addTypePrms id, TF_LOOP | TF_MAYBELAST, "09"
+	
+	// White Space [空白, タブ, 改行, コメント]
+	addType T_COMMENTS :id = stat		// コメント
+	addTypePrms id, TF_NEXT, "//"
+	addTypePrms id, TF_NEXT | TF_LOCK, "**"
+	addTypePrms id, TF_NEXT | TF_LOOP | TF_LABEL, sstr(1)+sstr('*'-1)+sstr('*'+1)+sstr(255)
+	addTypePrms id, TF_NEXT, "**"
+	addTypePrms id, TF_LAST | TF_UMGOTOLABEL, "//"
+	addType T_COMMENT :id = stat		// コメント
+	addTypePrms id, TF_NEXT, "//"
+	addTypePrms id, TF_NEXT | TF_LOCK, "//"
+	addTypePrms id, TF_NEXT | TF_LOOP | TF_LABEL, sstr(1)+sstr(0xC)+sstr(0xE)+sstr(255)
+	addTypePrms id, TF_NEXT, ""+sstr(0xD)+sstr(0xD)
+	addTypePrms id, TF_LAST | TF_UMGOTOLABEL, ""+sstr(0xA)+sstr(0xA)
+	
+	// ID [hoge, abc]
+	addType T_ID :id = stat		// hoge foo_
+	setInvalidStatus id, PREV_TOKEN, "09AZaz"
+	setValidStatus id, NOW_TOKEN, sstr(1)+sstr('A'-1)+sstr('Z'+1)+sstr('_'-1)+sstr('_'+1)+sstr('a'-1)+sstr('z'+1)+sstr(255)
+	addTypePrms id, TF_NEXT | TF_LOOP | TF_MAYBELAST, "azAZ__"
+	addTypePrms id, TF_LOOP | TF_MAYBELAST, "azAZ09__"
+	
+	addType T_LEFT_PARENTHESIS :id = stat
+	addTypePrms id, TF_LAST, "(("
+	addType T_RIGHT_PARENTHESIS :id = stat
+	addTypePrms id, TF_LAST, "))"
+	
+	addType T_LEFT_CURLY_BRACKET :id = stat
+	addTypePrms id, TF_LAST, "{{"
+	addType T_RIGHT_CURLY_BRACKET :id = stat
+	addTypePrms id, TF_LAST, "}}"
+	
+	addType T_SEMICOLON :id = stat
+	addTypePrms id, TF_LAST, ";;"
+	
+	for i, 0, length(operator), 1
+		addType T_OPERATOR :id = stat
+		len = strlen(operator.i)
+		repeat len
+			s = strmid(operator.i, cnt, 1)
+			if cnt == len-1 {
+				addTypePrms id, TF_LAST, ""+ s + s
+			}else {
+				addTypePrms id, TF_NEXT, ""+ s + s
+			}
+		loop
+	next
+	
+	return
+	
+	
+	// --------------------------------------------
+	
+	#include "vector.as"
+	#module
+	#define _logmes(%1)	:
+	// Perser prm, prmtype
+	#deffunc Perser array prm, array prmtype, array operator
+		/*
+		// 変換前
+		var hoge = 0 , foo , bar = "ABC" '+' "DEF" + + 4 , piyo ;
+		// 変換後
+		0 "ABC" '+' "DEF" 4 piyo , + + = bar , foo , = hoge var
+		
+		1.番号のみに変換
+		var hoge = 0 , foo ,  bar =  "ABC" '+' "DEF" +  +  4  ,  piyo ;
+		0   2    4 6 9 11  12 14  19 21    23  25    26 27 29 30 32
+		
+		2-1.数字と文字列リテラルだけ脇以外
+		// ・変数,関数,定数,その他 などは全て演算子として扱う
+		// ・T_WSは無視
+		// ・式区切りは セミコロン[;]
+		*/
+		
+		len = length(prm)
+		
+		// 復号演算子変更チェック
+		// 後置,前置,複合 演算子に対応するためあらかじめキーワードの順序を列挙
+		
+		// 1.
+		// 式を数える
+		count = 0
+		dim subCount
+		alsubCount = 0
+		repeat len
+			if prmtype.cnt != T_WS@ {
+				subCount.count++
+				if prmtype.cnt == T_LEFT_CURLY_BRACKET@ || prmtype.cnt == T_RIGHT_CURLY_BRACKET@ || prmtype.cnt == T_SEMICOLON@ {
+					if alsubCount < subCount.count :alsubCount = subCount.count
+					count++
+				}
+			}
+		loop
+//		count = 1
+		
+		// 2.
+		// 式に分割
+		i = 0 :j = 0
+		dim tree, count, alsubCount
+		repeat len
+			if prmtype.cnt != T_WS@ {
+				tree(j, i) = cnt
+				_logmes "["+j+","+i+"] => ["+cnt+"]("+prm.cnt+")"
+				i++
+				if subCount.j <= i :j++ :i = 0 :_logmes ""
+			}
+		loop
+		_logmes ""
+		
+		// 3.
+		// 逆ポーに変換
+		// 演算子の優先順位 -1:識別子 0-:operator[num]
+		
+		// 優先演算子 括弧
+		OPEEX = "{}","[]","()"
+		OPEEX_len = 3
+		dim opeex_stack, OPEEX_len :osCount = 0
+		
+		vUsing stack
+		error = 0
+		
+		repeat count
+			j = cnt
+			i = 0
+			dim tprm :tCount = 0
+			repeat
+				token = tree(j, i)
+				i++
+				_logmes "Check("+i+"]["+token+")["+prm.token+"]["+(prm.token == "(")+"]"
+				
+				if subCount.j <= i {
+					// スタックが空になるまでプル
+					while vSize()
+						tprm.tCount = vBack()
+						tCount++
+						vPop
+					wend
+					break
+				}
+				
+				// T_NUM | T_STR チェック
+				if prmtype.token == T_NUM@ || prmtype.token == T_STR@ || prmtype.token == T_ID@ {
+					tprm.tCount = token
+					tCount++
+					continue
+				}
+				
+				// 優先演算子 チェック
+				// 終わり チェック
+				n = -1
+				repeat OPEEX_len
+					if prm.token == strmid(OPEEX.cnt, 1, 1) :n = cnt :break
+				loop
+				if n != -1 {
+					_logmes "Backets End"
+					repeat vSize()
+						_logmes "("+cnt+")["+prm.vAt(cnt)+"]"
+					loop
+					vPush token
+					
+					while vSize()
+						back = vBack()
+						vPop
+						tprm.tCount = back
+						tCount++
+						if prm.back == strmid(OPEEX.n, 0, 1) :_break
+					wend
+					if prm.back != strmid(OPEEX.n, 0, 1) {
+						error = -1
+						void "Prm:"+i+""
+						break
+					}
+					osCount--
+					continue
+				}
+				
+				// 始まりチェック
+				n = -1
+				repeat OPEEX_len
+					if prm.token == strmid(OPEEX.cnt, 0, 1) :n = cnt :break
+				loop
+				if n != -1 {
+					_logmes "Backets Begin"
+					vPush token
+					opeex_stack.osCount = n
+					osCount++
+					continue
+				}
+				
+				
+				*EmptyStack
+				await
+				if vSize() {
+					// stackのbackよりtokenの演算子の優先順位が低いか
+					// 演算子の優先順位探索
+					n = INT_MAX
+					back = vBack()
+					
+					l = -1
+					repeat OPEEX_len
+						if prm.back == strmid(OPEEX.cnt, 0, 1) :l = cnt :break
+					loop
+					if l == -1 {
+						repeat ope_len	// backの演算子の順位
+							if prm.back == operator.cnt :n = cnt :break
+						loop
+						m = INT_MAX
+						repeat ope_len	// tokenの演算子の順位
+							if prm.token == operator.cnt :m = cnt :break
+						loop
+					}
+					if m < n && l == -1 {
+						// back > token
+						tprm.tCount = back
+						tCount++
+						vPop
+						goto *EmptyStack
+					}else :vPush token
+				}else :vPush token
+			loop
+			if error < 0 :break
+			
+			// 移し変え
+			repeat tCount
+				tree(j, cnt) = tprm.cnt
+			loop
+			tree(j, tCount) = tree(j, subCount.j-1)
+			subCount.j = tCount+1
+		loop
+		if error < 0 :return error
+		
+		// prmを入れ替え
+		dim tprm
+		dim tprmtype
+		i = 0
+		repeat count
+			j = cnt
+			repeat subCount.j
+				n = tree(j, cnt)
+				tprm.i = prm.n
+				tprmtype.i = prmtype.n
+				i++
+			loop
+		loop
+		dim prm
+		dim prmtype
+		repeat i
+			prm.cnt = tprm.cnt
+			prmtype.cnt = tprmtype.cnt
+		loop
+	return i
+	#global
+	
+	// --------------------------------------------
+	
+	#define GLOBAL_DEFINE
+	#include "BlankIdentifier.as"
+	
+	#module
+	
+	#enum	ID_OBJECT		= 1
+	#enum	ID_VALUE
+	
+	#deffunc convert str fileName, var source, var fileBuf, array operator
+	
+	devideStringType source, allPrms, allTypes, allBases
+	
+	Perser allPrms, allTypes, operator
+	
+	sdim fileBuf :fileSize = 0
+	memset fileBuf, 0, 63
+	sdim infoBuf :infoSize = 0
+	memset infoBuf, 0, 63
+	
+	initBlankId name
+	sdim nameList :nameCount = 0
+	sdim valueList
+	
+	initBlankId info
+	sdim infoList :infoCount = 0
+	
+	repeat length(operator)
+		opeId = getBlankId(nameCount, name, INT_MAX-1)
+		nameList.opeId = operator.cnt :valueList.opeId = opeId
+	loop
+	
+	defId = opeId+1
+	logmes "def id ["+ defId +"]"
+	
+	stack = INT_MAX :stackCount = 1
+	
+	poke fileBuf, 0, "BB60"
+	fileSize += 8
+	
+	blockSize = 4* 4
+	
+	for i, 0, length(allTypes), 1
+//		logmes "["+ allTypes.i +"]["+ allPrms.i +"]"
+		switch allTypes.i
+		case T_STR@
+			allPrms.i = strtrim(allPrms.i, 0, '\"')
+			allPrms.i = strtrim(allPrms.i, 0, '\'')
+			size = strlen(allPrms.i)
+			type = 2
+			gosub *label_literal
+			swbreak
+			
+		case T_NUM@
+			size = strlen(allPrms.i)
+			type = 1
+			gosub *label_literal
+			swbreak
+			
+		*label_literal
+			nId = -1
+			repeat infoCount
+				if isBlankId(cnt, infoCount, info) {
+					continue
+				}
+				if infoList.cnt == allPrms.i {
+					nId = valueList.cnt :break
+				}
+			loop
+			
+			if -1 == nId {
+				nId = getBlankId(infoCount, info, INT_MAX-1)
+				infoList.nId = allPrms.i
+				valueList.nId = nId
+			}
+			
+			memexpand fileBuf, fileSize + blockSize +1
+			lpoke fileBuf, fileSize, ID_VALUE
+			lpoke fileBuf, fileSize+4, nId
+			lpoke fileBuf, fileSize+8, 0
+			lpoke fileBuf, fileSize+12, 0
+	
+			memexpand infoBuf, infoSize + blockSize + 4 + size + 1
+			lpoke infoBuf, infoSize, ID_VALUE
+			lpoke infoBuf, infoSize+4, nId
+			lpoke infoBuf, infoSize+8, type
+			lpoke infoBuf, infoSize+12, size
+			memcpy infoBuf, allPrms.i, size, infoSize+16
+			
+			fileSize += blockSize
+			infoSize += blockSize + size
+			return
+	
+		case T_LEFT_CURLY_BRACKET@
+			stack.stackCount = INT_MAX :stackCount++
+			logmes "push["+ stackCount +"] ----------"
+			gosub *label_id
+			swbreak
+			
+		case T_RIGHT_CURLY_BRACKET@
+			gosub *label_id
+			breakf = 0
+			while 0 < stackCount
+				if INT_MAX == stack(stackCount-1) :breakf = 1
+				stackCount--
+				if INT_MAX != stack(stackCount) {
+					setBlankId stack.stackCount, name
+					logmes "pop ["+ stackCount +"] ("+ stack(stackCount) +")["+ nameList.stack(stackCount) +"]"
+				}
+				stack.stackCount = false
+				if breakf :_break
+			wend
+			logmes "pop["+ stackCount +"] ##########"
+			swbreak
+	
+		case T_SEMICOLON
+		case T_OPERATOR@
+		case T_LEFT_PARENTHESIS@
+		case T_RIGHT_PARENTHESIS@
+		case T_ID@
+			gosub *label_id
+			swbreak
+			
+		*label_id
+			nId = -1
+			repeat nameCount
+				if isBlankId(cnt, nameCount, name) {
+					continue
+				}
+				if nameList.cnt == allPrms.i {
+					nId = valueList.cnt :break
+				}
+			loop
+			if -1 == nId {
+				nId = getBlankId(nameCount, name, INT_MAX-1)
+				nameList.nId = allPrms.i
+				valueList.nId = nId
+	
+				stack.stackCount = nId :stackCount++
+				logmes "push["+ stackCount +"] ("+ nId +")["+ nameList.nId +"]"
+			}
+			
+			memexpand fileBuf, fileSize + blockSize +1
+			lpoke fileBuf, fileSize, ID_OBJECT
+			lpoke fileBuf, fileSize+4, nId
+			lpoke fileBuf, fileSize+8, 0
+			lpoke fileBuf, fileSize+12, 0
+			fileSize += blockSize
+			return
+		swend
+	next
+	
+	lpoke fileBuf, 4, fileSize
+	memexpand fileBuf, fileSize + infoSize +1
+	memcpy fileBuf, infoBuf, infoSize, fileSize, 0
+	fileSize += infoSize
+	
+	bsave fileName, fileBuf, fileSize
+	
+	logmes "output--------------------"
+	repeat length(allPrms)
+		logmes "["+ allPrms.cnt +"]("+ allTypes.cnt +")"
+	loop
+	
+	return
+	
+	#global
+	

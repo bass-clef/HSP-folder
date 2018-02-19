@@ -1,0 +1,69 @@
+	
+	#include "encode.as"
+	#define DIID_DWebBrowserEvents2 "{34A715A0-6587-11D0-924A-0020AFC7AC4D}"
+	#define INIFILENAME		""+dir_mydoc+"\\IElike.ini"
+	#uselib "user32.dll"
+	#func CharLowerBuff "CharLowerBuffA" int, int
+	
+	sdim buf
+	
+	screen 0, ginfo(20), ginfo(21), 0,,, 300, 80
+	
+	pos 0, ginfo(13)
+	axobj ie, "Shell.Explorer.2", 0, 0
+	if stat == -1 {
+		dialog "ActiveXコントロールの配置に失敗しました。", 1
+		end
+ 	}else :hIE = objinfo(stat, 2)
+	comevent ie_event, ie, DIID_DWebBrowserEvents2, *event
+	
+	objsize ginfo(12), 20
+	pos 0, 20 :button gosub "検索", *search
+	objmode 2
+	pos 0,  0 :input buf,,, 0
+	
+	stop
+*search
+	gosub *getinformation
+	return
+	
+*getinformation
+	// ShiftJIS -> UTF-8変換
+	sdim res, strlen(buf)*2
+	sdim dst
+	sjis2utf8n res, buf
+	repeat strlen(res) :dst += "%"+strf("%X", peek(res, cnt)) :loop
+	
+	ie->"Navigate" "http://search.yahoo.co.jp/search?&ei=UTF-8&p=" + dst
+	repeat :if ie("readyState") == 4 {break } :wait 1 :loop
+	
+	// html取得
+	doc = ie("Document")
+	body = doc("body")
+	html = body("innerHTML")
+	if strlen(html) == 0 :dialog "HTMLが取得できませんでした" :return
+	
+	// "<b>番号</b>" を検索
+	CharLowerBuff varptr(html), strlen(html)
+	objsize 700, 400
+	dialog "", 64, ""
+	mesbox html, ginfo(12), ginfo(13), 4, 0
+	dlgfor :wait 1 :loop
+	sdim num :sdim can, 511
+	repeat 
+		i = instr(html, 0, "<meta name=\"description\"") :if i == -1 :break
+		j = instr(html, i+66, "。") :if j == -1 :break
+		can += strmid(html, i, j)
+	loop
+	
+	pos 0, 40
+	mes "["+can+"]"
+	
+	return
+*event
+	eveID = comevdisp(ie_event)
+	if eveID = 259 {//DISPID_DocumentComplete
+		// URL取得
+		comevarg url, ie_event, 1
+	}
+	return

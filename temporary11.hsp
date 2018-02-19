@@ -1,0 +1,38 @@
+	
+	// 合計
+	total = 30
+	totaltmp = total
+	
+	// あがり方
+	#const step_1	1
+	#const step_2	2
+	#const step_3	3
+	steps = step_1, step_2, step_3
+	nowstep = 2
+	
+	// 軌跡
+	sdim temp, 30	// 全部を一段づつあがった場合の確保
+	sdim locus
+	dim iBegin		// ツリーの開始インデックス
+	locusmax = 0
+	
+*main
+
+	// すでに同じ道を上っていないか
+	templen = 0
+	flag = 0
+	for i, 0, locusmax, 1
+		repeat iBegin(i)>>16
+			if peek(temp, cnt) == peek(locus, templen) :flag = 1 :_break
+		loop
+		if flag :_break
+	next
+	if flag :
+		
+	*wheresteps
+	way = steps(nowstep)
+	// if over total step
+	if 0 <= totaltmp-way {nowstep-- :goto *wheresteps}
+	
+	wait 1
+	goto *main

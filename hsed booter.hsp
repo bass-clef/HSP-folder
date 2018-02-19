@@ -1,0 +1,136 @@
+	
+	#packopt name "hsed booter editor.exe"
+	
+	
+	#uselib "user32.dll"
+	#func	setForeground	"SetForegroundWindow"	int
+	#func	setLayered		"SetLayeredWindowAttributes"	int, int, int, int
+	#cfunc	getForeground	"GetForegroundWindow"
+	#define LWA_COLORKEY	0x0001
+	#define LWA_ALPHA		0x0002
+	
+	#include "hsedsdk.as"
+	#include "array.as"
+	
+	bgscr 0, 40, 10, 10, 1, 1 :title "hsed booter editor"
+	font msgothic, 10
+	gsel 0, 2
+	wait 1
+	slong hwnd, GWL_EXSTYLE, WS_EX_LAYERED | WS_EX_WINDOWEDGE
+	SetLayered hwnd, RGB(254, 254, 254), 127, LWA_COLORKEY | LWA_ALPHA
+	
+	oncmd gosub *lclick, WM_LBUTTONDOWN
+	oncmd gosub *rclick, WM_RBUTTONDOWN
+	
+	bootBatFile = "hsp boot.bat"
+	bootExeFile = "hsed booter editor.exe"
+	
+	hsed3ExeFile = "C:\\hsp35beta\\hsed3.exe"
+	hsed3ExeFile = "C:\\hsp34\\hsed3.exe"
+	
+	// 起動待ち
+	oneline "起動待ち", RGB(254, 254, 254)
+*waitBoot
+	hsed_exist
+	if stat == 0 {
+		wait 10
+		goto *waitBoot
+	}
+	
+	gosub *nowTabsSave
+	
+	oldTabId = -1
+	
+	// 終了待ち & 0.1s毎にタブの情報を記憶
+	oneline "終了待ち", RGB(254, 254, 254)
+*main
+	wait 10
+	
+	mx = ginfo(0)
+	my = ginfo(1)
+	if ginfo(4) <= mx && mx <= ginfo(6) && ginfo(5) <= my && my <= ginfo(7) {
+		if actFlag == 0 {
+			actFlag = 1
+			oneline "終了待ち", RGB(200, 200, 200)
+		}
+	}else {
+		if actFlag {
+			actFlag = 0
+			oneline "終了待ち", RGB(254, 254, 254)
+		}
+	}
+	
+	hsed_exist
+	if stat == 0 :goto *quit
+	
+	hsed_getwnd handle, HGW_MAIN
+	if stat == 0 {
+		if getForeground() == handle {
+			if flag {
+				flag = 0
+				gsel 0, 2
+				setForeground handle
+			}
+			smove winfo(4, handle)+winfo(10, handle)-200, winfo(5, handle)+5, hwnd
+		}else {
+			flag = 1
+			gsel 0, -1
+		}
+	}
+	
+	// 新しく増えたタブをキューの先頭に追加
+	hsed_getacttabid actTabId
+	if stat == 0 {
+		if oldTabId != actTabId {
+			oldTabId = actTabId
+			i = -1
+			repeat length(pathes)
+				if pathes.cnt == path :i = cnt :break
+			loop
+			if i != -1 :array_delete pathes, i, 1
+			array_unshift pathes, path
+		}
+	}
+	
+	goto *main
+	
+*nowTabsSave
+	// 現在のタブを記憶
+	nTabs = 0
+	sdim pathes, nTabs
+	
+	hsed_gettabcount nTabs
+	
+	repeat nTabs
+		hsed_getpath path, cnt
+		if stat == 0 {
+			array_unshift pathes, path
+		}
+	loop
+	
+	logmes "now tabs saved"
+	return
+	
+*lclick
+	// 現在のタブだけ保存
+	gosub *nowTabsSave
+	return
+	
+*rclick
+*quit
+	// キューをbatで実行できるように格納してから終了
+	bootBatBuffer = "start /b " + hsed3ExeFile + " "
+	
+	repeat length(pathes)
+		exist pathes.cnt
+		if strsize == -1 :continue
+		bootBatBuffer += "\"" + pathes.cnt + "\" "
+	loop
+	
+	bootBatBuffer += "\nstart /b \"\" \"" + bootExeFile + "\"\nexit"
+	
+	bsave bootBatFile, bootBatBuffer, strlen(bootBatBuffer)
+	
+	end
+	end
+	

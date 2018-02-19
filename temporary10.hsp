@@ -1,0 +1,29 @@
+#include "hgimg3.as"
+#include "objrotfv.hsp"
+    screen 0,320,240 
+    hgini 
+ 
+    setcolor 0,255,0 
+    addbox model,10,10 
+    regobj box,model 
+ 
+    x_axis=1.0,0.0,0.0 
+    y_axis=0.0,1.0,0.0 
+    z_axis=0.0,0.0,1.0 
+ 
+*main 
+    stick ky,15,0 
+    getkey xKey,88 
+    getkey zKey,90 
+ 
+    selang box 
+    if ky&1 : objrotfv y_axis, 0.1 
+    if ky&2 : objrotfv x_axis,-0.1 
+    if ky&4 : objrotfv y_axis,-0.1 
+    if ky&8 : objrotfv x_axis, 0.1 
+    if xKey : objrotfv z_axis,-0.1 
+    if zKey : objrotfv z_axis, 0.1 
+ 
+    hgdraw 
+    hgsync 20 
+    goto *main 

@@ -1,0 +1,344 @@
+	
+	// Black Borad ver 5.0
+	
+	// グローバルロード
+	#undef peek
+	#uselib "calculate.dll"
+	#cfunc	global	peek		"getpeek"		sptr, int
+	#uselib "msvcrt.dll"
+	#func	global	memmove		"memmove"		int, int, int
+	
+	#define	global	C_VAR			var@__COMPILER__
+	#define	global	C_VARSIZE		length(C_VAR)
+	#enum	global	T_VOID			= 0
+	#enum	global	T_CHAR
+	#enum	global	T_INT
+	#enum	global	T_DOUBLE
+	#enum	global	NONERROR		= 0
+	
+	// 計算 (逆ポー)
+	#module __CALCULATE__
+	#uselib "calculate.dll"
+	#cfunc	ToRPN		"ToRPN"			var, var, int
+	#cfunc	Calculate	"Calculate"		var, int
+	#defcfunc calc str equation
+		equa = equation
+		sdim buf, strlen(equa)*2 :sdim buf2
+		dupptr buf2, ToRPN(equa, buf, ' '), strlen(equa)*2, 2
+		if buf2 == equation :return equation
+	return Calculate(buf2, ' ')
+	#global
+	
+	#module __STRING__
+	// その数にちかい数を配列から抜粋 その数を超えたら含めない
+	#defcfunc neapnum array num_list, int prm
+		void num_list(0)
+		repeat length(num_list)
+			if num_list.cnt < prm :void num_list.cnt :else :break
+		loop
+	return stat
+	// 超える数のみ
+	#defcfunc neannum array num_list, int prm
+		void prm
+		repeat length(num_list)
+			if num_list.cnt > stat :void num_list.cnt :break
+		loop
+	return stat
+	#global
+	
+	#module __VARIABLE__
+	#uselib "calculate.dll"
+	#cfunc	createchar	"createchar"	int
+	#func	popchar		"popchar"
+	#func	deletechar	"deletechar"
+	#uselib "kernel32.dll"
+	#func	lstrcpynA	"lstrcpynA"		int, int, int
+	#uselib "Pointer.dll"
+	#cfunc	strptr		"GetPointer"	str
+	// 作成
+	#defcfunc char int byte
+	return createchar(byte)
+	// 全削除
+	#deffunc dchar
+		deletechar
+	return
+	// 一番最後を削除
+	#deffunc pchar
+		popchar
+	return
+	// 書き込み
+	#deffunc schar int add, str buf, int byte
+		if add == NULL :return null
+		//lstrcpynA add, strptr(buf), byte
+		memmove add, strptr(buf), byte
+	return
+	// 読み取り
+	#defcfunc gchar int add, int byte
+		if add == NULL :return null
+		sdim ptr, byte
+		lstrcpynA varptr(ptr), add, byte
+	return ptr
+	#global
+	
+	// スクリプト
+	#module __COMPILER__
+	#define	C_EQUALS		'='
+	#define C_STOPWORD		';'
+	#define	C_STOPWORD2		':'
+	#define	C_STRING		'\"'
+	#define	C_BONL			0x0D
+	#define	C_BONL2			0x0A
+	#define	ctype	isnum(%1)		('0' <= (%1) && (%1) <= '9')
+	
+	// キーワード区切りか判別 true:キーワード区切り
+	#defcfunc isnword int prm
+		if prm == C_STOPWORD {		return true
+		}elseif prm == C_STOPWORD2 {return true
+		}elseif prm == C_BONL {		return true
+		}elseif prm == C_BONL2 :	return true
+	return false
+	
+	// 演算子か判別 true:演算子
+	#defcfunc isoperator int prm
+		if prm == '+' || prm == '-' || prm == '*' || prm == '/' {return true
+		}elif prm == '%' || prm == '&' || prm == '|' || prm == '^' {return true
+		}
+	return false
+	
+	// 数式か判別 true:数式
+	#defcfunc isnumfor str prm
+		repeat strlen(prm)
+			if not(isnum(peek(prm, cnt))) :if not(peek(prm, cnt) == '.') :if not(isoperator(peek(prm, cnt))) :void 1 :break
+			void 0
+		loop
+		if stat :return false
+	return true
+	
+	// n進数の10進数化
+	
+	
+	
+	// 文字列の中身の型を判別
+	#defcfunc typeid str prm
+		void peek(prm, 0)
+		if (stat == '\"') && (peek(prm, strlen(prm)-1) == '\"') :return T_CHAR
+		
+		repeat strlen(prm)
+			void peek(prm, cnt)
+			if not(isnum(stat)) :void peek(prm, cnt) :if (stat != '-') && (stat != '+') && (stat != '.') :void 0 :break
+			void 1
+		loop
+		
+		if stat {// すべて数字か
+			if instr(prm, 0, ".") != -1 :return T_DOUBLE
+			return T_INT
+		}
+	return T_VOID
+	
+	// 変数参照 (内容返し)
+	#defcfunc varrefer str varname, int rType
+		s = varname
+		repeat vi
+			sdim v, 14
+			memmove varptr(v), var.cnt, 14
+			if gchar(lpeek(v, 1), 65535) == varname {
+				j = peek(v, 0)
+				if j == T_CHAR {// string
+					s = str(gchar(lpeek(v, 5), 65535))
+				}if j == T_INT {// int
+					s = str(lpeek(v, 5))
+				}elseif j == T_DOUBLE {// double
+					j = 0.0
+					memcpy j, v, 8, 0, 5
+					s = str(j)
+				}
+				break
+			}
+		loop
+		if s == "" :return varname
+		if rType == T_CHAR {return s
+		}elseif rType == T_INT {return int(s)
+		}elseif rType == T_DOUBLE {return double(s)
+		}
+	return null
+	
+	// コンパイル
+	#deffunc Compile var buf
+		// 初期化
+		dim var		// vi struct used
+		//typedef struct VariableInformation_Tag{
+		//	char	type;		// variable type
+		//	char	*name_add;	// addreass to name
+		//	int		*contents;	// contents or addresss to contents
+		//	bool	null;		// system use
+		//} vi;
+		sdim note :dim rn :dim re
+		error = 0		// error
+		i = 0 :vi = 0	// count
+		j = 0 :s = "" :v = ""	// other variable
+		contents = 0 :name_add = 0: type = 0	// this is using for vi struct
+		dchar	// cchar delete and initialize
+		
+		// 空白, Tab 削除
+		buf = strtrim(buf, 3, ' ')
+		buf = strtrim(buf, 3, '\t')
+		
+		*C_LOOP
+		notesel@hsp buf
+		note = noteget(i)
+		strmax = strlen(note)
+		
+		// 区切り文字摘出 rn([;] or $0A or $0D) re([=])
+		dim rn :dim re
+		repeat strmax
+			if isnword(peek(note, cnt)) :rn.length(rn) = cnt
+			if peek(note, cnt) == C_EQUALS :re.length(re) = cnt
+		loop
+		rn.length(rn) = strmax
+		
+		// 変数初期化
+		repeat length(re)-1, 1
+			// 名前取得
+			j = neapnum(rn, re.cnt) :if j :j++
+			s = strmid(note, j, re.cnt-j)
+			
+			// [//] コメント確認
+			if strmid(s, 0, 2) == "//" :continue
+			
+			// 重複確認 重複だったらただの代入
+			repeat vi
+				
+			loop
+	
+			// 新規作成
+			name_add = char(strlen(s)+1)	// the max string length is 65535
+			schar name_add, s, strlen(s)+1
+			
+			// 型取得 (内容から判別)
+			s = strmid(note, re.cnt+1, neannum(rn, re.cnt)-re.cnt-1)
+			
+			// 事前処理項目:
+			// ・変数の内容へのの置換
+			
+			// 数式だったら計算
+			if isnumfor(s) {
+				// 演算子での区切り配列取得
+				dim ro
+				repeat strlen(s)
+					if isoperator(peek(s, cnt)) :ro.length(ro) = cnt
+				loop
+				ro.length(ro) = strlen(s)
+				
+				// n進数の10進数化 表記方法: n進数A数字 例: x = 16AA0
+				// narynum s
+	
+				s = str(calc(s))
+			}
+			
+			type = typeid(s)	// T_CHAR:string T_INT:int T_DOUBLE:double
+			if type == T_CHAR {// string
+				s = strtrim(s, 0, '\"')
+				contents = char(strlen(s)+1)
+				schar contents, s, strlen(s)+1
+			}elseif type == T_INT {// int
+				contents = int(s)
+			}elseif type == T_DOUBLE {// double
+				contents = double(s)
+			}else {// other
+				contents = s
+			}
+			
+			var.vi = char(14)	// vi struct
+			if type == T_CHAR || type == T_INT || type == T_DOUBLE {
+				sdim s, 14					// all size 14byte
+				poke s, 0, type				// variable type	1byte
+				lpoke s, 1, name_add		// name address		4byte
+				if type == T_CHAR || type == T_INT {
+					memcpy s, contents, 4, 5, 0	// contents		4byte
+					// null 4byte
+				}else {
+					memcpy s, contents, 8, 5, 0	// contents 	8byte
+				}
+				poke s, 13, 0				// null
+				memmove var.vi, varptr(s), 14
+				vi++
+			}else {
+				// creating new type
+				pchar	//do
+			}
+		loop
+		
+		// キーワード
+		repeat length(rn)-1
+			if strmid@hsp(note, rn.cnt, 2) == "//" :continue
+			if strmid@hsp(note, rn.cnt, 5) == "print" {
+				// 文字列取得
+				if strmid(note, rn.cnt+5, 2) == "ln" {
+					s = strmid@hsp(note, rn.cnt+8, rn(cnt+1)-(rc.cnt+7)-2)
+				}else {
+					s = strmid@hsp(note, rn.cnt+6, rn(cnt+1)-(rc.cnt+5)-2)
+				}
+				// 変数内容参照
+				s = varrefer(s, T_CHAR)
+	
+				// 可変長引数
+				
+				bb_buf@ += s
+				if strmid(note, rn.cnt+5, 2) == "ln" :bb_buf@ += "\n"
+			}
+		loop
+		
+		// ループ監視
+		i++
+		notesel@hsp buf
+		if notemax <= i :goto *C_LOOPEND
+		goto *C_LOOP
+		
+		*C_LOOPEND
+		
+	return
+	#global
+	
+	sdim bb_buf
+	
+	ms = {"
+	int = 123+ 1;	// int = 124
+	str = "abc"
+	//dec = 123.5 + 6
+	println(int)
+	"}
+	Compile ms
+	
+	title ""+calc("125.5 + 5")
+	
+	screen 0, 300, 640
+	mes "compile after:\n"+ms
+	mes "compiler buffer:\n"+bb_buf
+	mes "varables["+C_VARSIZE+"]:\n"
+	repeat C_VARSIZE
+		sdim v, 14
+		memmove varptr(v), c_var.cnt, 10
+		j = peek(v, 0)
+		mes "name["+gchar(lpeek(v, 1), 65535)+"] type["+j+"]"
+		
+		if j == T_CHAR {// string
+			s = str(gchar(lpeek(v, 5), 65535))
+		}if j == T_INT {// int
+			s = str(lpeek(v, 5))
+		}elseif j == T_DOUBLE {// double
+			memmove varptr(v), c_var.cnt, 14
+			j = 0.0
+			memcpy j, v, 8, 0, 5
+		s = str(j)
+		}
+		mes "contents["+s+"]"
+	loop
+	
+	// 計算結果が正しく変数に代入されていない
+	
+	// 要実装内容：
+	// ・119 : n進数の10進数化
+	// ・210 : 重複確認 重複だったらただの代入
+	// ・223 : 変数の内容への置換
+	// ・225 : 数式だったら計算
+	// ・286 : 可変長引数

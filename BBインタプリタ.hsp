@@ -1,0 +1,258 @@
+	
+	
+	/**
+	 *
+	 * Black Borad インタプリタ
+	 *
+	 * ver 6.0
+	 *
+	 */
+	
+	/*
+	
+	// object	関数,クラス,名前空間,演算子,変数
+	<object><"hoge"><type><value>
+	・<object> が ID_VALUE の時
+		<"hoge">にはinfo領域の <"hoge"> と一致
+	
+	// 値		リテラル,アドレス	
+	<value><"hoge"><type><size><value>
+	・
+	
+	
+	:解析:
+	・定義済みオブジェクトは実行
+	・定義無しオブジェクトとリテラルは stack へ
+	
+	// 元
+	func(text) print text;
+	main {
+		func("Hello World.");
+		a = 12 / (123 + 3) * 6;
+		func(a);
+	}
+	"=<" (defineText) {
+		b = func;
+		b(defineText);
+	}
+	// 逆ポ後
+	func text ) ( print text ;
+	main {
+		func "Hello World." ) ( ;
+		a 12 123 3 ) + ( 6 * / =
+		func a ) ( ;
+	}
+	"=<" defineText ) ( {
+		b func = ;
+		b defineText ) ( ;
+	}
+	// 変換後
+	obj_44 obj_45 ) ( print obj_45 ;
+	main {
+		obj_44 value_0["Hello World."] ) ( ;
+		obj_46 value_1[12] value_2[123] value_3[3] ) + ( value_4[6] * / = ;
+		obj_44 obj_46 ) ( ;
+	}
+	"=<" obj_46 ) ( {
+		obj_47 obj_44 = ;
+		obj_47 obj_46 ) ( ;
+	}
+	*/
+	
+	/*
+	:block定義
+		block {hoge} ) ( {hoge} ;
+		block {hoge} { {hoge} }
+	:block呼び出し
+		block {hoge} ) ( ;
+	:object定義
+		objectが並んだとき2つめは必ず block でない object
+	*/
+	
+	#enum	ID_OBJECT		= 1
+	#enum	ID_VALUE
+	
+	#enum	T_V_VALUE			= 1
+	#enum	T_V_BINARY
+	#enum	T_V_USER
+	
+	#enum	T_O_BLOCK
+	#enum	T_O_VAR
+	#enum	T_O_USER
+	
+	#enum	O_T_LEFT_CURLY_BRACKET		= 36	// {
+	#enum	O_T_RIGHT_CURLY_BRACKET
+	#enum	O_T_LEFT_PARENTHESIS				// (
+	#enum	O_T_RIGHT_PARENTHESIS
+	#enum	O_T_ENDOFLINE						// ;
+	
+	#define	ctype	isEndOfLine(%1)		(O_T_ENDOFLINE == (%1) || O_T_LEFT_CURLY_BRACKET == (%1) || O_T_RIGHT_CURLY_BRACKET == (%1))
+	
+	
+	object = ", += -= *= /= %= <<= >>= &= ^= |= = || && | ^ & != == <= >= - + % * / ! ~ -- ++ ] [ -> . => :: { } ( ) ; print"
+	split object, " ", objectList
+	definedObjectLength = length(objectList)
+	operatorObjectIndex = definedObjectLength-1
+	
+	exist DIR_HSPWORK+"\\sample.bb"
+	if strsize == -1 :end
+	size = strsize
+	
+	sdim buf, size+1
+	bload DIR_HSPWORK+"\\sample.bb", buf, size
+	infoIndex = lpeek(buf, 4)
+	defineSize = infoIndex-4
+	infoSize = size-infoIndex-4
+	blockSize = 4* 4
+	
+	logmes "all size ["+ size +"] define size ["+ defineSize +"]("+ (defineSize/blockSize) +") info size ["+ infoSize +"]"
+	
+	// info領域
+	logmes "----info----"
+	valueCount = 0
+	dim valueIdList
+	dim valuNameList
+	dim valueTypeList
+	dim valueSizeList
+	sdim valueContentsList
+	i = InfoIndex
+	while i < size
+		valueIdList.valueCount = lpeek(buf, i)
+		valueNameList.valueCount = lpeek(buf, i+4)
+		valueTypeList.valueCount = lpeek(buf, i+8)
+		valueSizeList.valueCount = lpeek(buf, i+12)
+		memexpand valueContentsList.valueCount, valueSizeList.valueCount + 1
+		memcpy valueContentsList.valueCount, buf, valueSizeList.valueCount, 0, i+16
+		logmes "["+ valueIdList.valueCount +"] [value_"+ valueNameList.valueCount +"]["+ valueTypeList.valueCount +"("+ id +")]["+ valueSizeList.valueCount +"]["+ valueContentsList.valueCount +"]"
+		i += blockSize + valueSizeList.valueCount
+		valueCount++
+	wend
+	
+	// define領域
+	logmes "----source----"
+	dim blockTypeList :blockCount = 0
+	dim blockIdList
+	dim blockContentsTypeList
+	sdim blockContentsValueList
+	stateCount = 0
+	for i, 8, defineSize, blockSize
+		blockTypeList.blockCount = lpeek(buf, i)
+		blockIdList.blockCount = lpeek(buf, i+4)
+		blockContentsTypeList.blockCount = lpeek(buf, i+8)
+		blockContentsValueList.blockCount = lpeek(buf, i+12)
+		type = blockTypeList.blockCount
+		id = blockIdList.blockCount
+		contents_type = blockContentsTypeList.blockCount
+		contents_value = blockContentsValueList.blockCount
+	
+		switch type
+		case ID_OBJECT
+			if id < definedObjectLength {
+				logmes ""+ blockCount +":"+ objectCount +" ["+ type +"]["+ objectList.id +"("+ id +")]["+ contents_type +"]["+ contents_value +"]"
+				switch id
+				case O_T_LEFT_CURLY_BRACKET	// {
+				case O_T_RIGHT_CURLY_BRACKET// }
+				case O_T_ENDOFLINE			// ;
+					logmes ""
+					swbreak
+				swend
+			}else {
+				logmes ""+ blockCount +":"+ objectCount +" ["+ type +"][obj_"+ id +"]["+ contents_type +"]["+ contents_value +"]"
+			}
+			objectCount++
+			swbreak
+			
+		case ID_VALUE
+			logmes ""+ blockCount +":"+ valueCount +"["+ type +"][value_"+ id +"]["+ contents_type +"]["+ contents_value +"]"
+			logmes "--[value_"+ valueNameList.id +"]["+ valueTypeList.id +"]["+ valueSizeList.id +"]["+ valueContentsList.id +"]"
+			valueCount++
+			swbreak
+		swend
+		
+		switch id
+		case O_T_ENDOFLINE
+		case O_T_RIGHT_CURLY_BRACKET
+			stateCount++
+			swbreak
+			
+		swend
+		blockCount++
+	next
+	
+	/*
+	func(foo) return 12 / (123 + 3) * (foo);
+	print(func(2));
+	
+	s はqueue, b はcounter
+	print obj_42 hoge      )  (   )  (   ;
+	(s++) (s++)  (s++記録) ++ b++ ++ b++ bの数だけsからdequeue。残りのsは無視
+	dequeueした物を後から call
+	
+	{ が来ると s と b をスタックに格納。
+	} が来ると s と b をポップ
+	*/
+	
+	logmes "----boot----"
+	dim objectList		:objectCount = 0
+	parenthesisCount = 0
+	
+	sdim objectStack	:blockStackCount = 0
+	sdim parenthesisStack
+	dim countStack
+	flag = 0
+	prev = 0
+	
+	for index, 0, blockCount, 1
+		if ID_OBJECT != blockTypeList.index {
+			_continue
+		}
+		switch blockIdList.index
+		case O_T_LEFT_CURLY_BRACKET	// {
+			flag = 0
+			prev = 0
+			swbreak
+			
+		case O_T_RIGHT_CURLY_BRACKET// }
+			flag = 0
+			prev = 0
+			swbreak
+			
+		case O_T_RIGHT_PARENTHESIS	// )
+			flag = 1
+			prev = 0
+			swbreak
+			
+		case O_T_LEFT_PARENTHESIS	// (
+			if 0 == flag {
+				swbreak
+			}
+			flag = 0
+			prev = 1
+			parenthesisCount++
+			swbreak
+			
+		case O_T_ENDOFLINE			// ;
+			if 0 == prev {
+				// ( が前でないから何もしない
+				swbreak
+			}
+			
+			
+			
+/*			
+	s はqueue, b はcounter
+	print obj_42 hoge      )  (   )  (   ;
+	(s++) (s++)  (s++記録) ++ b++ ++ b++ bの数だけsからdequeue。残りのsは無視
+	dequeueした物を後から call
+*/
+			swbreak
+			
+		default
+			objectList.objectCount = 
+			objectCount++
+			swbreak
+		
+		swend
+	next
+	
+	

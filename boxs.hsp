@@ -1,0 +1,83 @@
+
+	
+	#include "hgimg3.as"
+	
+	#module
+	// 手振れ検出 精度, グローバルマウスx, y
+	#define	global	ctype	isshake(%1, %2 = ginfo_mx, %3 = ginfo_my)	isshake__(%1, %2, %3)
+	#defcfunc isshake__ int Precision, int gmx, int gmy
+		ret = 0
+		void double(abs(oldx-gmx))
+		if (Precision < refdval) {ret = 1
+		}else :void double(abs(oldy-gmy)) :if (Precision < refdval) :ret = 1
+		
+		oldx = gmx
+		oldy = gmy
+	return ret
+	#global
+	
+	screen 0, 128, 128
+	
+	hgini
+	
+	// box 作成
+//	texID = stat
+//	setxinfo texID, 0, $2000+0
+	
+//	setuv 0, 0, 127, 127
+	addbox model, 10.0, 10.0//, texID
+	regobj object, model
+	setpos object,,, 20.0
+	
+	// 文字列
+//	texmake 128, 16
+//	texmesID = stat
+//	font msgothic, 14
+	
+	// カメラ
+	cammode CAM_MODE_LOOKAT
+	setdir HGOBJ_CAMERA,,, 20.0
+//	setpos HGOBJ_CAMERA, 0, 0, 20
+	onexit *exit
+	
+*main
+	
+//	texcls texmesID, $000000
+//	color 255, 255, 255
+//	texmes "あいうえおかきくけこ", texmesID, 0, 0
+	
+	stick@hsp k, 31
+	if k&128 :end
+	
+	if k&16 {
+		if k&1 :addpos HGOBJ_CAMERA, -1.0
+		if k&2 :addpos HGOBJ_CAMERA,, -1.0
+		if k&4 :addpos HGOBJ_CAMERA, 1.0
+		if k&8 :addpos HGOBJ_CAMERA,, 1.0
+	}else :if k&64 {
+//		selpos object
+		if k&1 :addpos object, 0, 0.01f
+		if k&2 :objaddf2 0, 0.01f, 0
+		if k&4 :objaddf2 0, 0, -0.005f
+		if k&8 :objaddf2 0, -0.005f, 0
+	}else {
+		selang object
+		if k&1 :objaddf2 0, 0, 0.01f
+		if k&2 :objaddf2 0, 0.01f, 0
+		if k&4 :objaddf2 0, 0, -0.005f
+		if k&8 :objaddf2 0, -0.005f, 0
+	}
+	
+	hgdraw
+	
+//	gmode 2, 128, 16
+//	pos 128, 64
+//	hgrotate texmesID, 0, 0
+	
+	hgsync 10
+	
+	goto *main
+	
+*exit
+	hgbye
+	end

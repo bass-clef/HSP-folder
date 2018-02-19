@@ -1,0 +1,305 @@
+#packopt name "ImageEdit"
+#packopt hide 1
+#uselib "user32.dll"
+#func GetWindowLong "GetWindowLongA" int,int
+#func SetWindowLong "SetWindowLongA" int,int,int,int
+#func SetLayeredWindowAttributes "SetLayeredWindowAttributes" int,int,int,int
+#func MoveWindow "MoveWindow" int,int,int,int,int,int
+	screen 0,ginfo(20),ginfo(21),2,(ginfo(20)-500)/2,(ginfo(21)-240)/2, 500, 300
+	slong hwnd(), -16, glong(hwnd(), -16)|0x40000
+	gsel 0,1
+	title "Image Edit"
+	gosub *revar
+
+	objsize 100,20 :pos   0, 0 :button gosub "パーツを読み込む",*pload
+	objsize 100,20 :pos 100, 0 :combox chk(0),100,ms
+	objsize  50,20 :pos 200, 0 :combox chk(5),100,"表\n裏"
+	objsize  50,20 :pos 250, 0 :button gosub "保存",*save
+	objsize  70,20 :pos 300, 0 :button gosub "画像を読込",*iload
+	objsize  70,20 :pos 370, 0 :chkbox "グリッド線",chk(1)
+	objsize  40,20 :pos 440, 0 :chkbox "透明",chk(4)
+	
+	screen 1,ginfo(20),ginfo(21),0,,,320,240
+	title "マップ裏"
+	oncmd gosub *move,0x0003
+	oncmd gosub *move,0x0005
+
+	bgscr 2,ginfo(20),ginfo(21),2,,,320,240
+	SetWindowLong hwnd(),-20,0x80000
+	SetLayeredWindowAttributes hwnd(),RGB(255,255,255),255,1
+	hwnd2 = hwnd()
+	repeat ginfo(20)/16+1
+		boxf cnt*16,0,cnt*16,ginfo(21)
+	loop
+	repeat ginfo(21)/16+1
+		boxf 0,cnt*16,ginfo(20),cnt*16
+	loop
+
+	buffer 3,16,16
+	color 255,0,0 :boxf
+
+	screen 4,ginfo(20),ginfo(21),0,,,320,240
+	title "マップ表"
+	oncmd gosub *move,0x0003
+	oncmd gosub *move,0x0005
+	hwnd4 = hwnd()
+	color 0,117,117 :boxf
+	SetWindowLong hwnd4,-20,0x80000
+	SetLayeredWindowAttributes hwnd(),RGB(0,117,117),255,3
+	
+	gsel 0,1
+	onerror goto *error
+*main
+	if getkey(1) :gosub *rclick
+	if getkey(2) :gosub *lclick
+	if getkey(17) :gosub *controll
+	if ginfo_act=0 {
+		gsel 0,1
+		redraw 0
+		color 255,255,255 :boxf :color
+		if chk(0)>0 {
+			notesel ms
+			title "Image Edit - "+noteget(chk(0))+" "+imgx(chk(0)-1)+"x"+imgy(chk(0)-1)
+			boxf 0,20,imgx(chk(0)-1)+1,imgy(chk(0)-1)+21
+			pos 1,21 :gcopy img(chk(0)-1),0,0,imgx(chk(0)-1),imgy(chk(0)-1)
+			if chk(1)=1 {
+				repeat imgx(chk(0)-1)/16
+					boxf cnt*16,0+20,cnt*16,imgy(chk(0)-1)+20
+				loop
+				repeat imgy(chk(0)-1)/16
+					boxf 0,cnt*16+20,imgx(chk(0)-1),cnt*16+20
+				loop
+			}
+			if mousey>20 {
+				gmode 3,16,16,128
+				buffer 3,16,16
+				color 0,0,0 :boxf :gsel 0,1
+				pos (chk(2)\((imgx(chk(0)-1))/16))*16+1, (chk(2)/((imgx(chk(0)-1))/16))*16+21
+				gcopy 3,0,0,16,16
+
+				if (ginfo(4)<ginfo(0))&(ginfo(0)<=ginfo(6))&(ginfo(5)<ginfo(1))&(ginfo(1)<=ginfo(7)){
+					buffer 3,16,16
+					color 255,255,255 :boxf :gsel 0,1
+					pos (mousex-(mousex\16))+1,(mousey-((mousey-4)\16))
+					gcopy 3,0,0,16,16
+				}
+				gmode 0
+			}
+		}
+		redraw 1
+	}
+	if acted!ginfo_act {
+		if ginfo_act=0 {
+			gsel 1,1
+			gsel 4,1
+			gsel 0,1
+		}
+		if chk(1)=1 {
+			if ginfo_act=1 {
+				title "裏 "+ginfo(12)+"x"+ginfo(13)
+				gsel 2,2
+				gsel 1,1
+				MoveWindow hwnd2, ginfo(4)+7, ginfo(5)+29, ginfo(12)+1, ginfo(13)+1, 1
+			}
+			if ginfo_act=4 {
+				title "表 "+ginfo(12)+"x"+ginfo(13)
+				gsel 2,2
+				gsel 4,1
+				MoveWindow hwnd2, ginfo(4)+7, ginfo(5)+29, ginfo(12)+1, ginfo(13)+1, 1
+				if chk(4)=1 {
+					SetWindowLong hwnd4,-20,0x80000
+					SetLayeredWindowAttributes hwnd(),RGB(0,117,117),255,3
+				}
+				if chk(4)=0 {
+					SetWindowLong hwnd4,-20,0
+				}
+			}
+			if (ginfo_act!1)&(ginfo_act!4) {
+				if ginfo_act!-1 :act=ginfo_act :gsel 2,1 :gsel act,1
+				if ginfo_act=-1 :gsel 2,-1
+			}
+		}else {
+			if ginfo_act=1 :gsel 1,1 :title "裏 "+ginfo(12)+"x"+ginfo(13)
+			if ginfo_act=4 {
+				gsel 4,1
+				title "表 "+ginfo(12)+"x"+ginfo(13)
+				MoveWindow hwnd2, ginfo(4)+7, ginfo(5)+29, ginfo(12)+1, ginfo(13)+1, 1
+				if chk(4)=1 {
+					SetWindowLong hwnd4,-20,0x80000
+					SetLayeredWindowAttributes hwnd(),RGB(0,117,117),255,3
+				}
+				if chk(4)=0 {
+					SetWindowLong hwnd4,-20,0
+				}
+			}
+		}
+	}
+	acted=ginfo_act
+	wait 1
+	goto *main
+*revar
+	dim img :dim imgx :dim imgy :dim chk,10
+	sdim ms :dim ndc,3 :ndc.0=0 :ndc.1=117 :ndc.2=117
+	imgmax=0 :ms="画像なし"
+	chk(2)=-1 :chk(3)=-1 :chk(4)=1
+	return
+*error
+	oncmd 0 :onclick 0 :onerror 0
+	dialog "エラーが発生しました。\n画像を保存しますか？"+strf("N%dL%d", wparam, lparam),3,""
+	if stat=6 :gosub *save
+	end
+*controll
+	if chk(0) == 0 :return
+	if chk(1) == 0 :chk(1) = 1 :gsel 0, 1 :act = ginfo_act :objprm 5, chk(1) :gsel act, 1 :return
+	repeat
+		if not(getkey(17)) :break
+		
+		wait 1
+	loop
+	return
+*rclick
+	if chk(0)=0 :return
+		if ginfo_act=0 {
+			gsel 0,1
+			chk(2)=((mousex-(mousex\16))/16)+(((mousey-20)-((mousey-20)\16))/16)*imgx(chk(0)-1)/16
+			return
+		}
+		if ginfo_act=1 {
+			if chk(2) > -1 {
+				gsel 1,1
+				pos (mousex-(mousex\16))+8,(mousey-(mousey\16))+8
+				gmode 4,,,255 :color ndc.0,ndc.1,ndc.2
+				celput img(chk(0)-1),chk(2)
+				gmode 0
+			}
+			return
+		}
+		if ginfo_act=4 {
+			if chk(2) > -1 {
+				gsel 4,1
+				pos (mousex-(mousex\16))+8,(mousey-(mousey\16))+8
+				celput img(chk(0)-1),chk(2)
+			}
+			return
+		}
+	return
+*lclick
+		if ginfo_act=0 :gsel 0,1 :chk(2)=-1 :return
+		if ginfo_act=1 {
+			gsel 1,1
+			redraw 0
+			color 255,255,255
+			boxs (mousex-(mousex\16)),(mousey-(mousey\16)),16,16
+			redraw 1
+		}
+		if ginfo_act=4 {
+			gsel 4,1
+			redraw 0
+			color 0,117,117
+			boxs (mousex-(mousex\16)),(mousey-(mousey\16)),16,16
+			redraw 1
+		}
+	return
+*move
+	if ginfo_act=1 {
+		gsel 1,1
+		title "裏 "+ginfo(12)+"x"+ginfo(13)
+		MoveWindow hwnd2, ginfo(4)+7, ginfo(5)+29, ginfo(12)+1, ginfo(13)+1, 1
+	}
+	if ginfo_act=4 {
+		gsel 4,1
+		title "表 "+ginfo(12)+"x"+ginfo(13)
+		MoveWindow hwnd2, ginfo(4)+7, ginfo(5)+29, ginfo(12)+1, ginfo(13)+1, 1
+	}
+	return
+*save
+	if chk(5)=1 :gosub *savef
+	if chk(5)=0 :gosub *saveb
+	return
+*savef
+	dialog "bmp",17,"画像ファイル"
+	if stat=0 :return
+	gsel 1,1
+	x=ginfo(10)-16
+	y=ginfo(11)-36
+	buffer 3,x,y
+	pos 0,0
+	gcopy 1,0,0,x,y
+	bmpsave refstr
+	gsel 0,1
+	return
+*saveb
+	dialog "bmp",17,"画像ファイル"
+	if stat=0 :return
+	gsel 4,1
+	x=ginfo(10)-16
+	y=ginfo(11)-36
+	buffer 3,x,y
+	pos 0,0
+	gcopy 4,0,0,x,y
+	bmpsave refstr
+	gsel 0,1
+	return
+*iload
+	if chk(5)=0 :gosub *loadf
+	if chk(5)=1 :gosub *loadb
+	return
+*loadf
+	dialog "bmp;*.jpg;*.gif",16,"画像ファイル"
+	if stat=0 :return
+	new_id=ginfo_newid
+	buffer new_id
+	pos 0,0 :picload refstr
+	x=ginfo(12)
+	y=ginfo(13)
+	
+	screen 4,ginfo(20),ginfo(21),0,,,x,y
+	hwnd4 = hwnd()
+	title "マップ表"
+	celput new_id
+	gsel 0,1
+	return
+*loadb
+	dialog "bmp;*.jpg;*.gif",16,"画像ファイル"
+	if stat=0 :return
+	new_id=ginfo_newid
+	buffer new_id
+	pos 0,0 :picload refstr
+	x=ginfo(12)
+	y=ginfo(13)
+
+	screen 1,ginfo(20),ginfo(21),0,,,x,y
+	title "マップ裏"
+	pos 0,0 :celput new_id
+	gsel 0,1
+	return
+*pload
+/*オートロード*
+	nfile="D:\\Program Files\\Monster\\town01_a.bmp"
+/**/
+/*user選択*/
+	dialog "bmp",16,"画像ファイル"
+	if stat=0 :return
+	nfile=refstr
+/**/
+	img(imgmax) = imgload(nfile, imgx, imgy, 0, imgmax)
+	celdiv img(imgmax),16,16,8,8
+	imgmax++
+
+	ms+="\n"+getpath(nfile,11)
+	objprm 1,ms
+	return
+#module
+#deffunc boxs int x1_, int y1_, int xs_, int ys_
+	boxf x1_, y1_, x1_+xs_, y1_+ys_
+	return
+#defcfunc imgload str file_name, array x_size, array y_size, int active_window, int var_numbar
+	wnd_newid = ginfo_newid
+	bgscr wnd_newid,,,2
+	picload file_name
+	x_size(var_numbar) = ginfo(12)
+	y_size(var_numbar) = ginfo(13)
+	gsel wnd_newid,-1
+	gsel active_window,1
+	return wnd_newid
+#global

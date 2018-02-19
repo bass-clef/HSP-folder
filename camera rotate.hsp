@@ -1,0 +1,70 @@
+#include "hgimg3.as"
+ 
+//回転処理(2次元)
+#module 
+#deffunc rot var a,var b,double t 
+    c= cos(t)*a - sin(t)*b 
+    d= sin(t)*a + cos(t)*b 
+    a=c 
+    b=d 
+    return 
+#global 
+ 
+//ローカル座標からワールド座標への変換 
+#module 
+#define px position(0)
+#define py position(1)
+#define pz position(2)
+#define tx euler(0)
+#define ty euler(1)
+#define tz euler(2)
+#deffunc local2world array position, array euler 
+    rot pz,py,tx 
+    rot pz,px,ty 
+    rot py,px,tz 
+    return 
+#global 
+ 
+    screen 0,320,240 
+    hgini 
+ 
+    setcolor 0,0,255 
+    addbox model,10,10 
+    regobj big,model 
+ 
+    setcolor 255,255,0 
+    addbox model,3,3 
+    regobj small,model 
+ 
+    cammode CAM_MODE_LOOKAT
+ 
+    ddim euler,3 
+    ddim position,3 
+ 
+*main 
+    //適当に回転 
+//    addang big, 0.01, 0.02, 0.03 
+ 
+    //回転角取得 
+    selang big 
+    objgetfv euler 
+    selang small 
+    objsetfv euler 
+ 
+    //座標変換(local → world)
+    stick@hsp ky, 15
+    if ky &  1 :x-- :z--
+    if ky &  4 :x++ :z++
+    if ky &  2 :y-- :z--
+    if ky &  8 :y++ :z++
+    if ky &  5 :position=cos(deg2rad(x))*50.0, cos(deg2rad(y)), sin(deg2rad(z))*50.0
+    if ky & 10 :position=0.0, cos(deg2rad(y)), sin(deg2rad(z))*50.0
+    local2world position,euler 
+ 
+    //位置設定 
+    selpos HGOBJ_CAMERA
+    objsetfv position 
+ 
+    hgdraw 
+    hgsync 20 
+    goto *main 

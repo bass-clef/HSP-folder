@@ -1,0 +1,76 @@
+	
+	
+	#include "keys.as"
+	
+	
+	mapWidth = 800
+	mapHeight = 800
+	mapXPos = 0
+	mapYPos = 0
+	
+	mainWidth = 640
+	mainHeight = 480
+	playerXPos = mainWidth/2
+	playerYPos = mainHeight/2
+	playerRadius = 5
+	
+	
+	initKeys
+	registoryKey VK_LEFT, 1, 1
+	registoryKey VK_RIGHT, 1, 1
+	registoryKey VK_UP, 1, 1
+	registoryKey VK_DOWN, 1, 1
+	
+	buffer 1, mapWidth, mapHeight
+	color :boxf
+	colorgray
+	boxf 0, 0, mainWidth, mainHeight
+	
+	screen 0, mainWidth, mainHeight
+	
+	
+*main
+	
+	calcKeys
+	title ""+ playerXPos +"x"+ playerYPos +":"+ mapXPos +"x"+ mapYPos
+	if keyDowning(VK_LEFT)	{
+		if mapXPos < 0 && playerXPos < mainWidth/2 {
+			mapXPos++
+		} else {
+			if playerXPos :playerXPos--
+		}
+	}
+	if keyDowning(VK_UP)	{
+		if mapYPos < 0 && playerYPos < mainHeight/2 {
+			mapYPos++
+		} else {
+			if playerYPos :playerYPos--
+		}
+	}
+	if keyDowning(VK_RIGHT)	{
+		if -(mapWidth-mainWidth) < mapXPos && mainWidth/2 < playerXPos {
+			mapXPos--
+		} else {
+			if playerXPos < mainWidth :playerXPos++
+		}
+	}
+	if keyDowning(VK_DOWN)	{
+		if -(mapHeight-mainHeight) < mapYPos && mainHeight/2 < playerYPos {
+			mapYPos--
+		} else {
+			if playerYPos < mainHeight :playerYPos++
+		}
+	}
+	
+	redraw 0
+	colorwhite :boxf :color
+	
+	pos 0, 0 :gcopy 1, -mapXPos, -mapYPos, mainWidth, mainHeight
+	
+	color 128, 255, 255
+	circle playerXPos-playerRadius, playerYPos-playerRadius, playerXPos+playerRadius, playerYPos+playerRadius
+	
+	redraw 1
+	
+	wait 1
+	goto *main

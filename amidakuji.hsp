@@ -1,0 +1,242 @@
+	
+	#module
+	#uselib "gdi32.dll"
+	#func	DeleteObject	"DeleteObject"		int, int
+	#func	SelectObject	"SelectObject"		int, int
+	#func	MoveToEx		"MoveToEx"			int, int, int, int
+	#func	LineTo			"LineTo"			int, int, int
+	#cfunc	CreatePen		"CreatePen"			int, int, int
+	
+	// 線を描画
+	#const global PS_SOLID		0	// 実線
+	#const global PS_DASH		1	// 破線
+	#const global PS_DOT		2	// 点線
+	#const global PS_DASHDOT	3	// 一点鎖線
+	#const global PS_DASHDOTDOT	4	// 二点鎖線
+	#undef line
+	#define global line(%1, %2, %3=ginfo_cx, %4=ginfo_cy, %5=0, %6=4) line__ %1, %2, %3, %4, %5, %6
+	#deffunc line__ int endx, int endy, int begx, int begy, int linetype, int lnwidth
+		pos begx, begy
+		hPen = CreatePen( linetype, lnwidth, ginfo(16)|ginfo(17)<<8|ginfo(18)<<16 )
+
+		SelectObject hdc, hPen
+
+		MoveToEx hdc, begx, begy, 0
+		LineTo hdc, endx, endy
+
+		DeleteObject hPen
+	return
+	#global
+	
+	#module
+	#deffunc initRandom int max_
+		dim values, max_
+		max = max_
+		repeat max
+			values.cnt = cnt
+		loop
+		setRandomValues
+	return
+	
+	#deffunc setRandomValues
+		count = 0
+		repeat max
+			from = rnd(max)
+			to = rnd(max)
+			t = values.from
+			values.from = values.to
+			values.to = t
+		loop
+	return
+	
+	#defcfunc random
+		if max == 0 :return 0
+		ret = values.count
+		count++
+		if max <= count :setRandomValues
+	return ret
+	
+	#global
+	
+	
+	
+	// 網生成
+	#enum	MAP_NULL = 0
+	#enum	MAP_V	// 縦
+	
+	#enum	MAP_H	// 横
+	#enum	MAP_S	// スラッシュ
+	#enum	MAP_B	// バックスラッシュ
+	#enum	MAP_LS	// 長いスラッシュ
+	#enum	MAP_LB	// 長いバックスラッシュ
+	
+	#define MAP_HNEXT	5
+	#define MAP_SNEXT	4
+	#define MAP_S2PREV	3
+	
+	randomize
+	t = rnd(10000)
+	randomize t
+	
+	children = 5
+	xmax = children*2-1
+	ymax = 10
+	lines = 10
+	
+	gosub *makeroot
+	
+	wdh = 640//ginfo(20)
+	hgt = 640//ginfo(21)
+	wdhmax = wdh
+	hgtmax = hgt
+	size = 10
+	subid = 1
+	
+	whiteid = 2
+	buffer whiteid, ginfo(20), ginfo(21)
+	colorwhite :boxf: color
+	
+	
+	screen 0, wdh, hgt, 0, (ginfo(20)-wdh)/2, (ginfo(21)-hgt)/2
+	title "あみだくじ"
+	#ifdef _DEBUG
+	title ""+gtext(hwnd)+" "+t
+	#endif
+	onkey gosub *key
+	
+	gosub *draw
+	gosub *maindraw
+	gosub *makebutton
+	
+	stop
+	
+*makeroot
+	dim map, xmax, ymax
+	for i, 0, children*2, 2
+		repeat ymax
+			map(i, cnt) = MAP_V
+		loop
+	next
+	for i, 1, xmax, 2
+		initRandom ymax-2
+		repeat lines
+			y = random()+1
+			type = rnd(MAP_HNEXT)+MAP_H
+	
+			if (0 < y) && (y < ymax-1) {
+				if type == MAP_LS || type == MAP_LB :map(i, y+1) = MAP_NULL
+				if map(i, y-1) == MAP_LS || map(i, y-1) == MAP_LB :type = MAP_NULL
+			}
+			
+			if 1 < i :if map(i-2, y) == type {
+				if type == MAP_H :type = rnd(MAP_SNEXT)+MAP_S
+			}
+			
+			map(i, y) = type
+		loop
+	next
+	return
+	
+*start
+	clrobj begButton, begButton+children-1
+	ID = stat-begButton
+	
+	xbeg = -ginfo(12)/2+xr/2 + xr*ID*2
+	ybeg = 0
+	
+	xNow = ID*2
+	yNow = 0
+	
+	gosub *maindraw
+	
+	xx = xNow*xr
+	yy = yr
+	title "("+xNow+","+yNow+") ["+xx+","+yy+"]"
+	
+	color RR(clr.ID), GG(clr.ID), BB(clr.ID)
+	line xx, yy, xx, yy
+	
+	return
+	
+*key
+	if wparam == 38 :ybeg -= 10
+	if wparam == 40 :ybeg += 10
+	gosub *draw
+	
+	return
+	
+*draw
+	yr = hgtmax/(ymax+2)
+	xr = wdhmax/xmax
+	buffer 1, wdhmax, hgtmax
+	font msgothic, 10
+	
+	color
+	for i, 0, xmax, 1
+		repeat ymax
+			color
+			if map(i, cnt) == MAP_V {
+				// 縦
+				line xr/2+xr*i, yr+yr*cnt, xr/2+xr*i, yr+yr*cnt+yr, 0, size
+			}else :if map(i, cnt) == MAP_H {
+				// 横
+				line xr/2+xr*i-xr, yr+yr*cnt+yr/2, xr/2+xr*i+xr, yr+yr*cnt+yr/2, 0, size
+			}else :if map(i, cnt) == MAP_S {
+				// /
+				line xr/2+xr*i-xr, yr+yr*cnt+yr/9*8, xr/2+xr*i+xr, yr+yr*cnt+yr/9, 0, size
+			}else :if map(i, cnt) == MAP_B {
+				// \
+				line xr/2+xr*i-xr, yr+yr*cnt+yr/9*7, xr/2+xr*i+xr, yr+yr*cnt+yr/9*2, 0, size
+			}else :if map(i, cnt) == MAP_LS {
+				// /*2
+				line xr/2+xr*i-xr, yr+yr*cnt+yr/9*6+yr, xr/2+xr*i+xr, yr+yr*cnt+yr/9*3, 0, size
+			}else :if map(i, cnt) == MAP_LB {
+				// \*2
+				line xr/2+xr*i-xr, yr+yr*cnt+yr/9*5, xr/2+xr*i+xr, yr+yr*cnt+yr/9*4, 0, size
+			}
+		loop
+	next
+	
+	for i, 0, xmax, 1
+		repeat ymax
+			colorwhite :boxf i*10, cnt*10+yr, i*10+10, cnt*10+10+yr :color
+			pos i*10, cnt*10+yr :mes map(i, cnt)
+		loop
+	next
+	
+	return
+	
+*maindraw
+	gsel 0
+	
+	redraw 0
+	colorwhite :boxf :color
+	pos 0, 0 :gcopy 1, xbeg, ybeg, wdh, hgt
+	redraw 1
+	
+	return
+
+*makebutton
+	dim clr, children
+	clr = 0xFFFF, 0xFF00, 0xFF8000, 0xFF00FF, 0xFF, 0x80FF, 0xFFFFFF, 0
+	// 黄,緑,水,紫,赤,橙,白,黒
+	repeat children
+		buffer 2+cnt, xr, yr
+		color RR(clr.cnt), GG(clr.cnt), BB(clr.cnt)
+		boxf
+//		boxf xr/2+cnt*2*xr-xr/2, 0, xr/2+cnt*2*xr+xr/2, yr
+//		color
+//		boxf xr/2+cnt*2*xr-xr/2, 0, xr/2+cnt*2*xr+xr/2, yr, 0
+
+	loop
+	
+	gsel 0
+	
+	repeat children
+		objsize xr, yr
+		objimage 2+cnt
+		pos xr/2+cnt*2*xr-xr/2, 0 :button gosub "", *start
+		if cnt == 0 :begButton = stat
+	loop
+	return
+	

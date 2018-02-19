@@ -1,0 +1,874 @@
+	
+	#packopt name "Mouse Gesture"
+	#packopt hide 1
+	
+	#uselib "user32.dll"
+	#func	SetTimer		"SetTimer"		int, int, int, int
+	#func	KillTimer		"KillTimer"		int, int
+	#func	EnableWindow	"EnableWindow"	int, int
+	
+	#uselib	"gdi32.dll"
+	#func	SetTextColor	"SetTextColor"		int, int
+	#func	SetBkColor		"SetBkColor"		int, int
+	#cfunc	GetStockObject	"GetStockObject"	int
+	
+	#uselib "PointerEx.dll"
+	#cfunc	getpt			"GetStrPointer"			sptr
+	#cfunc	refer			"IntReference"			int
+	#func	allow			"IntDereference"		int, int
+	
+	#define	UDS_WRAP		0x01	// 最大値・最小値に達したらループ
+	#define	UDS_ALIGNRIGHT	0x04	// アップダウンボタンを直前のオブジェクト(右部分)に組み込む
+	#define	UDS_ALIGNLEFT	0x08	// アップダウンボタンを直前のオブジェクト(左部分)に組み込む
+	#define	UDS_ARROWKEYS	0x20	// カーソルキーで数値変更
+	#define	UDS_HORZ		0x40	// アップダウンボタンを左右方向に
+	#define	UDS_NOTHOUSANDS	0x80	// ３桁コンマ区切り無効
+	#define LVN_FIRST				(0-100)		// listview
+	#define LVN_ITEMCHANGING		(LVN_FIRST-0)
+	#define LVN_ITEMCHANGED			(LVN_FIRST-1)
+	#define	LVM_SETIMAGELIST		0x1003
+	#define	LVM_GETITEMCOUNT		0x1004
+	#define	LVM_GETNEXTITEM			0x100C
+	#define TCN_FIRST               (0-550)       // tab control
+	#define TCN_LAST                (0-580)
+	#define TCN_SELCHANGE           (TCN_FIRST - 1)
+	#define TCN_SELCHANGING         (TCN_FIRST - 2)
+	
+	#define	mgdialog(%1, %2)	oncmd 0 :dialog %1, %2, "Mouse Gesture" :oncmd 1
+	#define	db			double
+	#define	TI_MS		1234
+	
+	#define MGF_NORMAL				1
+	#define MGF_RUBYCODE			2
+	#define MGF_BOOTING				0x40
+	#define MGF_CHANGEINITMOUSEPOS	0x80
+	
+	#ifdef _DEBUG
+	#define DIR_DATA	"D:\\Program Files\\HSP\\mgdata"
+	#else
+	#define	DIR_DATA	""+dir_exe+"\\data"
+	#endif
+	
+	#include "MouseGesture.as"
+	
+*main
+	VarInit
+	DataInit
+	WndInit
+	
+	stop
+	
+*Jump	// ボタン押し下げ
+	switch stat
+	case makeID
+		gosub *MGSetting
+		swbreak
+		
+	swend
+	
+	return
+	
+*WindowProc
+	act = ginfo_act
+	if act != 0 :gsel 0
+	
+	switch iparam
+	case WM_CLOSE	// 閉じるボタン押し下げ
+		KillTimer hMWnd, TI_MS
+		swbreak
+		
+	case WM_DESTROY	// ウィンドウ削除後
+		KillTimer hMWnd, TI_MS
+		if 1 < MGMax {
+			repeat MGMax-1, 1
+				MGWriteToFile cnt, ""+DIR_DATA+"\\"+mgName(cnt)+".dat"
+				bsave ""+DIR_DATA+"\\"+mgName(cnt)+".rb", mgCode(cnt), strlen(mgCode(cnt))
+			loop
+		}
+		swbreak
+	
+	case WM_TIMER
+		if wparam == TI_MS :Calc	// 10msの間隔で受信
+		swbreak
+	swend
+	
+	if (act != 0) && (act != -1) :gsel act, 0
+	return
+	
+*SubWindowProc
+	switch iparam
+	case WM_CLOSE
+		gsel subId
+		swbreak
+	case WM_NOTIFY
+		if refer(lparam) == hLVAllMGA {
+			switch refer(lparam+8)
+			case LVN_ITEMCHANGED
+				sendmsg hLVAllMGA, LVM_GETNEXTITEM, -1, 0x02
+				if 0 <= stat {
+					now = stat
+//					if now :gosub *MGSettingApply
+					gosub *MGSettingAdd
+					gosub *MGSettingCalc
+					gosub *MGSettingDraw
+				}
+				swbreak
+			swend
+			//LVN_ITEMCHANGED
+			//LVN_ENDLABELEDIT
+		}else :if refer(lparam) == hTabControl {
+			if refer(lparam+8) == TCN_SELCHANGE {
+				ChangeTab
+//				gsel selid
+			}
+		}
+		swbreak
+		
+	case WM_CTLCOLORSTATIC
+		if lparam == hCheckRuby {
+			SetTextColor wparam, 0
+			SetBkColor wparam, RGB(255, 255, 255)
+			return  GetStockObject(0)
+		}
+		swbreak
+	swend
+	return
+	
+*MGEvent	// マウスイベント発生
+	eventID = stat
+	d = peek(mgFlag, eventID)
+	if d && MGF_BOOTING :return
+	d |= MGF_BOOTING
+	poke mgFlag, eventID, d
+	
+	switch (peek(mgFlag, eventID) & maxand)
+	case MGF_RUBYCODE	// ruby
+		TempCode = mgCode(eventID)
+		syscode = "System.mx", "System.my"
+		sysresult = ginfo(0), ginfo(1)
+		repeat length(syscode)
+			strrep TempCode, syscode.cnt, str(sysresult.cnt)
+		loop
+		if "DL is depr" != strmid(ruby(TempCode), 0, 10) {
+			dialog ""+mgName(eventID)+" が実行されました"+(peek(mgFlag, eventID) & maxand)+"\n["+ruby(TempCode)+"]", 0, "MG", NULL
+		}
+		swbreak
+		
+	default
+		dialog "要素ID : "+eventID+" が実行されました", 0, "MG", NULL
+	swend
+	
+	poke mgFlag, eventID, d^MGF_BOOTING
+	return
+	
+*MGSetting	// マウスイベント作成
+//		oncmd 0
+		sdim name
+		sdim code
+		code = initcode
+	
+		gsel 0
+		objsize 600, 450
+		dialog "3", 64, "マウスイベント設定"
+		width 600, 300
+		oncmd gosub *SubWindowProc, WM_NOTIFY
+		hSubWnd = hwnd@hsp
+		
+		gmode 3, wdx, wdy, 75
+		pos 10+140, 30+82 :grotate 1, 0, 0, 0, 280, 165
+		
+		// UpDown Box
+		pos 45, 230 :input rTemp, 50, 20, 3 :rTempID = stat
+		winobj "msctls_updown32", "",, 0x50000012 | UDS_ALIGNRIGHT
+		hUDRange = objinfo(stat, 2)
+		sendmsg hUDRange, 0x0465,, MAKELONG(999, 0)
+		rTemp = 100
+		objprm rTempID, rTemp
+	
+		objsize 150, 20
+		pos 150, 230 :chkbox "基点をマウス座標にする", chk :chkID = stat
+		
+		// タイムアウト値
+		pos 220, 253 :input totTemp, 50, 20, 4 :totTempID = stat
+		winobj "msctls_updown32", "",, 0x50000012 | UDS_ALIGNRIGHT
+		hUDTOTime = objinfo(stat, 2)
+		sendmsg hUDTOTime, 0x0465,, MAKELONG(9999, -1)
+		totTemp = timeouttime
+		objprm totTempID, totTemp
+		
+		objsize 90, 20
+		pos  14, 275 :button gosub "戻る", *MGSettingPreview
+		pos 104, 275 :button gosub "機能設定", *MGSettingExtra
+		pos 194, 275 :button gosub "登録", *MGSettingApply :ApplyID = stat
+		objenable ApplyID, 0
+		hBtnApply = objinfo(ApplyID, 2)
+		
+		// Listview All Mouse Gesture Args
+		pos 300, 5 :ListView hwnd@hsp, hLVAllMGA, 295, 100
+		if hLVAllMGA == false :end
+		ListViewInsertColumn hLVAllMGA, "名前", 0, 180
+		ListViewInsertColumn hLVAllMGA, "点の数", 1, 50
+		ListViewInsertColumn hLVAllMGA, "半径", 2, 45
+		ListViewInsertColumn hLVAllMGA, "タイムアウト値", 3, 100
+		
+		// Listview Args Datail
+		pos 300, 110 :ListView hwnd@hsp, hLVADatail, 295, 185
+		if hLVADatail == false :end
+		ListViewInsertColumn hLVADatail, "番号", 0, 60
+		ListViewInsertColumn hLVADatail, "Ｘ座標", 1, 100
+		ListViewInsertColumn hLVADatail, "Ｙ座標", 2, 100
+	
+		
+		// Create Tab control
+		oncmd 0
+		if tabId :clrobj tabId, tabId
+		newid = 4
+		pos 5, 300 :CreateTab 590, 145, newid :tabId = stat
+		hTabControl = objinfo(tabId, 2)
+		
+		InsertTab "基本設定"
+		oncmd gosub *SubWindowProc, WM_CTLCOLORSTATIC
+		oncmd gosub *SubWindowProc, WM_CLOSE
+		objsize 150, 20
+		pos 5, 5 :chkbox "Rubyを使用する", fRuby	:hCheckRuby = objinfo(stat, 2)
+		
+		// EditBox for the ruby program on the tc.
+		InsertTab "Rubyコード"
+		objmode 2
+		font msgothic, 12
+		pos 0, 0 :mesbox code, 580, 119, 5, 0 :codeTempID = stat :hEcodeTemp = objinfo(codeTempID, 2)
+		
+		gsel newid, 1
+		gsel 3
+		oncmd 1
+		
+		objmode 2
+		font msgothic, 16
+		pos 10, 205 :input name, 280, 20 :nameID = stat
+		objsel stat
+		
+		now = 0
+		chkold = -1
+		MGInit 0, 0, rTemp, totTemp, now
+		mgName(0) = "新規マウスポイント("+MGMax+")"
+		mgCode(0) = initcode
+		marx = 280.0/db(wdx)
+		mary = 165.0/db(wdy)
+		marx2 = db(wdx)/280.0
+		mary2 = db(wdy)/165.0
+		cx = 10
+		cy = 30
+		
+		gosub *MGSettingAdd
+		gosub *MGSettingCalc
+		gosub *MGSettingDraw
+		
+		dlgfor
+			wait 1
+			if getkey(1) & 0x8000 {
+				mx = db(mousex-10)*marx2
+				my = db(mousey-30)*mary2
+				if ((0 <= mx) && (mx < wdx)) && ((0 <= my) && (my < wdy)) {
+					if peek(mgFlag, now) & MGF_CHANGEINITMOUSEPOS :ip = MGGetInitPoint(now) :else :ip = 0
+					mx -= db(wtoi(loword(ip)))
+					my -= db(wtoi(hiword(ip)))
+					
+					MGSetPoint mx, my, now
+					if stat != -1 {
+						if ip :if MGArgMax(now) == 1 {
+							p = MGGetPoint(0, now)
+							MGSetInitPoint wtoi(loword(p)), wtoi(hiword(p)), now
+						}
+						gosub *MGSettingCalc
+						gosub *MGSettingDraw
+					}
+				}
+			}
+			if oldrTemp != rTemp {
+				oldrTemp = rTemp
+				gosub *MGSettingCalc
+				gosub *MGSettingDraw
+			}
+			if oldtotTemp != totTemp {
+				oldtotTemp = totTemp
+				gosub *MGSettingCalc
+				gosub *MGSettingDraw
+			}
+			if chkold != chk {
+				if MGArgMax(now) {
+					if chkold == 0 {
+						if not(peek(mgFlag, now) & MGF_CHANGEINITMOUSEPOS) {
+							poke mgFlag, now, peek(mgFlag, now) | MGF_CHANGEINITMOUSEPOS
+							ip = MGGetPoint(0, now)
+							MGSetInitPoint wtoi(loword(ip)), wtoi(hiword(ip)), now
+							repeat MGArgMax(now)
+								p = MGGetPoint(cnt, now)
+								MGChangePoint wtoi(loword(p))-wtoi(loword(ip)), wtoi(hiword(p))-wtoi(hiword(ip)), cnt, now
+							loop
+						}
+					}else {
+						ip = MGGetInitPoint(now)
+						repeat MGArgMax(now)
+							p = MGGetPoint(cnt, now)
+							MGChangePoint wtoi(loword(p))+wtoi(loword(ip)), wtoi(hiword(p))+wtoi(hiword(ip)), cnt, now
+						loop
+						MGSetInitPoint 0, 0, now
+					}
+					chkold = chk
+					gosub *MGSettingCalc
+					gosub *MGSettingDraw
+				}
+			}
+			if oldcode != code {
+				oldcode = code
+				d = peek(mgFlag, eventID)
+				if strlen(code) :if not((d & maxand) & MGF_RUBYCODE) :poke mgFlag, now, d | MGF_RUBYCODE
+			}
+		loop
+		
+		MGALDel 0
+		poke mgFlag, 0, 0
+		now = -1
+		
+//		oncmd 1
+	return
+*MGSettingExtra
+	if ginfo(13) == 300 :width 600, 450 :else :width 600, 300
+	return
+	
+*MGSettingApply
+	if MGArgMax(now) < 2 {
+		mgdialog "登録には２ヶ所以上の地点が必要です。", 0
+		return
+	}
+	if iswin(hLVADatail) {
+		sendmsg hLVADatail, LVM_GETITEMCOUNT
+		repeat stat
+			ListViewDeleteItem hLVADatail, 0
+		loop
+	}
+	
+	nowold = now
+	if nowold == 0 {
+		now = MGMax
+		MGInit 0, 0, rTemp, totTemp, now
+		MGMove now, 0
+	}
+		//
+		mgName(now) = name
+		if strlen(code) {
+			mgCode(now) = code
+			poke mgFlag, now, MGF_RUBYCODE
+		}
+		if chk {
+			poke mgFlag, now, peek(mgFlag, now) | MGF_CHANGEINITMOUSEPOS
+		}
+	
+	if nowold == 0 {
+		MGALDel 0
+		poke mgFlag, 0, 0
+			
+		mgName(0) = "新規マウスポイント("+MGMax+")"
+		mgCode(0) = initcode
+		now = nowold
+		chkold = -1
+	}
+	
+	gosub *MGSettingAdd
+	gosub *MGSettingCalc
+	gosub *MGSettingDraw
+	return
+*MGSettingPreview
+	if 2 < MGArgMax(now) {
+		MGDelPoint now
+		gosub *MGSettingAdd
+		gosub *MGSettingCalc
+		gosub *MGSettingDraw
+	}else {
+		if now {
+			if now < MGMax-1 {// 空白詰め
+				repeat MGMax-now-1, now
+					MGMove cnt, cnt+1
+				loop
+				MGAlDel MGMax-1
+				ListViewDeleteItem hLVAllMGA, MGMax
+			}else {
+				MGAlDel now
+			}
+			mgdialog ""+mgName(now)+"を削除しました", 0
+			now = 0
+		}else {
+			MGAlDel now
+			MGInit 0, 0, rTemp, totTemp, now
+			now = 0
+		}
+		gosub *MGSettingAdd
+		gosub *MGSettingCalc
+		gosub *MGSettingDraw
+//		dlgdel
+	}
+	return
+	
+*MGSettingAdd
+	objprm nameID, mgName(now)
+	objprm rTempID, int(MGRange(now))
+	objprm totTempID, int(MGTOTime(now)/10)
+	objprm chkID, peek(mgFlag, now) & 0xF0 & MGF_CHANGEINITMOUSEPOS
+//	objprm codeTempID, mgCode(now)
+	title mgCode(now), hEcodeTemp
+	
+	repeat MGMax
+		ListViewDeleteItem hLVAllMGA, cnt
+		ListViewInsertItem hLVAllMGA, mgName(cnt), cnt, 0					// 名前
+		ListViewInsertItem hLVAllMGA, str(MGArgMax(cnt)), cnt, 1			// 点の数
+		ListViewInsertItem hLVAllMGA, strf("%1.16g", MGRange(cnt)), cnt, 2	// 半径
+		if MGTOTime(cnt) < 0 {// タイムアウト値
+			ListViewInsertItem hLVAllMGA, "無制限", cnt, 3
+		}else {
+			ListViewInsertItem hLVAllMGA, strf("%1.16g(秒)", (10.0*MGTOTime(cnt)/1000.0)), cnt, 3
+		}
+	loop
+	
+*MGSettingCalc
+	if chk {
+		if not(peek(mgFlag, now) & MGF_CHANGEINITMOUSEPOS) :if MGArgMax(now) == 1 {
+			chkold = -1
+//			poke mgFlag, now, peek(mgFlag, now) | 0x80
+		}
+	}
+	s = strlen(code)
+	memexpand mgCode(now), s+1
+	memcpy mgCode(now), code, s
+	if iswin(hBtnApply) :if s :if 1 < MGArgMax(now) {
+		EnableWindow hBtnApply, 1
+	}else {
+		EnableWindow hBtnApply, 0
+	}
+	
+	ListViewDeleteItem hLVAllMGA, now
+	ListViewInsertItem hLVAllMGA, mgName(now), now, 0		// 名前
+	ListViewInsertItem hLVAllMGA, str(MGArgMax(now)), now, 1			// 点の数
+	MGSetRange rTemp, now		// 半径
+	ListViewInsertItem hLVAllMGA, strf("%1.16g", MGRange(now)), now, 2
+	memexpand mgFlag, now		// 基点フラグ
+	poke mgFlag, now, MGF_NORMAL | (MGF_CHANGEINITMOUSEPOS*chk)
+	MGSetTOTime totTemp*10, now// タイムアウト値
+	if totTemp < 0 {
+		ListViewInsertItem hLVAllMGA, "無制限", now, 3
+	}else {
+		ListViewInsertItem hLVAllMGA, strf("%1.16g(秒)", (10.0*MGTOTime(now)/1000.0)), now, 3
+	}
+	
+	sendmsg hLVADatail, LVM_GETITEMCOUNT
+	repeat stat
+		ListViewDeleteItem hLVADatail, 0
+	loop
+	for i, MGArgMax(now)-1, -1, -1
+		ListViewInsertItem hLVADatail, str(i+1), 0, 0		// 番号
+		p = MGGetPoint(i, now)
+		ListViewInsertItem hLVADatail, str(wtoi(loword(p))), 0, 1	// Ｘ座標
+		ListViewInsertItem hLVADatail, str(wtoi(hiword(p))), 0, 2	// Ｘ座標
+	next
+	
+	/**/
+	ListViewInsertItem hLVADatail, "基点", 0, 0		// 番号
+	if peek(mgFlag, now) & MGF_CHANGEINITMOUSEPOS {
+		ListViewInsertItem hLVADatail, "マウスx", 0, 1	// Ｘ座標
+		ListViewInsertItem hLVADatail, "マウスy", 0, 2	// Ｘ座標
+	}else {
+		p = MGGetInitPoint(now)
+		ListViewInsertItem hLVADatail, str(wtoi(loword(p))), 0, 1	// Ｘ座標
+		ListViewInsertItem hLVADatail, str(wtoi(hiword(p))), 0, 2	// Ｘ座標
+	}
+	/**/
+	
+	return
+	
+*MGSettingDraw
+	if iswin(hSubWnd) == 0 :return
+	redraw 0
+	colorwhite :boxf 10, 30, 290, 195 :color
+	gmode 3, wdx, wdy, 75
+	pos 10+140, 30+82 :grotate 1, 0, 0, 0, 280, 165
+	font msgothic, 10
+	if peek(mgFlag, now) & MGF_CHANGEINITMOUSEPOS {
+		ip = MGGetInitPoint(now)
+		xx = db(wtoi(loword(ip)))*marx
+		yy = db(wtoi(hiword(ip)))*mary
+		circle@hsp xx-2.0+cx, yy-2.0+cy, xx+2.0+cx, yy+2.0+cy, 0
+		pos xx, yy+10 :mes "基点"
+	}else :ip = 0
+	repeat MGArgMax(now)-chk, chk
+		p = MGGetPoint(cnt, now)
+		xx = db(wtoi(loword(p)) + wtoi(loword(ip)))*marx
+		yy = db(wtoi(hiword(p)) + wtoi(hiword(ip)))*mary
+		circle@hsp xx-db(rTemp)*marx+cx, yy-db(rTemp)*mary+cy, xx+db(rTemp)*marx+cx, yy+db(rTemp)*mary+cy, 0
+		if cnt == 0 {
+			if not(peek(mgFlag, now) & MGF_CHANGEINITMOUSEPOS) :pos xx+cx, yy+cy :mes cnt+1
+		}else {
+			pos xx+cx, yy+cy :mes cnt+1
+		}
+	loop
+	
+	font msgothic, 16
+	color 240, 240, 240
+	boxf 0, 0, 600, 29
+	boxf 0, 29, 9, 300
+	boxf 9, 196, 600, 300
+	boxf 291, 29, 600, 196
+	boxf 0, 300, 600, 450
+	color
+	boxf 9, 29, 291, 196, 0
+	pos 14, 7 :mes "通過する箇所をクリックしてください"
+	pos 10, 232 :mes "半径"
+	pos 10, 255 :mes "タイムアウト値 [ 100ms ×         ]"
+	redraw 1
+	return
+	
+#deffunc Calc
+	mx = ginfo(0)
+	my = ginfo(1)
+	if 0 < MGMax {
+		repeat MGMax-1, 1
+			if now != cnt :if MGNow(cnt) == 0 :if peek(mgFlag, cnt) & 128 :MGSetInitPoint mx, my, cnt
+			MGOnPointer mx, my, cnt
+			if stat == -3 :Draw
+		loop
+	}
+	
+	if (mx != mxold) || (my != myold) {
+		mxold = mx
+		myold = my
+		Draw
+	}
+	
+	return
+	
+#deffunc Draw
+	redraw 0
+	colorwhite :boxf :color
+	gmode 3, 0, 0, 75
+	pos 0, 0 :gcopy 2, 0, 0, wcx, wcy
+	
+	if 0 < MGMax {
+		repeat MGMax-1, 1
+			n = MGNow(cnt)
+			p = MGGetPoint(n, cnt)
+			if peek(mgFlag, cnt) & MGF_CHANGEINITMOUSEPOS :ip = MGGetInitPoint(cnt) :else :ip = 0
+			x = db(wtoi(loword(p)) + wtoi(loword(ip)))*mar
+			y = db(wtoi(hiword(p)) + wtoi(hiword(ip)))*mar
+			color
+			circle@hsp x-MGRange(cnt)*mar, y-MGRange(cnt)*mar, x+MGRange(cnt)*mar, y+MGRange(cnt)*mar, 0
+			pos x, y :mes ""+(cnt-1)+"-"+(n+1)
+		loop
+	}
+	
+	xx = db(mx)*mar
+	yy = db(my)*mar
+	circle@hsp xx-1, yy-1 ,xx+2, yy+2
+	
+	redraw 1
+	return
+	
+#deffunc VarInit
+	
+	Initializing = 1
+	
+	sdim mgFlag
+	// 1:規定動作 2:処理がruby
+	maxand = 0x2
+	// 論理演算 0x40:実行中 0x80:マウス基点動的変更
+	sdim mgName
+	sdim mgCode
+	sdim name
+	sdim code
+	
+	wdx = ginfo(20)
+	wdy = ginfo(21)
+	mar = 0.1
+	wcx = db(wdx)*mar
+	wcy = db(wdy)*mar
+	
+	timeouttime = 100
+	rTemp = 100
+	
+	initcode = {"
+require 'Win32API'
+exec = Win32API.new('shell32.dll', 'ShellExecuteA', %w(i p p p p i), 'i')
+
+#exec.call(0, "", "program name(*.exe)", "", "", 0)
+exec.call(0, "", "iexplore.exe", "http://www.nicovideo.jp/", "", 0)
+"}
+	
+	
+	
+	return
+	
+#deffunc DataInit
+	
+	buffer 2, wcx, wcy
+	buffer 1, wdx, wdy
+	WatchDesktop 1
+	if stat == 0 :dialog "desktop image using error"
+	
+	buffer 2, wcx, wcy
+	gmode 1, wdx, wdy
+	pos wcx/2, wcy/2 :grotate 1, 0, 0, 0, wcx, wcy
+	
+	if isdir(DIR_DATA) {
+		sdim list
+		chdir DIR_DATA
+		dirlist@hsp list, "*.dat", 3
+		notesel@hsp list
+		MGInit 0, 0, 0, 0, 0
+		repeat notemax
+			fname = getpath(noteget(cnt), 1)
+			exist ""+fname+".rb"
+			now = cnt+1
+			memexpand mgFlag, now+1
+			if strsize != -1 {
+				memexpand mgCode(now), strsize+1
+				bload ""+fname+".rb", mgCode(now), strsize
+				poke mgFlag, now, MGF_RUBYCODE
+			}
+			MGInit 0, 0, 0, 0, now
+			MGReadFromFile now, ""+fname+".dat"
+			mgName(now) = getpath(fname, 8)
+			delete fname+".dat"
+			delete fname+".rb"
+		loop
+		now = 0
+	}else {
+		mkdir DIR_DATA
+	}
+	makerubyfile ""+DIR_DATA+"\\tempcode.rb"
+	
+	return
+	
+#deffunc WndInit
+	
+	screen 0, wcx, wcy+20, 2
+	title "   Mouse Gesture"
+	hMWnd = hwnd@hsp
+//	slong hMWnd, GWL_STYLE, glong(hMWnd, GWL_STYLE)-WS_MINIMIZEBOX
+	
+	oncmd gosub *WindowProc, WM_TIMER
+	oncmd gosub *WindowProc, WM_CLOSE
+	oncmd gosub *WindowProc, WM_DESTROY
+	
+	objsize wcx, 20
+	pos 0, wcy :button gosub "設定...", *Jump :makeID = stat
+	
+	gsel 0, 1
+	
+	font msgothic, 10
+	Initializing = 0
+	SetTimer hMWnd, TI_MS, 10, 0
+	
+	return
+
+
+	
+	#module
+	// デスクトップを取得
+	#uselib "user32.dll"
+	#func	PaintDesktop	"PaintDesktop"	int
+	#cfunc	GetDC			"GetDC"			int
+	#func	ReleaseDC		"ReleaseDC"		int, int
+	#uselib "gdi32.dll"
+	#func	BitBlt			"BitBlt"		int, int, int, int, int,  int, int, int, int
+	
+	#deffunc WatchDesktop int wndid
+		buffer wndid, ginfo(20), ginfo(21)
+		hMemDC = hdc@hsp
+		scrid = ginfo_newid
+	
+		bgscr scrid, ginfo(20), ginfo(21), 0, 0, 0
+		hMDC = GetDC(hwnd@hsp)
+		PaintDesktop hMDC :ret = stat
+		BitBlt hMemDC, 0, 0, ginfo(20), ginfo(21), hMDC, 0, 0, SRCCOPY
+		ReleaseDC hwnd@hsp, hMDC
+		gsel scrid, -1
+	return ret
+	
+	#global
+	
+	#module __LISTVIEW__
+	#define	CF_TEXT							1
+	#define	WC_LISTVIEW						"SysListView32"	// リストビュークラス名
+	#define	LVS_REPORT						0x0001
+	#define	LVS_SINGLESEL					0x0004
+	#define	LVS_EDITLABELS					0x0200	// 要 LVN_ENDLABELEDIT
+	#define LVS_EX_ONECLICKACTIVATE			0x40	// LVS_EX_ONECLICKACTIVATE
+	#define	LVCF_FMT						0x0001
+	#define	LVCF_WIDTH						0x0002
+	#define	LVCF_TEXT						0x0004
+	#define	LVCF_SUBITEM					0x0008
+	#define	LVCFMT_LEFT						0x0000
+	#define	LVIF_TEXT						0x0001
+	#define LVIF_IMAGE						0x0002
+	#define	LVM_INSERTCOLUMN				0x101B			// 新しいカラムを追加
+	#define LVM_INSERTITEM					LVM_INSERTITEMA
+	#define LVM_INSERTITEMA					0x1007			// 新しいアイテムを追加
+	#define	LVM_SETITEM						0x1006			// 新しいサブアイテムを追加
+	#define	LVM_DELETEITEM					0x1008			// アイテム削除
+	#define	LVM_DELETEALLITEMS				0x1009			// 全てのアイテム削除
+	#define	LVM_SETEXTENDEDLISTVIEWSTYLE	0x1036			// 拡張スタイルを設定
+	
+	// リストビュー作成
+	#deffunc ListView int hWnd_, var hListView, int xSize, int ySize, int ex
+		wStyle = WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SINGLESEL | LVS_EDITLABELS
+		if ex :wStyle += ex
+		winobj WC_LISTVIEW, "", 0x200, wStyle, xSize, ySize
+		ListViewID = stat
+		if ListViewID == -1 :return false
+		hListView = objinfo(ListViewID, 2)
+		sendmsg hListView, LVM_SETEXTENDEDLISTVIEWSTYLE, LVS_EX_ONECLICKACTIVATE, LVS_EX_ONECLICKACTIVATE
+	return true
+	
+	// リストビューカラム(列)追加
+	#deffunc ListViewInsertColumn int hWnd_, str szColumnName, int iSubItem, int cx
+		dim lvc, 8	// LVCOLUMN
+		lvc.0	= LVCF_FMT | LVCF_WIDTH | LVCF_TEXT | LVCF_SUBITEM	// mask フラグ
+		lvc.1	= LVCFMT_LEFT			// fmt フォーマット
+		lvc.2	= cx					// cx ピクセルのカラムの幅
+		pszColumnName = szColumnName
+		lvc.3	= varptr(pszColumnName)	// pszText 列の名前
+		lvc.5	= iSubItem				// iSubItem サブの識別ＩＤ
+		sendmsg hWnd_, LVM_INSERTCOLUMN, iSubItem, varptr(lvc)
+	return
+	
+	// リストビューアイテム追加
+	#deffunc ListViewInsertItem int hWnd_, str szItemName, int iParentItem, int iSubItem, int iImage
+		dim lvi, 13				// LVITEM
+		lvi.0	= LVIF_TEXT		// mask
+		lvi.1	= iParentItem	// iItem
+		lvi.2	= iSubItem		// iSubItem
+		pszItemName = szItemName
+		lvi.5	= varptr(pszItemName)	// pszText
+		if iImage :lvi.0 |= LVIF_IMAGE :lvi.7 = iImage
+		if iSubItem > 0 {
+			sendmsg hWnd_, LVM_SETITEM, 0, varptr(lvi)
+		}elseif iSubItem == 0 {
+			sendmsg hWnd_, LVM_INSERTITEM, 0, varptr(lvi)
+		}
+	return
+	
+	// リストビューアイテム削除
+	#deffunc ListViewDeleteItem int hWnd_, int Index
+		sendmsg hWnd_, LVM_DELETEITEM, Index, 0
+	return
+	
+	//
+	#deffunc ListViewDelAlItem int hWnd_
+		sendmsg hWnd_, LVM_DELETEALLITEMS, 0, 0
+	return
+	#global
+	
+	
+	#module __TABCONTROL__
+	#uselib	"user32.dll"
+	#func	GetClientRect		"GetClientRect"		int, int
+	#func	SetParent			"SetParent"			int, int
+	#func	ShowWindow			"ShowWindow"		int, int
+	
+	#uselib	"gdi32.dll"
+	#cfunc	GetStockObject "GetStockObject" int
+	
+	#define SW_HIDE             0
+	#define SW_SHOW             5
+	
+	// タブコントロール作成
+	#deffunc CreateTab int sw, int sh, int startwndid, int addws
+		winobj "systabcontrol32", "",, 0x52000000 | addws, sw, sh
+		objid = stat
+		hTabControl = objinfo(objid, 2)
+		sendmsg hTabControl, 0x30, GetStockObject(17)
+	
+		TabID = startwndid
+		if TabID == 0 :TabID = 1
+		
+		TabItem = 0
+		dim rc, 4
+		dim hwnds
+		logmes "make tabcontrol"
+	return objid
+	
+	// タブの中身追加
+	#deffunc InsertTab str location
+		pszText = location
+		tcitem = 1, 0, 0, varptr(pszText)
+		sendmsg hTabControl, 0x1307, TabItem, varptr(tcitem)
+		
+		GetClientRect hTabControl, varptr(rc)
+		sendmsg hTabControl, 0x1328, , varptr(rc)
+		
+		bgscr TabID+TabItem, rc.2-rc.0, rc.3-rc.1, 2, rc.0, rc.1
+		hwnds.TabItem = hwnd@hsp
+		slong hwnds.TabItem, -16, 0x40000000
+		SetParent hwnds.TabItem, hTabControl
+		logmes ""+ginfo_sel+":t."+TabItem+":"+iswin(hwnds.TabItem)
+		
+		TabItem++
+	return
+	
+	// 表示中のタブ変更
+	#deffunc ChangeTab
+		gsel wID+TabID, -1
+		ShowWindow hwnds.wID, SW_HIDE
+	
+		sendmsg hTabControl, 0x130B
+		wID = stat
+		logmes ""+wID+","+iswin(hwnds)
+		ShowWindow hwnds.wID, SW_SHOW
+		gsel wID+TabID
+		
+	return
+	#global
+	
+	
+	#module __RUBY__
+	// 
+	#defcfunc ruby str buffer_
+		equa = buffer_
+		set equa
+		compile
+	return refstr
+	// ruby用テキストファイル作成
+	#deffunc makerubyfile str file
+		sdim RUBY_CODE_FILE
+		RUBY_CODE_FILE = file
+		sdim buf
+		if strsize == -1 :oncmd 0 :dialog ""+RUBY_CODE_FILE :oncmd 1
+		bsave@hsp RUBY_CODE_FILE, buf
+	return
+	
+	#deffunc set str buffer_
+		sdim buf
+		buf = buffer_
+		bsave@hsp RUBY_CODE_FILE, buf, strlen(buf)
+	return
+	// 実行
+	#deffunc compile
+		exist RUBY_CODE_FILE
+		if strsize == -1 :makerubyfile RUBY_CODE_FILE
+		pipe "ruby -Ks \""+RUBY_CODE_FILE+"\"", dst
+	return
+	
+	#uselib "hspext.dll"
+	#func pipeexec	pipeexec	5
+	#func pipeput	pipeput		0
+	#func pipeget	pipeget		$83
+	// 送信
+	#deffunc pipe str cmd, var ln
+		sdim buf, 6399 :sdim ln
+		pipeexec buf, cmd, 1
+		if stat == 0 {
+			repeat
+				pipeget ln
+				if stat == 0 :break
+				wait 1
+			loop
+		}
+	return buf
+	#global

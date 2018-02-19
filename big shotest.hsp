@@ -1,0 +1,220 @@
+	
+	// あたり判定サンプル
+	
+	; 作成開始日 2013/8/4
+	; 最後の更新(2013/8/4)
+	
+	// 簡易 How to
+	; キーボードで位置調整
+	; マウスで大幅位置調整
+	
+
+	#define WHSIZE_MAX		2
+	#define MPOINT_MAX		4
+	#define	INFO_PARAM_MAX	7
+
+	goto *main
+
+// 初期化
+*init
+	randomize
+	
+	// 情報
+	; 活用変数
+	key = 0
+	
+	; ウィンドウ (横, 高さ)
+	dim wnd_wh, WHSIZE_MAX
+	wnd_wh(0) = ginfo(12), ginfo(13)
+	
+	; マウス (Ｘ座標, Ｙ座標, 前のＸ座標, 前のＹ座標)
+	dim mou_p, MPOINT_MAX
+	mou_p(2) = mousex, mousey
+	
+	; 自分 (Ｘ座標, Ｙ座標, 横, 高さ, 横の半分, 高さの半分, 動く速度)
+	dim my_inf, INFO_PARAM_MAX
+	my_inf(2) = 100, 20
+	my_inf(4) = my_inf(2)/2, my_inf(3)/2
+	my_inf(0) = 0, 0
+	my_inf(6) = 1
+	
+	; あたり判定の障害物
+	dim ene_inf, INFO_PARAM_MAX
+	ene_inf(2) = 20, 100
+	ene_inf(4) = ene_inf(2)/2, ene_inf(3)/2
+	ene_inf(0) = wnd_wh(0)/2
+	ene_inf(1) = wnd_wh(1)/2
+	ene_inf(6) = 1
+	
+	// イメージ
+	bigest = my_inf(3)
+	if bigest < ene_inf(3) :bigest = ene_inf(3)
+	buffer 1, my_inf(2)+ene_inf(2), bigest
+	img_width = ginfo(12)
+	color 255
+	boxf 0, 0, my_inf(2), my_inf(3)
+	color 0, 0, 255
+	boxf my_inf(2), 0, img_width, ene_inf(3)
+	
+	screen 0
+	
+return
+
+// メイン
+*main
+	gosub *init
+	
+*main_loop
+	gosub *calc
+	gosub *draw
+	wait 1
+goto *main_loop
+
+// 計算
+*calc
+	stick@hsp key
+	
+	// 移動
+	; キーボード
+	if key & 1 :my_inf(0) -= my_inf(6)
+	if key & 4 :my_inf(0) += my_inf(6)
+	if key & 2 :my_inf(1) -= my_inf(6)
+	if key & 8 :my_inf(1) += my_inf(6)
+	
+	; マウス
+	mou_p(0) = mousex :mou_p(1) = mousey
+	if (mou_p(0) != mou_p(2)) || (mou_p(1) != mou_p(3)) {
+		mou_p(2) = mou_p(0), mou_p(1)
+		my_inf(0) = mou_p(0), mou_p(1)
+	}
+	
+	// あたり判定 (四角形)
+	; 小さい方の四方の角が大きい方の四角形の中にあるか
+	; 合わせてまず４回判定を行う
+	
+	; それぞれの左右の大小がおなじオブジェクトじゃない場合
+	; 縦長のもののなかに横長のものがテレポートなどをして丁度十字の形になった時に
+	; 角がどこにも入ってないのでそういう事態も考慮して中間座標同士も判定を行うので
+	// exflag = 1 ; ←をコメントアウトしてください
+	
+	; なお一度でも判定がtrue(当たっている, pilefがそのフラグ変数)場合や、
+	; 判定しても無意味な場合は(中間座標判定が多い場合のみ)、
+	; 他の判定を無視する
+	; 今回は分かりやすいように一回座標を変数に移してます
+	
+	; これを毎回やらないと一回当たったら当たりっぱなしになってしまう
+	pilef = 0
+	
+	; 自分座標
+	my_left = my_inf(0)-my_inf(4)
+	my_right = my_inf(0)+my_inf(4)		-1
+	my_top = my_inf(1)-my_inf(5)
+	my_bottom = my_inf(1)+my_inf(5)		-1
+	
+	; 相手座標
+	ene_left = ene_inf(0)-ene_inf(4)
+	ene_right = ene_inf(0)+ene_inf(4)	-1
+	ene_top = ene_inf(1)-ene_inf(5)
+	ene_bottom = ene_inf(1)+ene_inf(5)	-1
+	
+	; ※それぞれの右と下の座標に -1 がついているのは、
+	; 今回は中央の座標+半径、中央の座標-半径としてたので
+	; 中央の座標分を範囲に含めないためです
+	
+	// 大きい、小さいを比べる
+	// (動的に大きさが変わらない場合、これは毎回行う必要はありません。なるべく初期化へ)
+	if my_inf(2) < ene_inf(2) {								if exflag :width_largest = ene_inf(2)
+		large_left = ene_left :small_left = my_left
+		large_right = ene_right :small_right = my_right
+	}else {													if exflag :width_largest = my_inf(2)
+		large_left = my_left :small_left = ene_left
+		large_right = my_right :small_right = ene_right
+	}
+	
+	if my_inf(3) < ene_inf(3) {								if exflag :height_largest = ene_inf(2)
+		large_top = ene_top :small_top = my_top
+		large_bottom = ene_bottom :small_bottom = my_bottom
+	}else {													if exflag :height_largest = my_inf(2)
+		large_top = my_top :small_top = ene_top
+		large_bottom = my_bottom :small_bottom = ene_bottom
+	}
+	
+	// 判定追加判定
+	if exflag {
+		addf = 0
+		if width_largest != height_largest {
+			addf = 1
+			
+			small_left = my_left	:small_right = my_right
+			small_top = my_top		:small_bottom = my_bottom
+			large_left = ene_left	:large_right = ene_right
+			large_top = ene_top		:large_bottom = ene_bottom
+		}
+	}
+	
+	
+	// (大きい <= 小さい) && (小さい <= 大きい)
+	
+	// 1. 小さい四角形の左上座標が、大きい方の中にあるか
+	; ｘ判定 (大きい左 <= 小さい左) && (小さい左 <= 大きい左)
+	if ((large_left <= small_left) && (small_left <= large_right)) {
+		; ｙ判定 (大きい上 <= 小さい上) && (小さい上 <= 大きい下)
+		if ((large_top <= small_top) && (small_top <= large_bottom)) :pilef = 1
+	}
+	
+	// 2. 小さい四角形の左下座標が、大きい方の中にあるか
+	// 2以降はpilefがtrueか調べる
+	if pilef :else {
+		if ((large_left <= small_left) && (small_left <= large_right)) {
+			; ｙ判定 (大きい上 <= 小さい上) && (小さい上 <= 大きい下)
+			if ((large_top <= small_bottom) && (small_bottom <= large_bottom)) :pilef = 1
+		}
+	}
+	
+	; 3. 小さい四角形の右上座標が、大きい方の中にあるか
+	if pilef :else {
+		if ((large_left <= small_right) && (small_right <= large_right)) {
+			; ｙ判定 (大きい上 <= 小さい上) && (小さい上 <= 大きい下)
+			if ((large_top <= small_top) && (small_top <= large_bottom)) :pilef = 1
+		}
+	}
+	
+	; 4. 自分右下座標が相手中にあるか
+	if pilef :else {
+		if ((large_left <= small_right) && (small_right <= large_right)) {
+			; ｙ判定 (大きい上 <= 小さい上) && (小さい上 <= 大きい下)
+			if ((large_top <= small_bottom) && (small_bottom <= large_bottom)) :pilef = 1
+		}
+	}
+	
+	; 5. 中間座標計算
+	if exflag {
+		
+	}
+	
+return
+
+// 描画
+*draw
+	redraw 0
+	// 背景
+	color 255, 255, 255 :boxf :color
+	
+	if pilef :gmode 4, 255, 255, 128 :else :gmode 1
+	
+	pos 0, 0
+	mes "小さい方:\n左右 "+small_left+"x"+small_right+"\n上下 "+small_top+"x"+small_bottom +"\n"
+	mes "大きい方:\n左右 "+large_left+"x"+large_right+"\n上下 "+large_top+"x"+large_bottom +"\n"
+	
+	// 自分
+	color 128, 175, 255
+	pos my_inf(0)-my_inf(4), my_inf(1)-my_inf(5) :gcopy 1, 0, 0, my_inf(2), my_inf(3)
+//	boxf my_inf(0)-my_inf(4), my_inf(1)-my_inf(5), my_inf(0)+my_inf(4), my_inf(1)+my_inf(5)
+	
+	// 判定先
+	color 255, 128, 175
+	pos ene_inf(0)-ene_inf(4), ene_inf(1)-ene_inf(5) :gcopy 1, my_inf(2), 0, img_width, ene_inf(3)
+//	boxf ene_inf(0)-ene_inf(4), ene_inf(1)-ene_inf(5), ene_inf(0)+ene_inf(4), ene_inf(1)+ene_inf(5)
+	
+	redraw 1
+return

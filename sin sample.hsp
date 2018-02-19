@@ -1,0 +1,70 @@
+	
+	#module __MATH__
+	// ê¸Ç∆ì_ÇÃãóó£  -  Distance Between Both Straight Lines
+	#defcfunc dbbsl double lsx, double lsy, double lex, double ley, double px, double py
+		lesx = lex-lsx
+		lesy = ley-lsy
+		Us = (px-lsx)*lesx + (py-lsy)*lesy
+		Ub = lesx*lesx + lesy*lesy
+		x = lsx + lesx * Us/Ub
+		y = lsy + lesy * Us/Ub
+	return sqrt(powf(px-x, 2)+powf(py-y, 2))
+	
+	// ì_Ç∆ì_ÇÃãóó£  -  Distance for two points
+	#define global ctype dispt2(%1, %2, %3, %4) dftp(%1, %2, %3, %4)
+	#defcfunc dftp double px1, double py1, double px2, double py2
+	return sqrt(powf(px1-px2, 2)+powf(py1-py2, 2))
+	#global
+	
+	
+	#module __SIN__
+	// 0 : íxÇ¢ -> ëÅÇ¢ -> íxÇ¢
+	// 1 : ëÅÇ¢ -> íxÇ¢
+	#deffunc setsin double maxlp_, double sx_, double sy_, double ex, double ey, int type_
+		sx = sx_
+		sy = sy_
+		rx = sx-ex
+		ry = sy-ey
+		maxlp = maxlp_
+		PI2M = -1.570796
+		type = type_
+	return
+	#defcfunc sinx int count
+		if type == 0 :return sx-(sin(-M_PI/2.0+M_PI/maxlp * double(count))+1.0) / 2.0 * rx
+		if type == 1 :return sx-(sin(M_PI/maxlp * double(count))+1.0) / 2.0 * rx
+	return -1.0
+	#defcfunc siny int count
+		if type == 0 :return sy-(sin(-M_PI/2.0+M_PI/maxlp * double(count))+1.0) / 2.0 * ry
+		if type == 1 :return sy-(sin(-M_PI/(maxlp*2.0) * double(count))+1.0) * ry
+	return -1.0
+	#global
+	
+	br = 10
+	lp = 100.0
+	px = 100
+	py = 0
+	psx = px
+	psy = py
+	
+	// sin( PI*2 / é¸ä˙ * Count ) * êUïù
+	
+*main
+	setsin lp, px, py, px, 480, 1
+	
+	repeat lp/2, lp/2
+		px = sinx(cnt)
+		py = siny(cnt)
+		
+		redraw 0
+		colorwhite :boxf :color
+		circle px-br, py-br, px+br, py+br
+		color 255
+		pset 100, 100
+		pset psx, psy
+		redraw 1
+		wait 1
+	loop
+	
+	
+	stop
+	

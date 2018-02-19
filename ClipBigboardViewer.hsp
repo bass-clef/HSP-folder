@@ -1,0 +1,93 @@
+	
+	// クリップビッグボードビューワー
+	
+	#define CBB_DATEFILE		""+dir_mydoc+"\\cbb.ini"
+	
+	fontname = msgothic
+	fontsize = 12
+	
+	screen 0, ginfo(20), ginfo(21), 0,,, 640, 480
+	title "ClipBigboard Viewer"
+	
+	gosub *read
+	gosub *font_
+	mesbox buf, 640, 480, 5, 0
+	hEdit = objinfo(stat, 2)
+	
+	onkey gosub *key
+	
+	stop
+	
+*read
+	title "読み込み"
+	exist CBB_DATEFILE
+	if strsize == -1 :dialog "データファイルがありません\n\n終了します", 0, "Error" :end
+	size = strsize
+	sdim readbuf, size+1
+	bload CBB_DATEFILE, readbuf, size
+	
+	title "復号中..."
+	num = wpeek(readbuf, 3)
+	
+	CreateRTable b_table, -1, 256, 0
+	CreateRTable a_table, num, 256, 0
+	Encryption readbuf, 5, size, a_table, b_table	// 復号
+	
+	sdim buf, size-5
+	memcpy buf, readbuf, size-5, 0, 5
+	if (NULL != hEdit) :title buf, hEdit
+	title "ClipBigboard Viewer"
+	
+	return
+*key
+	if wparam == 116 :onkey 0 :gosub *read :onkey 1
+	return
+*font_
+	font fontname, fontsize
+	objmode 2
+	return
+	
+	#module
+	// 暗号化
+	#deffunc Encryption var buf, int index, int size, array b_table, array a_table
+		repeat size-index, index
+			i = -1
+			j = peek(buf, cnt)
+			repeat length(b_table)
+				if j == b_table.cnt :i = cnt :break
+			loop
+			if i != -1 {
+				poke buf, cnt, a_table.i
+			}
+		loop
+	return
+	
+	// 連続poke
+	#deffunc vpoke var buf, int index, array date
+		repeat length(date), index
+			poke buf, cnt, date(cnt-index)
+		loop
+	return
+	
+	// 暗号化用テーブル作成
+	#deffunc CreateRTable array table, int random, int lp, int index
+		if random >= 0 :randomize random
+		sdim rbuf
+		sdim byte
+		
+		repeat lp, index
+			poke byte, 0, cnt
+			rbuf += ""+byte+"\n"
+		loop
+		
+		repeat
+			notesel@hsp rbuf
+			if random >= 0 :i = rnd(notemax) :else :i = 0
+			byte = noteget(i)
+			table.cnt = peek(byte, 0)
+			notedel i
+			if notemax == 0 :break
+		loop
+		randomize
+	return
+	#global

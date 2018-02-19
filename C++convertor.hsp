@@ -1,0 +1,334 @@
+	
+	// c++ convertor
+	
+	// defineは全てglobal
+	
+	
+	#cmpopt ppout 1
+	#define global ctype isalpha(%1) ((('A' <= %1) && (%1 <= 'Z')) || (('a' <= %1) && (%1 <= 'z')))
+	#define global ctype isnumber(%1) (('0' <= %1) && (%1 <= '9'))
+	#define global ctype iscontrol(%1) (0x20 <= %1) && (%1 <= 0x7E)
+	#define global ctype isshiftjis(%1) (((0x80 <= %1) && (%1 <= 0x9F)) || ((0xE0 <= %1) && (%1 <= 0xFE)))
+	#define global ctype bkt2a(%1, %2, %3) ((%1 <= %2) && (%2 <= %3))
+	#define EM_SETTABSTOPS	0xCB
+	#define	EM_SETMARGINS	0xD3
+	#define	EC_LEFTMARGIN	1
+	
+	sdim buf
+	sdim dst
+	delimiter = "()/.,+-*/%~^|&!\\\"\'<>?:;"
+	nuller = " \t" :poke nuller, 2, 10
+	#include "C++base.as"
+	spacein base
+	
+	screen 0, 640, 480, 0
+	wcx = ginfo(12) :wcy = ginfo(13)
+	h = wcx/2
+	
+	objmode 2, 0 :font msgothic, 12
+	pos 0,  40 :mesbox buf, h, wcy-40, 5, 0	:hHSPEdit = objinfo(stat, 2)
+	pos h,  40 :mesbox buf, h, 40, 5, 0		:hCPPHEdit = objinfo(stat, 2)
+	pos h, 100 :mesbox buf, h, wcy-100, 5, 0	:hCPPEdit = objinfo(stat, 2)
+	tabsize = 6*4/2
+	sendmsg hHSPEdit, EM_SETTABSTOPS, 1, varptr(tabsize)
+	sendmsg hCPPHEdit, EM_SETTABSTOPS, 1, varptr(tabsize)
+	sendmsg hCPPEdit, EM_SETTABSTOPS, 1, varptr(tabsize)
+	sendmsg hHSPEdit, EM_SETMARGINS, EC_LEFTMARGIN, 4*4
+	sendmsg hCPPEdit, EM_SETMARGINS, EC_LEFTMARGIN, 4
+	sendmsg hCPPHEdit, EM_SETMARGINS, EC_LEFTMARGIN, 4*4
+	
+
+	objsize 100, 20
+	pos 0,  0 :button gosub "convert to C++", *Jump :ctcID = stat
+	
+	font msgothic, 16
+	pos 5, 23 :mes "HSP"
+	pos h+5, 23 :mes "C++ header"
+	pos h+5, 83 :mes "C++ implementation"
+	
+	onkey gosub *keyJump
+	
+	stop
+*keyJump
+	if wparam == 116 :convert
+	if wparam == 'A' :if getkey(17) & 0x8000 {
+		objsel -1
+		sendmsg objinfo(stat, 2), 0xB1, 0, INT_MAX // EM_SETSEL
+	}
+	return
+	
+*Jump
+	switch stat
+	case ctcID: convert :return
+	swend
+	
+	return
+	
+//	#uselib "user32.dll"
+//	#func	SetWindowTextA hwnd_, text
+	#deffunc convert
+		sdim buf
+		title base, hCPPHEdit
+		buf = gtext(hHSPEdit)
+		
+		// 字句解析
+		sdim prm :sdim kind :dim ali :alimax = 0
+		funcoftype = "sdim\\dim\\nddim\\ldim\\dimtype\\alloc"
+		
+		name = "" :name_index = 0
+		buflen = strlen(buf)+1
+		nullerlen = strlen(nuller)
+		stringf = 0
+		escapef = 0
+		commentf = 0
+		pt = 0 :ptold = -1
+		repeat
+			if buflen <= pt :break
+			token = peek(buf, pt)
+			if escapef :escapef--
+			if (escapef == 0) && (token == '\\') :escapef = 2
+			if token == '/' :commentf++
+			if commentf == 1 {
+				if token != '/' :commentf = 0
+			}elif commentf == 2 {
+				notesel@hsp prm :notedel notemax-1
+				notesel@hsp kind :notedel notemax-1
+				tokens_begin ali(alimax-1), "comment"
+				tokens_add "/"
+				alimax--
+				commentf = 3
+			}else :if commentf == 3 {
+				if token == 0x0D {
+					commentf == 0
+					tokens_end
+				}
+			}
+			
+			if (escapef == 0) && (token == '\"') {
+				if stringf {
+					stringf = 0
+					tokens_end
+				}else {
+					stringf = 1
+					tokens_begin pt, "string"
+				}
+			}elif (stringf) || (2 <= commentf) {
+				tokens_add strf("%c", token)
+			}elif isshiftjis(token) {// 全角
+				if name_index == 0 :ptold = pt
+				wpoke name, name_index, wpeek(buf, pt)
+				name_index += 2
+				pt++
+			}elif isalpha(token) || isnumber(token) || (token == '_') {
+				// 英数字 + _
+				if name_index == 0 :ptold = pt
+				memexpand name, name_index+1
+				poke name, name_index, token :poke name, name_index+1, 0
+				name_index++
+			}else {// 演算子その他
+				if ptold != -1 {// スタックに文字列がある
+					if isalnumber(name) {
+						if instr(name, 0, ".") != -1 {
+							addtokens ptold, "dec", name
+						}else {
+							addtokens ptold, "num", name
+						}
+					}else {
+						split funcoftype, "\\", param
+						i = 0
+						repeat length(param)
+							if param.cnt == name :i = 1
+						loop
+						if i {
+							addtokens ptold, "type", name
+						}else {
+							addtokens ptold, "name", name
+						}
+					}
+					name_index = 0
+					ptold = -1
+				}
+				i = 0
+				if iscontrol(token) :i = 1// 制御文字か 0x20-0x7E
+				if i {
+					repeat nullerlen
+						if token == peek(nuller, cnt) :i = 0 :break
+					loop
+					if i {// 無視文字じゃないか space, tab
+						switch token
+						case ':'
+							addtokens pt, "colon", ":"
+							swbreak
+						case '{' :case '}'
+							addtokens pt, "bracket", strf("%c", token)
+							swbreak
+						case '.'
+							if peek(name, 0) :if isalnumber(name) {
+								name_index = strlen(name)
+								memexpand name, name_index+2
+								poke name, name_index, '.'
+								poke name, name_index+1, 0
+								notesel@hsp prm :notedel notemax-1
+								notesel@hsp kind :notedel notemax-1
+								alimax--
+								name_index++
+								ptold = pt-(name_index-1)
+								swbreak
+							}
+						default
+							addtokens pt, "other", strf("%c", token)
+						swend
+					}else {
+						switch token
+						case 0x20 :addctokens pt, "SP" :swbreak
+						swend
+					}
+				}else {
+					switch token
+					case 0x09 :addctokens pt, "HT" :swbreak
+					case 0x0A :addctokens pt, "CR" :swbreak
+					case 0x0D :addctokens pt, "LF" :swbreak
+					swend
+				}
+			}
+			pt++
+		loop
+		
+		// 構文解析
+		sdim token :sdim var
+		bracket = 0
+		namef = 0 :typef = 0
+		oldpt = 0
+		notesel@hsp kind
+		repeat alimax
+			noteget@hsp token, cnt
+			switch token
+			case "type"
+				oldpt = cnt
+				typef++
+				swbreak
+			case "name"
+				if typef {
+					notesel@hsp kind
+					noteadd "var", cnt, 1
+					typef = 0
+				}else {
+					oldpt = cnt
+					namef++
+				}
+				swbreak
+			case "other"
+				notesel@hsp prm
+				noteget@hsp token, cnt
+				noteunsel
+				
+				switch token
+				case "="
+					if namef {
+						notesel@hsp kind
+						noteadd "var", oldpt, 1
+						noteadd ""
+						namef = 0
+					}
+					swbreak
+				swend
+				swbreak
+			swend
+		loop
+		
+		// 反映
+		bool = 0
+		sdim altokens :sdim token
+		repeat alimax
+			notesel@hsp prm
+			noteget@hsp token, cnt
+			
+			if strlen(token) {
+				notesel@hsp kind
+				altokens += "index:"+ ali.cnt +" kind:"+ noteget(cnt)
+				if strlen(token) {
+					altokens += " prm:"+token+"\n"
+				}else :altokens += "\n"
+			}
+		loop
+		
+		
+		title altokens, hCPPEdit
+	return
+	
+	#deffunc addtokens int index__, str kind__, str name__
+		prm += ""+name__+"\n"
+		kind += ""+kind__+"\n"
+		ali.alimax = index__
+		alimax++
+		if name__ == "" :name = ""
+	return
+	
+	#deffunc addctokens int index__, str kind__
+		addtokens index__, kind__, ""
+	return
+	
+	#deffunc tokens_begin int index__, str kind__
+		kind += ""+kind__+"\n"
+		ali.alimax = index__
+		alimax++
+	return
+	
+	#deffunc tokens_add str name__
+		prm += name__
+	return
+	
+	#deffunc tokens_end
+		prm += "\n"
+	return
+	
+	#module
+	#deffunc spacein var buf
+		sdim token :sdim s
+		bracket = 0 :old = 0
+		notesel@hsp buf
+		repeat notemax
+			noteget@hsp token, cnt
+			if bracket :if inword(token, '{') < inword(token, '}') :bracket--
+			if old != bracket {
+				old = bracket
+				s = ""
+				repeat bracket
+					s += "\t"
+				loop
+			}
+			
+			noteadd ""+s+""+token, cnt, 1
+			
+			if bracket :if inword(token, '(') < inword(token, ')') :bracket--
+			if inword(token, '(') > inword(token, ')') :bracket++
+			if inword(token, '{') > inword(token, '}') :bracket++
+			if old != bracket {
+				old = bracket
+				s = ""
+				repeat bracket
+					s += "\t"
+				loop
+			}
+		loop
+	return
+	
+	#defcfunc inword var buf, int word
+		c = 0 :shift = 0
+		repeat
+			i = peek(buf, cnt)
+			if i == 0 :break
+			if shift == 0 {
+				if isshiftjis(i) :shift++
+				if i == word :c++
+			}else :shift--
+		loop
+	return c
+	
+	#defcfunc isalnumber var buf
+		i = 1
+		repeat strlen(buf)
+			if not(isnumber(peek(buf, cnt))) :if peek(buf, cnt) != '.' :i = 0 :break
+		loop
+	return i
+	#global

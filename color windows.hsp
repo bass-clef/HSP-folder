@@ -1,0 +1,190 @@
+	
+	#uselib "user32.dll"
+	#func	SetTimer	"SetTimer"		int, int, int, int
+	#func	KillTimer	"KillTimer"		int, int
+	
+	#define s_bx(%1, %2)	lpoke %1, 0, %2
+	#define s_by(%1, %2)	lpoke %1, 4, %2
+	#define s_ex(%1, %2)	lpoke %1, 8, %2
+	#define s_ey(%1, %2)	lpoke %1, 12, %2
+	#define s_rr(%1, %2)	poke %1, 16, %2
+	#define s_gg(%1, %2)	poke %1, 17, %2
+	#define s_bb(%1, %2)	poke %1, 18, %2
+	#define s_ap(%1, %2)	poke %1, 19, %2
+	#define s_wa(%1, %2)	poke %1, 20, %2
+	#define s_sp(%1, %2)	poke %1, 21, %2
+	#define ctype g_bx(%1)	lpeek(%1, 0)
+	#define ctype g_by(%1)	lpeek(%1, 4)
+	#define ctype g_ex(%1)	lpeek(%1, 8)
+	#define ctype g_ey(%1)	lpeek(%1, 12)
+	#define ctype g_rr(%1)	peek(%1, 16)
+	#define ctype g_gg(%1)	peek(%1, 17)
+	#define ctype g_bb(%1)	peek(%1, 18)
+	#define ctype g_ap(%1)	peek(%1, 19)
+	#define ctype g_wa(%1)	peek(%1, 20)
+	#define ctype g_sp(%1)	peek(%1, 21)
+	
+	
+	// 初期化
+	gsel 0, -1
+	screen 1, ginfo(20), ginfo(21), 0,,, 640, 480
+	title "color windows"
+	makegfield
+	setmainwindow 1
+	xmax = 200
+	ymax = 200
+	sdim pc, 22, 1
+	randomize
+	font msgothic, 16
+	
+	repeat 100
+		create cnt, xmax, ymax :pcmax++
+	loop
+	postmsg hwnd@hsp, WM_TIMER, 1002
+	
+	oncmd gosub *timer, WM_TIMER
+	oncmd gosub *add, WM_LBUTTONDOWN
+	oncmd gosub *sub, WM_RBUTTONDOWN
+	oncmd gosub *key, WM_KEYDOWN
+	SetTimer hwnd@hsp, 1000, 40, 0
+	SetTimer hwnd@hsp, 1001, 0, 0
+	onexit *exit
+	stop
+*exit
+	KillTimer hwnd@hsp, 1000
+	KillTimer hwnd@hsp, 1001
+	end :end
+	
+*timer
+	if iparam == WM_TIMER {
+		if wparam == 1000 :gosub *draw
+		if wparam == 1001 :check
+		if wparam == 1002 :title ""+strmid(gtext(hwnd@hsp), 0, 13)+" "+pcmax
+	}
+	return
+*key
+	switch wparam
+	case 37 :repeat 50 :gosub *sub :loop :swbreak
+	case 38 :gosub *add :swbreak
+	case 39 :repeat 50 :gosub *add :loop :swbreak
+	case 40 :gosub *sub :swbreak
+	swend
+	return
+*sub
+	if pcmax == 1 :return
+	pcmax--
+	postmsg hwnd@hsp, WM_TIMER, 1002
+	return
+*add
+	create pcmax, xmax, ymax, ginfo(12), ginfo(13)
+	pcmax++
+	postmsg hwnd@hsp, WM_TIMER, 1002
+	return
+#deffunc check
+	cx = ginfo(12) :cy = ginfo(13)
+	repeat pcmax
+		x = g_bx(pc.cnt) :y = g_by(pc.cnt) :xx = g_ex(pc.cnt) :yy = g_ey(pc.cnt)
+		if (((xx <= 1) && (x <= 1)) || ((yy <= 1) && (y <= 1))) || ((xx < 0) || (yy < 0) || (x > cx) || (y > cy)) {
+			while
+				create cnt, xmax, ymax, cx, cy
+				x = g_bx(pc.cnt) :y = g_by(pc.cnt)
+				xx = g_ex(pc.cnt) :yy = g_ey(pc.cnt)
+				if (xx > 0) && (yy > 0) && (x > 0) && (y > 0) :_break
+			wend
+		}
+	loop
+	return
+	
+*draw
+	// 描画
+	redraw 0
+	//color bar, bag, bab :boxf
+	colorwhite :boxf
+	repeat pcmax
+		x = g_bx(pc.cnt) :y = g_by(pc.cnt) :xx = g_ex(pc.cnt) :yy = g_ey(pc.cnt)
+		if ((xx <= 1) && (x <= 1)) || ((yy <= 1) && (y <= 1)) :continue
+		if (xx < 0) || (yy < 0) || (x > cx) || (y > cy) :continue
+		color g_rr(pc.cnt), g_gg(pc.cnt), g_bb(pc.cnt)
+		aboxf x, y, xx, yy, g_ap(pc.cnt)
+		
+		w = g_wa(pc.cnt)
+		s = g_sp(pc.cnt)
+		if w & 1 :x -= s :xx -= s
+		if w & 2 :y -= s :yy -= s
+		if w & 4 :x += s :xx += s
+		if w & 8 :y += s :yy += s
+		s_bx pc.cnt, x :s_by pc.cnt, y :s_ex pc.cnt, xx :s_ey pc.cnt, yy
+	loop
+	
+	redraw 1
+	return
+	
+	// 生成
+	#deffunc create int num, int xsize, int ysize, int xclient, int yclient
+		bar = rnd(64)+191 :bag = rnd(64)+191 :bab = rnd(64)+191
+//		xx = rnd(xsize)+100 :yy = rnd(ysize)+100
+		xx = 200 :yy = 200
+		x = rnd(xclient-xx) :y = rnd(yclient-yy)
+		s_bx pc.num, x		// 左上x
+		s_by pc.num, y		// 左上y
+		s_ex pc.num, x+xx	// 右下x
+		s_ey pc.num, y+yy	// 右下y
+		s_sp pc.num, rnd(3)+1// 速さ
+		
+		*RECOLOREDIT
+		r = rnd(255)		// 赤
+		g = rnd(255)		// 緑
+		b = rnd(255)		// 青
+		if (r == 255) && (g == 255) && (b == 255) :goto *RECOLOREDIT
+		s_rr pc.num, r		// 赤
+		s_gg pc.num, g		// 緑
+		s_bb pc.num, b		// 青
+		
+//		s_ap pc.num, rnd(191)+64	// アルファブレンド
+		s_ap pc.num, 32	// アルファブレンド
+		w = rnd(14)+1
+		if w ==  5 :if rnd(1) == 0 :w -= 1 :else :w -= 4
+		if w == 10 :if rnd(1) == 0 :w -= 2 :else :w -= 8
+		s_wa pc.num, w	// 方向
+	return
+	
+	#module __GRADFIELD__
+	#uselib "Msimg32.dll"
+	#func	AlphaBlend				"AlphaBlend"				int, int, int, int, int, int, int, int, int, int, int
+	#uselib "gdi32.dll"
+	#func	SelectObject			"SelectObject"				int, int
+	#func	DeleteObject			"DeleteObject"				int
+	#func	DeleteDC				"DeleteDC"					int
+	#func	SetDCBrushColor			"SetDCBrushColor"			int, int
+	#cfunc	CreateCompatibleBitmap	"CreateCompatibleBitmap"	int, int, int
+	#cfunc	CreateCompatibleDC		"CreateCompatibleDC"		int
+	#uselib "user32.dll"
+	#func	FillRect				"FillRect"					int, int, int
+	#define	global ctype AA(%1)		LOBYTE(%1>>24)
+	#define global ctype RGBA(%1 = 0, %2 = 0, %3 = 0, %4 = 0) (int(%1) | int(%2)<<8 | int(%3)<<16 | int(%4)<<24)
+	#define	global ctype ginfo_a	AA(bmscr(40))
+	#defcfunc bmscr int num
+		mref bm, 67
+	return bm.num
+	#deffunc makegfield int x_size, int y_size
+		if hGFieldDC != NULL :delgfield
+		hGFieldDC = CreateCompatibleDC(hdc@hsp)
+		hGFieldBmp = CreateCompatibleBitmap(hdc@hsp, x_size, y_size)
+		SelectObject hGFieldDC, hGFieldBmp
+		SelectObject hGFieldDC, bmscr(36)
+	return
+	#deffunc delgfield onexit
+		if hGFieldDC == NULL :return
+		DeleteObject hGFieldBmp
+		DeleteDC hGFieldDC
+		hGFieldDC = NULL
+	return
+	#deffunc gboxf int x1, int y1, int x2, int y2, int alpha
+		if x1 < x2 :xMax = x2-x1 :else :xMax = x1-x2
+		if y1 < y2 :yMax = y2-y1 :else :yMax = y1-y2
+		SetDCBrushColor hGFieldDC, RGB(ginfo_b, ginfo_g, ginfo_r)
+		rc = 0, 0, xMax, yMax
+		FillRect hGFieldDC, varptr(rc), bmscr(36)
+		AlphaBlend hdc@hsp, x1, y1, x2, y2, hGFieldDC, 0, 0, xMax, yMax, RGBA(0, 0, alpha, 0)
+	return
+	#global

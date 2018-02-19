@@ -1,0 +1,99 @@
+	
+	
+	
+	#uselib "user32.dll"
+	#func	GetGUIThreadInfo	"GetGUIThreadInfo"		int, int
+	#define	GUITHREADINFO(%1)	dim %1, 12 :%1(0) = 48
+	
+	#enum	global	T_EDIT	= 0
+	#enum	global	T_HSP
+	
+	#enum	S_HIDE		= 0
+	#enum	S_SHOW
+	
+	#define sendStr(%1, %2=typeEditor@)	if (%2==T_HSP){ hsed_sendstr %1 }else :if (%2==T_EDIT) {  }
+	#module
+	#deffunc getBuf__ var v, int type
+		if type == T_HSP {
+			// 現在編集中のファイル取得
+			sdim actfile
+			hsed_getacttabid idTab
+			hsed_gettext v, idTab
+		}
+	return
+	
+	#const _HSED_GETLINELENGTH   (WM_APP + 0x327)
+	#const _HSED_GETCARETLINE    (WM_APP + 0x340)
+	#defcfunc getScrollBase
+		if type == T_HSP {
+			hsed_getactfootyid idFooty
+			hsed_getwnd hActive, 2, idFooty
+			sendmsg hActive, _HSED_GETCARETLINE
+			ret = stat
+		}
+		
+	return ret
+	
+	#global
+	#define getBuf(%1, %2=typeEditor@)	getBuf__ %1, %2
+	
+	#include "hspda.as"
+	#include "hsedsdk.as"
+	#include "StringDevider.as"
+	#include "keys.as"
+	
+	initKeys
+	registoryKey 190, 1, 10
+	registoryKey 186, 1, 10
+	
+	sdim buf
+	cx = 50
+	cy = 8
+	hgtFont = 10+3
+	wdhFont = 7
+	show = 0
+	typeEditor = T_HSP
+	
+	screen 0, 200, 20
+	font msgothic, 12
+	title "Auto Completer"
+	
+*main
+	calcKeys
+	if keyDowned(190) :gosub *autoComplete
+	if keyDowned(186) :gosub *autoComplete
+	wait 1
+	goto *main
+	
+*autoComplete
+	
+	getBuf buf
+	
+	if show == S_HIDE {
+		gosub *toShow
+	}else :if show == S_SHOW {
+		gosub *toHide
+	}
+	
+	sdim prms
+	sdim types
+	devideStringType buf, prms, types
+	sortstr prms, 0
+	
+	GUITHREADINFO gti
+	GetGUIThreadInfo NULL, varptr(gti)
+	
+	oneline  "<"+getScrollBase()+">"+gti.8+"x"+gti.9+":"+gti.10+"x"+gti.11
+	title ""+((gti.8-cx)/wdhFont)+"x"+((gti.9-cy)/hgtFont)
+	
+	return
+	
+*toShow
+	return
+*toHide
+	return
+	
+	
+	
+	
+

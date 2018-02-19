@@ -1,0 +1,13 @@
+	
+	#module __ARRAY__
+	// 配列を逆順にソート
+	#deffunc array_reverse array ary
+		len = length(ary)
+		repeat len/2
+			temp = ary(cnt)
+			ary(cnt) = ary(len-cnt-1)
+			ary(len-cnt-1) = temp
+		loop
+	return
+	#global
+	

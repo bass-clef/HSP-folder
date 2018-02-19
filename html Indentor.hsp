@@ -1,0 +1,274 @@
+	
+	
+//	#define __HTML__INDENTOR__LOG_OFF
+	#ifdef __HTML__INDENTOR__LOG_OFF
+		#define __logmes(%1)	/*%1*/
+	#else
+		#define __logmes logmes
+	#endif
+	
+	
+	// 文字列ディバイダー
+	#include "StringTypeDevider.as"
+	// キーボード管理
+	#include "keys.as"
+	// 配列管理
+	#include "array.as"
+	
+	
+	#enum	T_COMMENT	= T_MAX
+	#enum	T_CURLY_BACKET_OPEN
+	#enum	T_CURLY_BACKET_CLOSE
+	#enum	T_ANGLE_BACKET_OPEN
+	#enum	T_ANGLE_BACKET_CLOSE
+	#enum	T_TAG_CLOSE
+	#enum	T_TYPE_IE6
+	#enum	T_EQUAL
+	#enum	T_EXCLAMATION
+	
+	gosub *init
+	
+	sdim buf
+	objsize ginfo(12), 20
+	pos 0, 0
+	button gosub "autoindent", *autoIndent
+	objmode 2 :font msgothic, 12
+	mesbox buf, ginfo(12), ginfo(13)-ginfo_cy, 5, 0 :editId = stat
+	
+	stop
+	
+*init
+	initTypes
+	// White Space [空白, タブ, 改行, コメント]
+	addType T_WS :id = stat		// 改行
+	addTypePrms id, TF_NEXT, ""+sstr(0xD)+sstr(0xD)
+	addTypePrms id, TF_LAST, ""+sstr(0xA)+sstr(0xA)
+	addType T_COMMENT :id = stat		// コメント
+	addTypePrms id, TF_NEXT, "//"
+	addTypePrms id, TF_NEXT | TF_LOCK, "**"
+	addTypePrms id, TF_NEXT | TF_LOOP | TF_LABEL, sstr(1)+sstr('*'-1)+sstr('*'+1)+sstr(255)
+	addTypePrms id, TF_NEXT, "**"
+	addTypePrms id, TF_LAST | TF_UMGOTOLABEL | TF_LASTDELETE, "//"
+	
+	/* htmlでは使用できない *
+	addType _T(0xA) :id = stat		// コメント
+	addTypePrms id, TF_NEXT, "//"
+	addTypePrms id, TF_NEXT | TF_LOCK, "//"
+	addTypePrms id, TF_NEXT | TF_LOOP | TF_LABEL, sstr(1)+sstr(0xC)+sstr(0xE)+sstr(255)
+	addTypePrms id, TF_NEXT, ""+sstr(0xD)+sstr(0xD)
+	addTypePrms id, TF_LAST | TF_UMGOTOLABEL | TF_LASTDELETE, ""+sstr(0xA)+sstr(0xA)
+	
+	addType T_STR :id = stat
+	addTypePrms id, TF_NEXT, "{{"
+	addTypePrms id, TF_NEXT | TF_LOCK, "\"\""
+	addTypePrms id, TF_NEXT | TF_LOOP | TF_LABEL, sstr(1)+sstr('\"'-1)+sstr('\"'+1)+sstr(255)
+	addTypePrms id, TF_NEXT, "\"\""
+	addTypePrms id, TF_LAST | TF_UMGOTOLABEL | TF_LASTDELETE, "}}"
+	/**/
+	
+	addType T_STR :id = stat
+	addTypePrms id, TF_NEXT | TF_LOCK, "\"\""
+	addTypePrms id, TF_NEXT | TF_LOOP, sstr(1)+sstr('\"'-1)+sstr('\"'+1)+sstr(255)
+	addTypePrms id, TF_LAST, "\"\""
+	addType T_STR :id = stat
+	addTypePrms id, TF_NEXT | TF_LOCK, "''"
+	addTypePrms id, TF_NEXT | TF_LOOP, sstr(1)+sstr('\''-1)+sstr('\''+1)+sstr(255)
+	addTypePrms id, TF_LAST, "''"
+	
+	addType T_NUM :id = stat		// 12345 3.14
+	setInvalidStatus id, PREV_TOKEN | NEXT_TOKEN, "AZaz09__"
+	setValidStatus id, NOW_TOKEN, sstr(1)+sstr('.'-1)+sstr('.'+1)+sstr('0'-1)+sstr('9'+1)+sstr(255)
+	addTypePrms id, TF_NEXT | TF_LOOP | TF_MAYBELAST, "09"
+	addTypePrms id, TF_NEXT | TF_LOOP | TF_MAYBELAST, "09.."
+	addTypePrms id, TF_LOOP | TF_MAYBELAST, "09"
+	
+	// ID [hoge, abc] html ver.
+	addType T_ID :id = stat		// abc-def
+	setInvalidStatus id, PREV_TOKEN, "09AZaz"
+	setValidStatus id, NOW_TOKEN, sstr(1)+sstr('-'-1)+sstr('-'+1)+sstr(':'-1)+sstr(':'+1)+sstr('A'-1)+sstr('Z'+1)+sstr('_'-1)+sstr('_'+1)+sstr('a'-1)+sstr('z'+1)+sstr(255)
+	addTypePrms id, TF_NEXT | TF_LOOP | TF_MAYBELAST, "!!--azAZ__"
+	addTypePrms id, TF_LOOP | TF_MAYBELAST, "--::azAZ09__"
+	addTypePrms id, TF_LOOP | TF_MAYBELAST, "--::azAZ09__"
+	
+	return
+	
+*autoIndent
+	
+	addType T_CURLY_BACKET_OPEN :id = stat
+	addTypePrms id, TF_LAST, "{{"
+	addType T_CURLY_BACKET_CLOSE :id = stat
+	addTypePrms id, TF_LAST, "}}"
+	addType T_ANGLE_BACKET_OPEN :id = stat
+	addTypePrms id, TF_LAST, "<<"
+	addType T_ANGLE_BACKET_CLOSE :id = stat
+	addTypePrms id, TF_LAST, ">>"
+	addType T_TAG_CLOSE :id = stat
+	addTypePrms id, TF_LAST, "//"
+	addType T_EQUAL :id = stat
+	addTypePrms id, TF_LAST, "=="
+//	addType T_EXCLAMATION :id = stat
+//	addTypePrms id, TF_LAST, "!!"
+	
+	buf = gtext(objinfo(editID, 2))
+	__logmes "buffer length ["+strlen(buf)+"]"
+	devideStringType buf, prms, types, bases
+	
+	sdim stack :dim baseList :stackCount = 0 :tagEndFlag = 0
+	#define ctype _(%1)	limit(%1, 0, length(prms)-1)
+	repeat length(prms)
+		if types.cnt == T_ANGLE_BACKET_OPEN {
+			tagBegin = bases.cnt
+			
+			if types(_(cnt+1)) == T_TAG_CLOSE {
+				tagName = prms(_(cnt+2))
+				tagEndFlag = 1
+				for i, length(stack)-1, -1, -1
+					if prms(_(cnt+2)) == stack.i {
+						array_delete stack, i, 1
+						array_delete baseList, i, 1
+						_break
+					}
+				next
+				stackCount--
+			}else {
+				tagName = prms(_(cnt+1))
+				array_pushprm stack, prms(_(cnt+1))
+				array_pushprm baseList, bases(_(cnt+1))-1
+				stackCount++
+			}
+			
+			if tagEndFlag {
+				value = strmid(buf, valueBegin, bases.cnt-valueBegin)
+				__logmes strtrim(value, 0, 2573)
+				__logmes "close ["+tagName+"]"
+				tagEndFlag = 0
+			}else {
+				__logmes "open ["+tagName+"]"
+			}
+			f = 1
+		}else :if types.cnt == T_ANGLE_BACKET_CLOSE {
+			valueBegin = bases.cnt+1
+			f = 0
+		}else :if types.cnt == T_ID {
+			if f {
+				if prms.cnt != stack(limit(stackCount-1, 0, INT_MAX)) {
+					if types(_(cnt+1)) == T_EQUAL {
+//						if types(_(cnt+2)) == T_STR {
+							__logmes "["+prms.cnt+"]=["+prms(cnt+2)+"]"
+//						}
+					}
+				}
+			}
+		}
+	loop
+	
+	__logmes "un closed tags"
+	if 1 < length(stack) {
+		array_delete stack, 0, 1
+		array_delete baseList, 0, 1
+	}
+	repeat length(stack)
+		__logmes "line("+baseList.cnt+") ["+stack.cnt+"]"
+	loop
+	
+	__logmes "indenting..."
+	indentString = "    " :indentCount = 0 :addIndentf = 0 :commentf = -1
+	sdim afterBuffer :valueBegin = 0
+	repeat length(prms)
+		if types.cnt == T_ANGLE_BACKET_OPEN {
+			if commentf != -1 {
+				continue
+			}
+			tagBegin = bases.cnt
+			
+			if types(_(cnt+1)) == T_TAG_CLOSE {
+				__logmes "tagclose"
+				tagName = "/"+prms(_(cnt+2))
+				array_pop stack
+				stackCount--
+				indentCount--
+			}else {
+				__logmes "tagopen"
+				tagName = prms(_(cnt+1))
+				f = -1
+				for i, 0, length(baseList), 1
+					if baseList.i == bases.cnt :f = i :_break
+				next
+				if f == -1 {
+					array_pushprm stack, prms(_(cnt+1))
+					stackCount++
+					addIndentf = 1
+				}else {
+					array_delete baseList, f, 1
+				}
+			}
+			if tagName == "!--" {
+				__logmes "comment open"
+				commentf = cnt
+			}
+			__logmes "backet open"
+			value = strmid(buf, valueBegin, bases.cnt-valueBegin)
+			value = strtrim(value, 0, 2573)
+			len = strlen(value)
+			if 2 < len :if peek(value, len-1) != 0xA || peek(value, len-2) != 0xD :value += "\n"
+			afterBuffer += value
+			afterBuffer += strTimes(indentString, indentCount)
+			afterBuffer += "<"+ tagName +"\n"
+			tagIndent = indentCount+1
+			f = 1
+		}else :if types.cnt == T_ANGLE_BACKET_CLOSE {
+			if commentf != -1 {
+				if types(cnt-1) == T_ID && prms(cnt-1) == "--" {
+					__logmes "comment close"
+					afterBuffer += ""+ strmid(buf, bases.commentf+1+3, bases.cnt-bases.commentf+1-3-3-1)
+					afterBuffer += "\n"+ strTimes(indentString, limit(tagIndent-1, 0, INT_MAX)) +"--"
+					commentf = -2
+				}else {
+					continue
+				}
+			}
+			__logmes "backet close"
+			if commentf == -1 :afterBuffer += strTimes(indentString, limit(tagIndent-1, 0, INT_MAX))
+			if types(cnt-1) == T_TAG_CLOSE :afterBuffer += "/"
+			afterBuffer += ">\n"
+			valueBegin = bases.cnt+1
+			f = 0
+			if commentf == -2 :commentf = -1
+		}
+		if addIndentf {
+			addIndentf = 0
+			indentCount++
+		}
+		if commentf != -1 {
+			continue
+		}
+		
+		if types.cnt == T_ID {
+			if f {
+				if prms.cnt != stack(limit(stackCount-1, 0, INT_MAX)) {
+					if types(_(cnt+1)) == T_EQUAL {
+						__logmes "add parameter"
+						if types(_(cnt+2)) == T_STR || types(_(cnt+2)) == T_NUM {
+							afterBuffer += strTimes(indentString, tagIndent)
+							afterBuffer += prms.cnt+" = "+prms(_(cnt+2))+"\n"
+						}
+					}
+				}
+			}
+		}
+	loop
+	repeat length(baseList)
+		__logmes "line("+baseList.cnt+")"
+	loop
+	objprm editId, afterBuffer
+	
+	return
+	
+	#module
+	#defcfunc strTimes str baseString, int times
+		destString = ""
+		repeat times
+			destString += baseString
+		loop
+	return destString
+	#global

@@ -1,0 +1,71 @@
+	
+	editId = -1
+	
+	formatName = "Magic", "Sub", "ID", "Counter", "ms1", "ms2", "Flags", "Slot", "Size", "???", "NNID", "Type"
+	formatSize =       4,     1,    1,         2,     2,     2,       1,      1,      2,     4,      4,      1
+	
+	sdim buf
+	objmode 2
+	font msgothic, 16
+	
+	objsize ginfo(12), 20
+	input buf,,, 0
+	button gosub "", *info
+	
+	yy = ginfo_cy
+	
+	stop
+*info
+	
+	strrep buf, ":", ""
+	
+	redraw 0
+	colorwhite :boxf :color
+	pos 0, yy
+	
+	repeat length(formatName)
+		data = getData(buf, formatSize.cnt * 2)
+		if -1 == data :return
+		mes ""+ formatName.cnt +"["+ data +"]"
+	loop
+	
+	index = 0
+	len = strlen(buf)-32
+	otherBuffer = ""
+	dataBuffer = ""
+	while 1
+		size = limit(len-index, 0, 32)
+		data = strmid(buf, index, size)
+		otherBuffer += data +" "
+		dataBuffer += data
+		index += 32
+		if len <= index :_break
+		
+		size = limit(len-index, 0, 32)
+		data = strmid(buf, index, size)
+		otherBuffer += data +"\n"
+		dataBuffer += data
+		index += 32
+		if len <= index :_break
+	wend
+	if -1 != editId :clrobj editId, editId
+	mes "other"
+	mesbox otherBuffer, ginfo(12), ginfo(13)-ginfo_cy, 5, 0 :editId = stat
+	
+	sdim bmpData, len+1
+	repeat strlen(dataBuffer)/2
+		poke bmpData, cnt, int("$"+ strmid(dataBuffer, cnt*2, 2))
+	loop
+	
+	bsave dir_desktop +"\\wiiU\\test.bmp", bmpData, len
+	
+	redraw 1
+	
+	return
+#defcfunc getData var v, int _size
+	len = strlen(v)
+	if len <= _size :return -1
+	d = strmid(v, 0, _size)
+	v = strmid(v, _size, len-_size)
+	return d
+	

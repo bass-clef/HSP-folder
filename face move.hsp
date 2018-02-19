@@ -1,0 +1,25 @@
+	
+	#include "array.as"
+	
+	screen 0, 200, 40, 0
+	title "camtext"
+	font msgothic, 8
+	
+	sdim moved
+	
+*main
+	redraw 0
+	colorwhite :boxf :color
+	repeat length(moved)
+		pos cnt/5*32, cnt\5*8
+		mes ""+ cnt +"-"+strmid(moved(cnt), 0, 1)
+	loop
+	redraw 1
+	
+	s = gtext(hwnd@hsp)
+	if s != sold :sold = s :if s == "left" || s == "right" :pushary moved, s, c :c++
+	
+	if getkey(27) & 0x8000 :end
+	if getkey('R') & 0x8000 :title "camtext"
+	wait 1
+	goto *main

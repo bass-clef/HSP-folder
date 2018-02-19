@@ -1,0 +1,247 @@
+	
+	#uselib "user32.dll"
+	#func	SetLayered		"SetLayeredWindowAttributes"	int, int, int, int
+	#func	GetLayered		"GetLayeredWindowAttributes"	int, sptr, sptr, sptr
+	#cfunc	GetDC			"GetDC"							int
+	#func	ReleaseDC		"ReleaseDC"						int, int
+	#uselib "gdi32.dll"
+	#cfunc	GetStockObject	"GetStockObject"				int
+	#cfunc	GetBkColor		"GetBkColor"					int
+	#define	LWA_ALPHA		2
+	#define	LWA_COLORKEY	1
+	
+	#define WM_CTLCOLOR		0x0019
+
+	
+	gsel 0, -1
+	
+	randomize
+	sdim abuf
+	
+	// ファイル列挙
+	dialog "", 66, ""
+	chdir refstr
+	EnumFile bbuf, ".wma\n.wav\n.mp3", "BOΦWY\nDREAMS COME TRUE\nKARA\n加藤　ミリヤ\n家入レオ\n倖田來未\n"
+	
+	// ランダムに並べ替え
+	notesel@hsp bbuf
+	initrrnd notemax
+	repeat notemax
+		abuf += ""+ noteget(rrnd()) +"\n"
+	loop
+	
+	fsize = 14
+	
+	screen 1, ginfo(20), ginfo(21), 0,,, 400, fsize+18
+	gsel 1, 2 :title "Small Music Player" :hmwnd = hwnd@hsp
+	font msgothic, fsize
+	objmode 2
+	
+	pos 0, 0 :input file, ginfo(12), fsize, 0, 0 :hInput = objinfo(stat, 2)
+	
+	xx = 50
+	objsize xx, 18
+	pos    0, fsize :button gosub "|<|<|", *Jump :BI_Prev = stat
+	pos   xx, fsize :button gosub "□", *Jump :BI_Play = stat
+	pos xx*2, fsize :button gosub "|>|>|", *Jump :BI_Next = stat
+	BI_Open = stat +1
+	x = fsize/2*3 :y = ginfo_cy
+	pos    x,     y :listbox list, 0, abuf :ListID = stat
+	hListBox = objinfo(ListID, 2)
+	
+	onexit *exit
+	oncmd gosub *WindowProc, WM_SIZING
+	oncmd gosub *WindowProc, WM_LBUTTONDOWN
+	
+	repeat
+		notesel@hsp abuf
+		if cnt == notemax :continue 0
+		file = noteget(cnt)
+		exist file
+		if strsize == -1 :if flag >= 0 :continue :else {
+			if cnt > 0 :continue cnt-1 :else :continue notemax-1
+		}
+		void BI_Open :gosub *Jump
+		if stat == -1 :if flag >= 0 :continue :else {
+			if cnt > 0 :continue cnt-1 :else :continue notemax-1
+		}
+		flag = 0
+		objprm ListID, cnt
+		repeat
+			mci "status music position" :p = double(stat)
+			if (p >= len) || (flag) :break
+			gosub *draw
+			wait 1
+		loop
+		
+		mci "close music"
+		if flag == -1 :if cnt > 0 {
+			continue cnt-1
+		}else :continue notemax-1
+	loop
+	
+*exit
+	mci "close music"
+	end
+	end
+	
+*draw
+	redraw 0
+	colorwhite :boxf x, fsize, ginfo(12), fsize+18 :color
+	// position
+	x = xx*3
+	l = double(ginfo(12)-x)/len
+	boxf x, fsize, x+(l*p), fsize+9
+	
+	// volume
+	mci "status music volume" :v = double(stat)
+	l = double(ginfo(12)-x)/1000.0
+	boxf x, fsize+9, x+(l*v), fsize+18
+	
+	// list margin
+	if ginfo(13) < 60 {
+		pos 0, fsize+20 :mes "more window height"
+	}else {
+		x = 18
+		colorwhite :boxf 0, fsize+x, fsize/2*3, ginfo(13) :color
+		repeat (ginfo(13)-fsize-x)/fsize+1 :pos 0, cnt*fsize+x :mes cnt :loop
+	}
+	redraw 1
+	return
+*Jump
+	switch stat
+	case BI_Prev
+		flag = -1
+		swbreak
+	case BI_Next
+		flag = 1
+		swbreak
+	case BI_Play
+		mci "status music mode"
+		switch refstr
+		case "playing"	:mci "pause music"			:swbreak
+		case "paused"	:mci "resume music"			:swbreak
+		case "stoping"	:mci "play music from 0"	:swbreak
+		swend
+		swbreak
+	case BI_Open
+			if getpath(file, 26) == ".wav" {
+				mci "open \""+file+"\" alias music notify type mpegvideo"
+				if stat == -1 :mci "open \""+file+"\" alias music notify type mpegvideo2"
+				if stat == -1 :mci "open \""+file+"\" alias music notify type waveaudio"
+			}else {
+				mci "open \""+file+"\" alias music notify"
+			}
+		if stat == -1 :void -1
+		mci "play music from 0"
+		mci "setaudio music volume to 500"
+		mci "set music time format ms"
+		mci "status music length"
+		len = double(stat-10)
+		title getpath(file, 9), hInput
+		swbreak
+	swend
+	return stat
+*WindowProc
+	switch iparam
+	case WM_SIZING
+		ssize ginfo(12), fsize, hInput
+		if ginfo(13) < 60 {
+			
+		}else {
+			ssize ginfo(12)-fsize/2*3, ginfo(13)-18-fsize, hListBox
+		}
+		swbreak
+	case WM_LBUTTONDOWN
+		mx = loword(lparam)
+		my = hiword(lparam)
+		x = xx*3
+		if ((x <= mx) && (mx <= ginfo(12))) && ((fsize+8 <= my) && (my <= fsize+18)) {
+			v = double(mx-x)
+			x = double(ginfo(12)-x)
+			mci "setaudio music volume to "+int(1000.0/x*v)
+		}
+		swbreak
+	swend
+	return
+	
+	#module
+	// ランダムではないランダムを生産
+	#deffunc initrrnd int max_, int index_
+		sdim table
+		notesel@hsp table
+		repeat max_, index_
+			noteadd str(cnt), -1, 0
+		loop
+		noteunsel
+		rrnd_max = max_
+		rrnd_index = index_
+	return
+	#defcfunc rrnd
+		notesel@hsp table
+		i = rnd(notemax)
+		noteget@hsp prm, i
+		notedel i
+		noteunsel
+	return int(prm)
+	#global
+	
+	#module
+	#undef con
+	#defcfunc con int cond, int prm1, int prm2
+		if cond :return prm1
+	return prm2
+	#defcfunc stringin var string, str word
+		notesel@hsp string
+		if notemax == 1 :if string == word {return 1 }else {return 0 }
+		i = 0
+		repeat notemax
+			if noteget(cnt) == word :i = 1 :break
+		loop
+	return i
+	#deffunc EnumFile var buf, str extention, str notdir
+		sdim buf :sdim list :sdim list2 :sdim file :sdim ext
+		file = dir_cur
+		ext = extention
+		ndir = notedir
+		
+		repeat
+			await
+			if cnt != 0 {
+				notesel@hsp list
+				if notemax == 0 :break
+				noteget@hsp file, 0
+				notedel 0
+			}
+			if isdir(file) {
+				if stringin(ndir, getpath(file, 9)) == 0 {
+					chdir file
+					dirlist list2, "*.*", 2
+					notesel@hsp list2
+					repeat notemax
+						list += ""+file+"\\"+noteget(cnt)+"\n"
+					loop
+				}
+			}else {
+				e = getpath(file, 18)
+				if stringin(ext, e) {
+					buf += ""+file+"\n"
+				}
+			}
+			
+			/**
+			redraw 0
+			colorwhite :boxf 0, 0, 100, 20 :color
+			pos 0, 0
+			mes "["+notemax+"]"
+			/**
+			notesel@hsp list
+			repeat con(notemax < 30, notemax, 30)
+				mes ""+noteget(cnt)
+			loop
+			/**/
+			redraw 1
+			/**/
+		loop
+	return
+	#global

@@ -1,0 +1,239 @@
+	
+	#undef peek
+	#uselib "calculate.dll"
+	#cfunc	global	peek	"getpeek"	sptr, int
+	
+	#define	endl	"\n"
+	
+	sdim table :sdim b_table :sdim a_table
+	lp = 26
+	
+	/*do*/
+	// ŠÖ˜A•t‚¯‹æØ‚èƒoƒCƒgƒR[ƒh [ 0x1F ]
+	learn  = "\n"+tostr(0x1F)+tostr(0x08)+tostr(0x1F)	// íœc‚Æ‚µ‚Ä“o˜^
+	learn += " "+tostr(0x1F)+tostr(0x08)+tostr(0x1F)	// íœc‚Æ‚µ‚Ä“o˜^
+	learn += ","+tostr(0x1F)+tostr(0x1D)+tostr(0x1F)	// ‹æØ‚èc‚Æ‚µ‚Ä“o˜^
+	/*~do*/
+	
+	sdim info
+	objmode 2
+	wx = ginfo(12) :wy = ginfo(13)
+	wxh = wx/2 :wyh = wy/2
+	pos   0,   0 :input lp, wxh, 20
+	pos   0,  20 :mesbox b_table, wxh, wyh-20, 5, 0
+	pos   0, wyh :mesbox info, wxh, wyh, 5, 0 :hInfo = objinfo(stat, 2)
+	pos wxh,   0 :mesbox a_table, wxh, wy, 5, 0 :hAfter = objinfo(stat, 2)
+	
+*main
+	if b_table != b_table_old {
+		b_table_old = b_table
+		gosub *love
+	}
+	wait 1
+	goto *main
+*love
+	sentence = b_table
+	table = ""
+	
+	gosub *observe
+	
+	a_table = a_sentence
+	title a_table, hAfter
+	
+	// get information
+	sdim info :str_ = ""
+	info += "exclusion_word:" + endl
+	repeat length(exclusion_word)
+		info += "["+ exclusion_word.cnt +"]" + endl
+	loop
+	info += "word:" + endl
+	repeat length(word)
+		info += "["+ word.cnt +"]" + endl
+	loop
+	info += "learn:" + endl
+	repeat length(learn@__LOVE__)/2
+		i = 0
+		poke i, 0, learn@__LOVE__(cnt*2+1)
+		info += strf("[%d:%d]"+endl, peek(learn@__LOVE__(cnt*2), 0), i)
+	loop
+	info += "dst:" + endl
+	repeat length(dst)
+		info += ""+ dst.cnt + endl
+	loop
+	info += "a_sentence:" + endl
+	info += a_sentence + endl
+	
+	title info, hInfo
+	
+	return
+	
+*observe
+	// ŠÏ‘ª observe
+	sdim word
+	sdim exclusion_word :c_exclusion_word = 0
+	repeat strlen(sentence)// •¶š‚Å‚à”š‚Å‚à‚È‚¢‚à‚Ì‚ğ“Eo
+		str_ = strmid(sentence, cnt, 1)
+		if IsCharAlphaNumeric(str_) == 0 {
+			i = 1
+			repeat c_exclusion_word
+				if exclusion_word.cnt == str_ :i = 0 :break
+			loop
+			if i {
+				exclusion_word(c_exclusion_word) = str_
+				c_exclusion_word ++
+			}
+		}
+		word(cnt) = str_
+	loop
+	
+	// •¶š‚Å‚à”š‚Å‚à‚È‚¢‚à‚Ì‚ªŒ©‚Â‚©‚Á‚½‚çƒ†[ƒU[w’è
+	
+	
+	// ‹K‘¥‚É‚µ‚½‚ª‚Á‚Ä‚»‚ê‚ğs‚¤
+	a_sentence = sentence
+	repeat c_exclusion_word		// •¶š—ñ•ÏXˆ—
+		switch Learned(learn, exclusion_word.cnt)
+		case 0x08
+			a_sentence = strtrim(a_sentence, 3, peek(refstr, 0))
+			break
+		swend
+	loop
+	repeat c_exclusion_word		// •¶š—ñ•ªŠ„ˆ—
+		switch Learned(learn, exclusion_word.cnt)
+		case 0x1D
+			sdim word
+			bsplit a_sentence, peek(refstr, 0), word
+			break
+		swend
+	loop
+	
+	gosub *prediction
+	return
+	
+*prediction
+	// —\‘ªEŠwK creating prediction table
+	if length(word) > 1 {
+		dim dst		// ·•ªŒvZ
+		repeat length(word)-1
+			dst.cnt = peek(word(cnt+1), 0) - peek(word(cnt), 0)
+		loop
+	
+		// ƒAƒ‹ƒSƒŠƒYƒ€‚Æ”äŠr
+		type = 1
+		i = 1
+		repeat length(dst)
+			if dst.cnt != 1 :i = 0
+		loop
+		if i :type = 1
+		
+		switch type// ƒAƒ‹ƒSƒŠƒYƒ€
+		case 1	// ++‰ÁZ
+			sdim a_sentence
+			add = peek(word(0), 0)
+			str_ = ""
+			c_dst = 0 :max_dst = length(dst)
+			repeat lp	// ŒJ‚è•Ô‚µ
+				poke str_, 0, add
+				a_sentence += ""+str_
+				repeat length(exclusion_word)
+					a_sentence += exclusion_word.cnt
+				loop
+				add += dst(c_dst)
+				if max_dst != 0 :c_dst = (c_dst+1)\max_dst
+			loop
+			swbreak
+		swend
+	}
+	return
+	
+	
+	// -----------------------------ƒ‚ƒWƒ…[ƒ‹------------------------------
+	#module __LOVE__
+	// ‹L‰¯EŠwK‚µ‚Ä‚¢‚é‚©ŒŸõ
+	#defcfunc Learned var l_str, str word
+		code = 0 :void ""
+		sdim learn
+		bsplit l_str, 0x1F, learn
+		
+		if length(learn) > 1 {
+			repeat length(learn)/2
+				i = cnt*2
+				if learn(i) == word {
+					poke code, 0, learn(i+1)
+					void str(learn(i))
+					break
+				}
+			loop
+		}
+	return code
+	#global
+	
+	#module __STRING__
+	// ”:1 •¶š[A]:2 [a]:3 ‚»‚êˆÈŠO:0
+	#defcfunc IsCharAlphaNumeric str word
+		if (('0' <= peek(word, 0)) && (peek(word, 0) <= '9')) :return 1
+		if (('A' <= peek(word, 0)) && (peek(word, 0) <= 'Z')) :return 2
+		if (('a' <= peek(word, 0)) && (peek(word, 0) <= 'z')) :return 3
+	return 0
+	// ”š‚ğ•¶š‚É•ÏŠ·
+	#defcfunc tostr int byte
+		str_ = ""
+		poke str_, 0, byte
+	return str_
+	#deffunc bsplit var string, int byte, array dst
+		dim prm :prm = -1
+		repeat strlen(string)
+			if peek(string, cnt) == byte :prm.length(prm) = cnt
+		loop
+		prm.length(prm) = strlen(string)
+		repeat length(prm)-1
+			i = prm(cnt)+1
+			j = prm(cnt+1)-i
+			if j > 0 :memcpy dst.cnt, string, j, 0, i
+		loop
+	return
+	#global
+	#module __BASE__
+//	#undef peek
+//	#uselib "calculate.dll"
+//	#cfunc	peek	"getpeek"	sptr, int
+	// ni”ŒğŒİ•ÏŠ·
+	#defcfunc cnvbase int prm, int base
+		sdim buf, 128 :ans = prm :str_ = ""
+		repeat
+			if ans == 0 :break
+			rem = (ans \ base)
+			ans = ans / base
+			if rem < 10 {
+				str_ = str(rem)
+			}else {
+				rem -= 10
+				if rem <= 'Z'-'A' {
+					poke str_, 0, rem+'A'
+				}else {
+					rem -= 'Z'-'A'
+					if rem <= 'z'-'a' {
+						poke str_, 0, rem+'a'
+					}
+				}
+			}
+			buf = str_ + buf
+		loop
+		if buf == "" :return "0"
+	return buf
+	#defcfunc cnvbase_ str string, int base
+		ans = 0.0 :i = strlen(string)-1
+		str_ = string
+		repeat i+1
+			rem = peek(str_, cnt)
+			if ('0' <= rem) && (rem <= '9') {
+				ans += (rem-'0')*powf(base, i)
+			}elif ('A' <= rem) && (rem <= '9') {
+				ans += (rem-'A'+10)*powf(base, i)
+			}elif ('a' <= rem) && (rem <= 'z') {
+				ans += (rem-'a'+36)*powf(base, i)
+			}
+			i--
+		loop
+	return ans
+	#global

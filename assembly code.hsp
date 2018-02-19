@@ -1,0 +1,97 @@
+	
+	#define ctype bkt2a(%1, %2, %3)	((%1 <= %2) && (%2 <= %3))
+	
+	
+	size = 67
+	place = 4
+	ptWndProc = glong(hwnd@hsp, GWL_WNDPROC)
+	dupptr wndproc, ptWndProc, size, 2
+	
+	screen 0, 8*place*3 + 8*4 + 500, (size/place+1)*16 + 16*4
+	title "WndProc code"
+	font msgothic, 16
+	mes strf("WindowProc Address : %08X", ptWndProc)
+	
+	sdim buf :sdim inf
+	buf += "\n   "
+	repeat place :buf += strf("+%01X ", cnt) :loop
+	nex = 0
+	reg = "eax,ecx,edx,ebx,esp,ebp,esi,edi"// 残りは eip or [esp]
+	
+	repeat size
+		if cnt\place == 0 {
+			buf += strf(" :%s\n%02X|", inf, cnt/place)
+			sdim inf
+		}else :buf += " "
+		i = peek(wndproc, cnt)
+		buf += strf("%02X", i)
+		if nex :nex-- :continue
+	
+		tmp = ""
+		// 命令 アーキテクチャ
+		inf += " "+(cnt\place)+"["
+		if bkt2a(0x50, i, 0x5f) :asm__pushpop	// push orand pop
+		if i == 0x85 :asm__test	:continue	// test
+		if i == 0x8b :asm__mov	:continue	// mov
+		if i == 0xe8 :asm__call	:continue	// call
+		
+	loop
+	buf += strf(" : %s\n", inf)
+	mes buf
+	
+	stop
+	// push & pop
+	#deffunc asm__pushpop
+		tmp += strmid(reg, i\8*4, 3)
+		if bkt2a(0x50, i, 0x57) :inf += "push "+tmp+"]"
+		if bkt2a(0x58, i, 0x5f) :inf += "pop "+tmp+"]"
+	return
+	
+	// test
+	#deffunc asm__test
+		inf += "test "
+		i = peek(wndproc, cnt+1)
+		if 24 <= i/8 {
+			inf += strmid(reg, (i/8)\8*4, 3)+", "
+			inf += strmid(reg, i\8*4, 3)
+		}
+		inf += "]"
+		nex = 1
+	return
+	
+	// 8b mov
+	#deffunc asm__mov
+		inf += "mov "
+		i = peek(wndproc, cnt+1)
+		if bkt2a(0x00, i, 0x3f) {
+			n = cnt
+			repeat 4, 2
+				inf += strf("%02X", peek(wndproc, n+cnt))
+			loop
+			nex += 5
+		}elif bkt2a(0x40, i, 0x7f) {
+			inf += strmid(reg, i/8\8*4, 3)+", "
+			nex++
+			
+			i = peek(wndproc, cnt+2)
+			if bkt2a(0x00, i, 0x3f) {
+				inf += strmid(reg, i\8*4, 3)
+				inf += "+"+(peek(wndproc, cnt+3)+4)
+				nex += 2
+			}
+		}
+		inf += "]"
+	return
+	
+	// call
+	#deffunc asm__call
+		inf += "call "
+		n = cnt
+		repeat 4, 1
+			if n+cnt >= size :break//do
+			inf += strf("%02X", peek(wndproc, n+cnt))
+		loop
+		inf += "]"
+		nex = 4
+	return
+	

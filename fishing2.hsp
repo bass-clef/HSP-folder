@@ -1,0 +1,131 @@
+	
+	#uselib "gdi32.dll"
+	#cfunc	GetPixel			"GetPixel"				int, int, int
+	#func	BitBlt				"BitBlt"				int, int, int, int, int,  int, int, int, int
+	#uselib "user32.dll"
+	#func	ReleaseDC			"ReleaseDC"				int, int
+	#func	mouse_event			"mouse_event"			int, int, int, int, int
+	#func	SetForeground		"SetForegroundWindow"	int
+	#cfunc	GetDC				"GetDC"					int
+	#cfunc	FindWindow			"FindWindowA"			sptr, sptr
+	#cfunc	GetForeground		"GetForegroundWindow"
+	
+	#define MOUSEEVENTF_LEFTDOWN    0x0002
+	#define MOUSEEVENTF_LEFTUP      0x0004
+	#define MOUSEEVENTF_RIGHTDOWN	0x0008
+	#define MOUSEEVENTF_RIGHTUP		0x0010
+	#define	KEYEVENTF_KEYUP			0x2
+	
+	#packopt name "fishing2"
+	#packopt hide 0
+	
+	
+	hTar = FindWindow("LWJGL"/*"SunAwtFrame"*/, "Minecraft 1.8.9")
+	if hTar == null :dialog "MinecraftÇ™ãNìÆÇµÇƒÇ¢Ç‹ÇπÇÒÅB", 0, "Warning!!" :end
+	
+	wdhMC = winfo(12, hTar)
+	hgtMC = winfo(13, hTar)
+	xmar = (winfo(10, hTar) - wdhMC)/2
+	ymar = winfo(11, hTar) - hgtMC - xmar
+	xMC = winfo(4, hTar) +xmar
+	yMC = winfo(5, hTar) +ymar
+	
+	buffer 1, 1, hgtMC, 0, 10, 0
+	
+	screen 0, 160, 20, 8
+	gsel 0, 2
+	title "fishing2"
+	font msgothic, 10
+	
+	startf = 0
+	fished = 0
+	gamemenuf = 0
+	
+*main
+	if GetForeground() == hTar {
+		gsel 1
+		gosub *calc
+		gsel 0
+	}
+		
+	redraw 0
+	colorwhite :boxf :color
+	pos 0, 0
+	if GetForeground() == hTar {
+		if gamemenuf {	mes "Game menu"
+		}else :			gosub *draw
+	}else :				mes "MinecraftÇActiveÇ…ÇµÇƒÇ≠ÇæÇ≥Ç¢ÅB"
+	mes ""+RR(clr)+","+GG(clr)+","+BB(clr)
+	redraw 1
+	
+	wait 5
+	goto *main
+	
+*draw
+	if startf {
+		if (0xB0 <= RR(clr) && 0xB0 <= GG(clr) && 0xB0 <= BB(clr)) {mes "Hit    "+fished
+		}else :														mes "Fished "+fished
+	}else {
+		if (0xB0 <= RR(clr) && 0xB0 <= GG(clr) && 0xB0 <= BB(clr)) {mes "Ready."
+		}else :														mes "Not Found"
+	}
+	return
+	
+*calc
+	redraw 0
+	htdc = GetDC(NULL)
+	BitBlt hdc, 0, 0, 1, hgtMC, htdc, xMC+wdhMC/2, yMC, SRCCOPY
+	ReleaseDC NULL, htdc
+	redraw 1
+	
+	// Game menu äƒéã
+	xbtn = xMC+wdhMC/2
+	ybtn = -1
+	repeat hgtMC/2
+		clr = vpget(0, cnt, 1, hgtMC)
+		if RR(clr) == GG(clr) && RR(clr) == BB(clr) && (100 <= RR(clr) && RR(clr) <= 120) {
+			gamemenuf = 1
+			if ybtn == -1 :ybtn = yMC+cnt
+			break
+		}else {
+			gamemenuf = 0
+		}
+	loop
+	if gamemenuf {
+		mouse xbtn, ybtn
+		gosub *lclick
+		return
+	}
+	
+	clr = vpget(0, 0, 1, hgtMC)
+	if startf {
+		if (0xB0 <= RR(clr) && 0xB0 <= GG(clr) && 0xB0 <= BB(clr)) {
+			if fishedf == 0 {
+				gosub *rclick
+				wait 100
+				gosub *rclick
+				fishedf = 1
+				fished++
+			}
+		}else {
+			fishedf = 0
+		}
+	}else {
+		if (0xB0 <= RR(clr) && 0xB0 <= GG(clr) && 0xB0 <= BB(clr)) {
+			gosub *rclick
+			startf = 1
+		}
+	}
+	return
+	
+*rclick
+	mouse_event MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, NULL
+	await
+	mouse_event MOUSEEVENTF_RIGHTUP, 0, 0, 0, NULL
+	return
+	
+*lclick
+	mouse_event MOUSEEVENTF_LEFTDOWN, 0, 0, 0, NULL
+	await
+	mouse_event MOUSEEVENTF_LEFTUP, 0, 0, 0, NULL
+	return

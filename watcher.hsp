@@ -1,0 +1,83 @@
+	
+	#uselib "InvalidSystemKey.dll"
+	#func	SystemHookStart		"SystemHookStart"	int
+	#func	SystemHookEnd		"SystemHookEnd"
+	
+	#uselib "winmm.dll"
+	#func	timeGetTime		"timeGetTime"
+	
+	#uselib "imm32.dll"
+	#func	immSetOpenStatus	"ImmSetOpenStatus"	int, int
+	#cfunc	immGetContext		"ImmGetContext"		int
+	#cfunc	immGetOpenStatus	"ImmGetOpenStatus"	int
+	
+	#define WM_APP							0x8000
+	#define WM_HOOKKEYDOWN	WM_APP+15
+	
+	#packopt hide 1
+	#packopt name "joke"
+	
+	dirlist fileList, "*.jpg", 1
+	notesel@hsp fileList
+	max = notemax
+	
+	repeat max
+		buffer 1+cnt
+		notesel@hsp fileList
+		noteget@hsp buf, cnt
+		picload ""+ buf
+		imgx.cnt = ginfo(12)
+		imgy.cnt = ginfo(13)
+	loop
+	
+	bgscr 0, ginfo(20), ginfo(21), 0, 0, 0
+	onkey gosub *key
+	oncmd gosub *hook, WM_HOOKKEYDOWN
+	
+	hImc = immGetContext(hwnd)
+	color 255 :boxf
+	
+	SystemHookStart hwnd@hsp
+	
+	r = 0
+	g = 0
+	b = 0
+	
+	oldTime = timeGetTime()
+	
+	file = -1
+	
+*main
+	
+	if 1000*60*10 < timeGetTime() - oldTime :end
+	
+	redraw 0
+	if -1 != file {
+		gzoom ginfo(20), ginfo(21), 1+file, 0, 0, imgx.file, imgy.file
+	} else {
+		color r, g, b
+		boxf
+	}
+	redraw 1
+	
+	wait 1
+	goto *main
+	
+*key
+*hook
+	oldTime = timeGetTime()
+	
+	file = rnd(15)
+	if max <= file {
+		file = -1
+	}
+	
+	r = rnd(255)
+	g = rnd(255)
+	b = rnd(255)
+	
+	if immGetOpenStatus(hIMC) {
+		immSetOpenStatus hIMC, false
+	}
+	return
+	

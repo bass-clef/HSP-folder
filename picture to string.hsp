@@ -1,0 +1,26 @@
+	
+	buffer 1
+	picload "C:\\Users\\Hiro\\Pictures\\cat33.jpg"
+	imgw = ginfo(12)
+	imgh = ginfo(13)
+	size = imgw*imgh
+	mref vram, 66
+	
+	gsel 0
+	font msgothic, 10
+	i = size*3*2/1000
+	sdim buf, size*3 *2 + i*7 +1
+	i = 0
+	repeat size*3
+		if cnt\1000 == 0 :poke buf, i, "d+=\"" :i+=4
+		poke buf, i, strf("%02X", peek(vram, cnt))
+		i+=2
+//		buf += strf("%02X", peek(vram, cnt))
+		if cnt\1000 == 999 :poke buf, i, "\"\n" :i+=3//buf += "\"\n"
+		await
+	loop
+	
+	objmode 2 :font msgothic, 14
+	mesbox buf, ginfo(12), ginfo(13), 5, 0
+	
+	

@@ -1,0 +1,14 @@
+	
+	imgw = 1920
+	imgh = 1200
+	size = imgw*imgh*3
+	
+	buffer 1, imgw, imgh
+	mref d, 66
+	#include "cat33.as"
+	redraw 1
+	
+	screen 0, ginfo(20), ginfo(21)
+	pos 0, 0 :gzoom ginfo(20), ginfo(21), 1, 0, 0, imgw, imgh, 1
+	d = 0
+	

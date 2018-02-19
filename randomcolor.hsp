@@ -1,0 +1,62 @@
+	
+	
+	#module
+	// •¶š—ñ[v]‚ğ[sub]‚ğŠî€‚ÉŒ¸Z v[i]=v[i]-sub
+	#deffunc intstrtobinary var v, int sub
+		len = strlen(v)
+		repeat len
+			poke v, cnt, peek(v, cnt)-sub
+		loop
+	return
+	#global
+	
+	buf = {"000
+001
+002
+010
+011
+012
+020
+021
+022
+100
+101
+102
+110
+111
+112
+120
+121
+122
+200
+201
+202
+210
+211
+212
+220
+221
+222
+"}
+	
+	ys = 10
+	font msgothic, ys
+	objmode 2
+	mesbox buf, ginfo(12)/2, ginfo(13), 5, 0
+	
+*main
+	redraw 0
+	color
+	boxf
+	xx = ginfo(12)/2
+	pos xx, 0
+	repeat strlen(buf)/5
+		inf = strmid(buf, cnt*5, 3)
+		intstrtobinary inf, '0'
+		color 255/2*peek(inf, 0), 255/2*peek(inf, 1), 255/2*peek(inf, 2)
+		boxf xx, cnt*ys, xx+ys, cnt*ys+ys
+	loop
+	redraw 1
+	
+	wait 5
+	goto *main

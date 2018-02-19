@@ -1,0 +1,393 @@
+	
+	// 擬似 IE
+	
+	#define my_app_name "InternetExPlorer"
+	#packopt name my_app_name
+	
+	#uselib "user32.dll"
+	#func	GetClientRect		"GetClientRect"		int, sptr
+	#func	GetWindowRect		"GetWindowRect"		int, sptr
+	#func	SetClassLong		"SetClassLongA"		int, int, int
+	#func	MessageBox			"MessageBoxA"		int, str, str, int
+	#cfunc	GetActiveWindow		"GetActiveWindow"
+	#cfunc	GetClassLong		"GetClassLongA"		int, int
+	#cfunc	GetSystemMenu		"GetSystemMenu"		int, int
+	#func	SetLayered		"SetLayeredWindowAttributes"	int, int, int, int
+	#func	GetLayered		"GetLayeredWindowAttributes"	int, sptr, sptr, sptr
+	
+	#define DIID_DWebBrowserEvents2 "{34A715A0-6587-11D0-924A-0020AFC7AC4D}"
+	#define INIFILENAME		""+dir_mydoc+"\\IElike.ini"
+	#enum	SYSMI_PREV	= 0x100
+	#enum	SYSMI_NEXT
+	#enum	SYSMI_REF
+	#enum	SYSMI_NEW
+	#define TITLEBY	15
+	#define	LWA_ALPHA		2
+	#define	LWA_COLORKEY	1
+	
+	dim rc, 4
+	dx = ginfo(20)+30
+	dy = ginfo(21)+40
+	sdim url :sdim buf
+	id = 0
+	obj = 0
+	scrhid = 0
+	
+	exist INIFILENAME
+	if strsize != -1 {
+		bload INIFILENAME, buf, strsize, 0
+		memcpy rc, buf, 16
+		remove = MAKEWORD(rc.0, rc.1)
+		resize = MAKEWORD(rc.2, rc.3)
+	}else {
+		remove = MAKEWORD((ginfo(20)-640)/2, (ginfo(21)-480)/2)
+		resize = MAKEWORD(640, 480)
+		rc.2 = 640
+		rc.3 = 480
+	}
+	
+*main
+	gosub *create
+	id++
+	stop
+	
+*create
+	bgscr id, dx, dy, 2, rc.0, rc.1, rc.2, rc.3
+	title ""
+	hmwnd(id) = hwnd@hsp
+	slong hmwnd(id), GWL_STYLE, glong(hmwnd(id), GWL_STYLE) | WS_THICKFRAME | WS_SYSMENU
+	SetClassLong hmwnd(id), -26, GetClassLong(hmwnd, -26) | 0x8
+	hSysMenu = GetSystemMenu(hmwnd(id), FALSE)
+	if hSysMenu == NULL {
+		dialog "メニューハンドルが見つかりませんでした。", 0, ""
+		end
+	}
+	AddMenuItem hSysMenu, "", 1, 0, ""
+	AddMenuItem hSysMenu, "戻る (&B)", SYSMI_PREV, 0, ""
+	AddMenuItem hSysMenu, "進む (&N)", SYSMI_NEXT, 0, ""
+	AddMenuItem hSysMenu, "更新 (&R)", SYSMI_REF, 0, ""
+	AddMenuItem hSysMenu, "", 2, 0, ""
+	AddMenuItem hSysMenu, "新規 (&S)", SYSMI_NEW, 0, ""
+	
+	gsel id, 1
+	
+	font msgothic, 14 :objmode 2, 0 :objsize wx/3*2, TITLEBY
+	pos 30, 0 :input url,,,, 0 :hURL = objinfo(stat, 2)
+	slong hURL, GWL_EXSTYLE, glong(hURL, GWL_EXSTYLE) | WS_EX_LAYERED
+	SetLayered hURL, RGB(255, 255, 255), 0, LWA_COLORKEY | LWA_ALPHA
+	
+	oncmd gosub *WindowProc, WM_LBUTTONDOWN
+	oncmd gosub *WindowProc, WM_SIZING
+	oncmd gosub *WindowProc, WM_COMMAND
+	oncmd gosub *WindowProc, WM_SYSCOMMAND
+	oncmd gosub *WindowProc, WM_CLOSE
+	oncmd gosub *WindowProc, WM_KEYDOWN
+	oncmd gosub *WindowProc, WM_LBUTTONDBLCLK
+	onkey gosub *key
+	
+	GetClientRect hmwnd(id), varptr(rc)
+	gosub *draw
+	pos 0, TITLEBY
+	axobj ie, "Shell.Explorer.2", rc.2, rc.3
+	if stat == -1 {
+		dialog "ActiveXコントロールの配置に失敗しました。", 1
+		end
+ 	}else {
+	 	hIE = objinfo(stat, 2)
+	}
+	comevent ie_event, ie, DIID_DWebBrowserEvents2, *event
+	
+	// go home page
+	ie->"GoHome"
+	repeat :if ie("readyState") == 4 {break } :wait 1 :loop
+	
+	// url変更
+	//ie->"Navigate" "http://search.yahoo.co.jp/"
+	
+	// html書き込み
+	//doc = ie("document")
+	//doc->"open"
+	//doc->"write" html
+	//doc->"close"
+	// 取得
+	//doc = ie("Document")
+	//body = doc("body")
+	//html = body("innerHTML")
+	
+	sendmsg hmwnd(id), WM_SIZING
+	
+	if strlen(dir_cmdline) {
+		url = dir_cmdline
+		ie->"Navigate" url
+	}
+	
+	
+	return
+*draw
+	obj = 0
+	redraw 0
+	color :boxf
+	// 「x」ボタン
+	beg_.obj = MAKEWORD(rc.2-56, 0)
+	pos loword(beg_.obj), hiword(beg_.obj) :button_ "quit", 1.4 :end_.obj = stat+beg_.obj
+	xButton = obj :obj++
+	// 「□」ボタン
+	beg_.obj = MAKEWORD(rc.2-90, 0)
+	if glong(htwnd, GWL_STYLE) & WS_THICKFRAME {
+		pos loword(beg_.obj), hiword(beg_.obj) :button_ "max", 1.4 :end_.obj = stat+beg_.obj
+	}else {
+		pos loword(beg_.obj), hiword(beg_.obj) :button_ "res", 1.4 :end_.obj = stat+beg_.obj
+	}
+	oButton = obj :obj++
+	// 「_」ボタン
+	beg_.obj = MAKEWORD(rc.2-120, 0)
+	pos loword(beg_.obj), hiword(beg_.obj) :button_ "min", 1.4 :end_.obj = stat+beg_.obj
+	_Button = obj :obj++
+	
+	
+	redraw 1
+	
+	return
+*event
+	eveID = comevdisp(ie_event)
+	if eveID = 259 {//DISPID_DocumentComplete
+		comevarg url, ie_event, 1
+		title url, hURL
+	}
+	return
+*key
+	objsel -1
+	if stat != -1 :htwnd = GetActiveWindow() :sendmsg htwnd, WM_KEYDOWN, wparam
+	return
+*WindowProc
+	htwnd = GetActiveWindow()
+	if iparam == WM_CLOSE {
+		sdim buf :size = 0
+		dim irc, 4
+		GetWindowRect htwnd, varptr(irc)
+		GetClientRect htwnd, varptr(rc)
+		rc.0 = irc.0, irc.1
+		memcpy buf, rc, 16 :size += 16
+		bsave INIFILENAME, buf, size
+	}elif iparam == WM_KEYDOWN {
+		if wparam == 13 {
+			url = gtext(hURL)
+			ie->"Navigate" url
+		}
+	}elif iparam == WM_LBUTTONDOWN {
+		b = 0
+		mx = loword(lparam) :my = hiword(lparam)
+		repeat obj
+			sx = loword(beg_.cnt) :ex = loword(end_.cnt)
+			sy = hiword(beg_.cnt) :ey = hiword(end_.cnt)
+			if (((sx <= mx) && (mx <= ex)) && ((sy <= my) && (my <= ey)) ) {
+				if cnt == xButton {
+					postmsg htwnd, WM_CLOSE
+				}elif cnt == oButton {
+					if glong(htwnd, GWL_STYLE) & WS_THICKFRAME {
+						postmsg htwnd, WM_SYSCOMMAND, 0xF030
+					}else {
+						postmsg htwnd, WM_SYSCOMMAND, 0xF120
+					}
+				}elif cnt == _Button {
+					postmsg htwnd, WM_SYSCOMMAND, 0xF020
+				}
+			}
+		loop
+		
+		if not(b) {
+			sendmsg htwnd, WM_NCLBUTTONDOWN, 2
+		}
+	}elif iparam == WM_LBUTTONDBLCLK {
+		if glong(htwnd, GWL_STYLE) & WS_THICKFRAME {
+			postmsg htwnd, WM_SYSCOMMAND, 0xF030
+		}else {
+			postmsg htwnd, WM_SYSCOMMAND, 0xF120
+		}
+	}elif iparam == WM_SIZING {
+		GetClientRect htwnd, varptr(rc)
+		ssize rc.2, rc.3-TITLEBY, hIE
+		ssize rc.2/3*2, winfo(11, hURL), hURL
+		gosub *draw
+	}elif iparam == WM_SYSCOMMAND {
+		uCmdType = wparam & 0xFFF0
+		if wparam == SYSMI_PREV {
+			ie->"GoBack"
+		}elif wparam == SYSMI_NEXT {
+			ie->"GoForward"
+		}elif wparam == SYSMI_REF {
+			ie->"Refresh"
+		}elif wparam == SYSMI_NEW {
+			exec ""+dir_exe+"\\"+my_app_name+".exe"
+		}
+		if uCmdType == 0xF060 {
+			sendmsg htwnd, WM_QUIT
+		}elif uCmdType == 0xF120 {
+			smove loword(remove), hiword(remove)
+			ssize loword(resize), hiword(resize)
+			if not(glong(htwnd, GWL_STYLE) & WS_THICKFRAME) {
+				slong htwnd, GWL_STYLE, glong(htwnd, GWL_STYLE) | WS_THICKFRAME
+			}
+			sendmsg htwnd, WM_SIZING
+		}elif uCmdType == 0xF030 {
+			resize = MAKEWORD(winfo(10, htwnd), winfo(11, htwnd))
+			remove = MAKEWORD(winfo(4, htwnd), winfo(5, htwnd))
+			smove 1, 0, htwnd
+			ssize ginfo(20)+scrhid, ginfo(21), htwnd
+			if glong(htwnd, GWL_STYLE) & WS_THICKFRAME {
+				slong htwnd, GWL_STYLE, glong(htwnd, GWL_STYLE)-WS_THICKFRAME
+			}
+			sendmsg htwnd, WM_SIZING
+			return -1
+		}
+	}
+	return
+	
+	#module
+	#deffunc button_ str text, double mag
+		ts = 7.0 :len = strlen(text)
+		cx = ginfo_cx
+		cy = ginfo_cy
+		xx = double(len)*ts*mag
+		yy = winfo(32)
+		xxh = double(len)*ts
+		color :boxf cx, cy, cx+xx, cy+yy
+		colorwhite :boxf cx, cy, cx+xx, cy+yy, 0
+		pos cx+(xx-xxh)/2, cy :mes text
+	return MAKEWORD(int(xx), int(yy))
+	#global
+	
+	#module __MENU__
+	#uselib "user32.dll"
+	#cfunc	CreateMenu				"CreateMenu"
+	#cfunc	CreatePopupMenu			"CreatePopupMenu"
+	#func	InsertMenuItem			"InsertMenuItemA"	int, int, int, var
+	#func	SetMenuItemInfo			"SetMenuItemInfoA"	int, int, int, var
+	#func	SetMenu					"SetMenu"			int, int
+	#func	DestroyMenu				"DestroyMenu"		int
+	#func	DrawMenuBar				"DrawMenuBar"		int
+	
+	#enum	cbSize = 0
+	#enum	fMask
+	#enum	fType
+	#enum	fState
+	#enum	wID
+	#enum	hSubMenu
+	#enum	hbmpChecked
+	#enum	hbmpUnchecked
+	#enum	dwItemData
+	#enum	dwTypeData
+	#enum	cch
+	#enum	hbmpItem
+	
+	// メニュー削除
+	#deffunc MenuDelete int hWnd_, var hMenu_ onexit
+		if hMenu_ :DestroyMenu hMenu_ :hMenu_ = 0
+	return
+	
+	// メニュー非表示
+	#deffunc MenuDisable int hWnd_
+		SetMenu hWnd_, NULL
+		DrawMenuBar hWnd_
+	return
+	
+	// メニュー表示
+	#deffunc MenuEnable int hWnd_, int hMenu_
+		SetMenu hWnd_, hMenu_
+	return
+	
+	//メニュー作成
+	#deffunc MenuInit int hWnd_, array hMenu_
+		hMenu_.2 = CreatePopupMenu()
+		if hMenu_.2 == 0 :return FALSE
+		AddMenuItem hMenu_.2, "前へ (&P)\t\tCtrl+→", MI_PREV, 0, "前の画像を読み込みます"
+		AddMenuItem hMenu_.2, "次へ (&N)\t\tCtrl+←", MI_NEXT, 0, "次の画像を読み込みます"
+		AddMenuItem hMenu_.2, "", 0, 0, ""
+		AddMenuItem hMenu_.2, "しおり (&M)\t\tM+数字", MI_MARK, 0, "しおりの一覧を表示します"
+		AddMenuItem hMenu_.2, "", 1, 0, ""
+		AddMenuItem hMenu_.2, "ボタン (&B)", MI_BUTT, 0, "ボタンの表示・非表示の切り替えをします"
+		AddMenuItem hMenu_.2, "サブ画像 (&S)", MI_IMGS, 0, "ボタンの表示・非表示の切り替えをします"
+		AddMenuItem hMenu_.2, "", 2, 0, ""
+		AddMenuItem hMenu_.2, "設定 (&O)", MI_OPTI, 0, "詳細の設定を行います"
+		
+		hMenu_.1 = CreatePopupMenu()
+		if hMenu_.1 == 0 :return FALSE
+		AddMenuItem hMenu_.1, "開く (&O)\t\tO", MI_OPEN, 0, "最初の画像を読み込みます"
+		AddMenuItem hMenu_.1, "", 2, 0, ""
+		AddMenuItem hMenu_.1, "終了 (&Q)\t\tAlt+F4", MI_QUIT, 0, "終了します"
+		
+		hMenu_.0 = CreateMenu()
+		if hMenu_.0 == 0 :return FALSE
+		AddMenuItem hMenu_.0, "ファイル (&F)", MI_FILE, hMenu_.1, ""
+		AddMenuItem hMenu_.0, "編集 (&E)", MI_OPER, hMenu_.2, ""
+		AddMenuItem hMenu_.0, "×", MI_CLOS, 0, "__RightJostify__"
+		
+		SetMenu hWnd_, hMenu_
+	return TRUE
+	// メニューアイテム追加
+	#deffunc AddMenuItem int hMenu_, str ItemName, int nId, int hSMenu, str ItemDate
+		dim mii, 12	//MENUITEMINFO
+		
+		mii.cbSize		= 48		//sizeof(MENUITEMINFO)
+		mii.fMask		= $32		//MIIM_TYPE | MIIM_ID | MIIM_DATA
+		mii.wID			= nId
+		dwItemDate		= ItemDate
+		mii.dwItemData	= varptr(dwItemDate)
+	
+		if ItemDate == "__RightJostify__" {
+			mii.fType	= 0x4000	//MFT_STRING | MFT_RIGHTJUSTIFY
+			dwTypeDate	= ItemName
+			mii.dwTypeData	= varptr(dwTypeDate)
+		}else :if ItemName != "" {			// NULL = セパレーター
+			mii.fType	= 0			//MFT_STRING
+			dwTypeDate	= ItemName
+			mii.dwTypeData	= varptr(dwTypeDate)
+		}else :if ItemDate == "__MenuDisabled__" {
+			mii.fMask	|= $1		//MIIM_STATE
+			mii.fState	= $3
+			mii.fType	= 0			//MFT_STRING
+			dwTypeDate	= ItemName
+			mii.dwTypeData	= varptr(dwTypeDate)
+		}else :mii.fType	= $800	//MFT_SEPARATOR
+		
+		if hSMenu != NULL {			// サブメニュー
+			mii.fMask	   |= $4	//MIIM_SUBMENU
+			mii.hSubMenu	= hSMenu
+		}
+		
+		InsertMenuItem hMenu_, nId, FALSE, mii
+	return
+	
+	// メニューアイテム変更
+	#deffunc ChangeMenuItem int hWnd_, int hMenu_, int nId, int uState, str ItemName, str ItemDate
+		dim mii, 12	//MENUITEMINFO
+		
+		mii.cbSize = 48
+		mii.fMask  = $3	//MIIM_ID | MIIM_STATE
+		mii.fState = uState
+		mii.wID    = nId
+		
+		if ItemName != "" {
+			mii.fMask	   |= $10	//MIIM_TYPE
+			mii.fType		= 0
+			dwTypeDate		= ItemName
+			mii.dwTypeData	= varptr(dwTypeDate)
+		}
+		if ItemDate == "__MenuDisabled__" {
+			mii.fState	= $3
+			mii.fType	= 0			//MFT_STRING
+			dwTypeDate	= ItemName
+			mii.dwTypeData	= varptr(dwTypeDate)
+		}else :if ItemDate == "__RightJostify__" {
+			mii.fType	= 0x4000	//MFT_STRING | MFT_RIGHTJUSTIFY
+		}else :if ItemDate != "" {
+			mii.fMask	   |= 0x20	//MFT_DATA
+			dwItemDate		= ItemDate
+			mii.dwItemData	= varptr(dwItemDate)
+		}
+	
+		SetMenuItemInfo hMenu_, nId, FALSE, mii
+		DrawMenuBar hWnd_
+	return
+	#global
+

@@ -1,0 +1,86 @@
+	
+	#uselib "user32.dll"
+	#func	SetTimer	"SetTimer"		int, int, int, int
+	#func	KillTimer	"KillTimer"		int, int
+	
+	#const	HourMax		12
+	#const	MinuteMax	60
+	#const	TIMER_ID		10000
+	
+	#enum	NO_FLAG			= 0
+	#enum	MARGIN_Q_MINUTE
+	
+	wcw = 200		// client window size
+	wch = 16
+	qHour	= 24/4	// quarters
+	qMinute	= 60/4
+	qSecond	= qmin
+	qmmar	= 2		// q minute margin
+	
+	screen 0, wcw, wch, 8
+	gsel 0, 2
+	title "–ñŽžŒv"
+	hMWnd = hwnd@hsp
+	
+	oncmd gosub *WindowProc, WM_TIMER
+	oncmd gosub *WindowProc, WM_CLOSE
+	
+	font msgothic, 14
+	SetTimer hMWnd, TIMER_ID, 16, 0
+	
+	Calc
+	Draw
+	
+	stop
+*WindowProc
+	oncmd 0
+	switch iparam
+	case WM_TIMER
+		Calc
+		Draw
+		swbreak
+		
+	case WM_CLOSE
+		KillTimer hMWnd, TIMER_ID
+		swbreak
+		
+	swend
+	oncmd 1
+	return
+	
+#deffunc Calc
+	Hour = gettime(4)
+	Minute = gettime(5)
+	Second = gettime(6)
+	
+	/* _DEBUG */
+	/* ~ */
+	
+	flag = NO_FLAG
+	
+	// margins
+	if abs((Minute\qMinute)\(qMinute-qmmar)) < (qmmar) {
+		flag = MARGIN_Q_MINUTE
+		fprm = Minute/qMinute
+	}
+	
+	return
+	
+#deffunc draw
+	redraw 0
+	colorwhite :boxf :color
+	pos 1, 2
+	
+	switch flag
+	case NO_FLAG
+		mes strf("%2d:%02d %d", Hour, Minute, Second)
+		swbreak
+	case MARGIN_Q_MINUTE
+		mes strf("%dŽž‚Æ–ñ4•ª‚Ì%d", Hour, fprm)
+		swbreak
+	
+	swend
+	
+	redraw 1
+	
+	return

@@ -1,0 +1,23 @@
+	
+	#uselib "user32.dll"
+	#func	mouse_event			"mouse_event"			int, int, int, int, int
+	
+	#define MOUSEEVENTF_RIGHTDOWN	0x0008
+	#define MOUSEEVENTF_RIGHTUP		0x0010
+	
+	
+	screen 0, 200, 20, 0
+	gsel 0, 2
+	
+*main
+	
+	if time {
+		time--
+	} else :if getkey(VK_CONTROL) {
+		time = 5
+		mouse_event MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, NULL
+		mouse_event MOUSEEVENTF_RIGHTUP, 0, 0, 0, NULL
+	}
+	
+	wait 1
+	goto *main

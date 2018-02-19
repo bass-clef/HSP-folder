@@ -1,0 +1,105 @@
+	
+	
+	chdir "G:\\wiiU\\case4_data values\\"
+	
+	screen 0, 300
+	screen 0, ginfo(20), ginfo(21)
+	hMainWnd = hwnd
+	
+	
+	byte = 690
+	yy = 100
+	min = 711.0
+	max = 715.0
+	clrbase = RGB(255, 255, 0) / 157.0
+	dim prm
+	ddim clr, 0
+	dim byteList
+	dim byteShowedTime
+	sdim buf
+	
+	repeat 999, 9100
+		fileName = "pkt"+ cnt +".dat"
+		exist fileName :size = strsize
+		if -1 == size :continue
+	
+		flag = -1
+		repeat byteLen
+			if byteList.cnt == size :flag = cnt :break
+		loop
+		if -1 == flag {
+			byteList.byteLen = size
+			byteMax.byteLen = 1
+			byteShowedTime.byteLen = 0
+			byteLen++
+		} else {
+			byteMax.flag++
+		}
+	loop
+	
+	repeat byteLen
+		buf += ""+ cnt +" = "+ byteList.cnt +" ("+ byteMax.cnt +")‰ñ\n"
+	loop
+	
+	pos 0, 20 :mesbox buf, ginfo(12), ginfo(13)-20, 5, 0
+	wait 1
+	
+	byteCount = 0
+	
+//	goto *finish
+	
+	winx = ginfo(20)
+	winy = 999*yy
+	buffer 1, winx, winy
+*main
+	byte = byteList.byteCount
+	dim clr :dim prm :len = 0
+	
+	redraw 0
+	color 0, 0, 255 :boxf :color
+	line min, 0, min, winy
+	pos 0, 0
+	repeat 999, 9100
+		fileName = "pkt"+ cnt +".dat"
+		exist fileName :size = strsize
+		if -1 == size :continue
+		
+		colorwhite
+		if byte != size :continue
+		size -= 16
+		
+		y = winy / byteMax.byteCount * byteShowedTime.byteCount
+		line 0, y, winx, y
+		
+		sdim fileBuffer, size+1
+		bload fileName, fileBuffer, size
+	
+		for i, 0, size/4, 1
+			value = lpeek(fileBuffer, i*4) / 3000000
+			if len <= i :clr.i = int(clrbase * double(i))
+			if i < len {
+				color RR(clr.i), GG(clr.i), BB(clr.i)
+				line value+min, y, prm.i+min, prevy
+			}
+			prm.i = value
+		next
+		byteShowedTime.byteCount++
+		prevy = y
+		len = length(prm)
+	loop
+	redraw 1
+	
+	bmpsave "avarage_interval_"+ byte +".bmp"
+	
+	byteCount++
+	if byteCount < byteLen {
+		title ""+ byteCount +" / "+ byteLen, hMainWnd
+		wait 1
+//		goto *main
+	}
+*finish
+	
+	gsel 0
+	pos 0, 0
+	mes "finish"
+	

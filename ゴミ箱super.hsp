@@ -1,0 +1,102 @@
+	
+	// ゴミ箱 super
+	
+	#uselib "user32.dll"
+	#func	SetTimer	"SetTimer"		int, int, int, int
+	#func	KillTimer	"KillTimer"		int, int
+	
+	yTitleBar = 18
+	waittime = 100
+	ddir = dir_cur
+	fontsize = 10
+	wx = 150
+	wy = yTitleBar+10
+	strlenmax = wx/(fontsize/2)-5-1
+	
+	bgscr 0, ginfo(20), ginfo(21), 0, ginfo(20)-wx, 0, wx, wy
+	oncmd gosub *WindowProc, WM_LBUTTONDOWN
+	oncmd gosub *WindowProc, WM_RBUTTONDOWN
+	oncmd gosub *WindowProc, WM_TIMER
+	oncmd gosub *WindowProc, WM_DESTROY
+	font msgothic, fontsize
+	SetTimer hwnd@hsp, 1000, waittime
+	
+	stop
+	
+*Calc
+	if nmaxed == notemax :return
+	nmaxed = notemax
+	wy = yTitleBar+10+10*nmaxed
+	width wx, wy
+*Draw
+	redraw 0
+	color :boxf@hsp :colorwhite :boxf 1, 1, wx-1, wy-1 :color
+	gradf 1, 1, wx-2, yTitleBar/2, 1, 0xBBBBBB, 0xEEEEEE
+	gradf 1, yTitleBar/2, wx-2, yTitleBar/2, 1, 0xEEEEEE, 0xBBBBBB
+	str_ = getpath(ddir, 8)
+//	pos 2, (yTitleBar-fontsize)/2 :mes ""+con(strlen(str_) > strlenmax, strmid(str_, 0, strlenmax-3)+"...", str_)+" "+nmaxed+"件"
+	pos 2, (yTitleBar-fontsize)/2 :mes ""+nmaxed+"件"
+	repeat nmaxed
+		pos 2, yTitleBar+cnt*10 :mes noteget(cnt)
+	loop
+	pos 2, wy-10 :mes "Folder select..."
+	redraw 1
+	return
+	
+*WindowProc
+	if iparam == WM_DESTROY {
+		KillTimer hwnd@hsp, 1000
+	}elseif iparam == WM_TIMER {
+		if deletenowf :return
+		chdir ddir
+		dirlist list, "*.*", 2
+		notesel@hsp list
+		gosub *Calc
+	}elseif iparam == WM_LBUTTONDOWN {
+		if mousey < yTitleBar {
+			sendmsg hwnd@hsp, WM_NCLBUTTONDOWN, 2
+		}elseif wy-10 < mousey {
+			if deletenowf == 0 :gosub *DumpFolder
+		}else {
+			if deletenowf :return
+			selectID = (mousey-yTitleBar)/10
+			deletenowf = 1
+			notesel@hsp list
+			if 0 <= selectID && selectID < notemax {
+				dialog "["+noteget(selectID)+"]を完全削除しますか？", 3, "ゴミ箱super"
+				if stat == 6 {
+					fName = noteget(selectID)
+					exist fName :fSize = strsize
+					if fSize != -1 {
+						sdim buf, fSize
+						memset buf, 0, fSize, 0
+						bsave fName, buf, fSize
+						delete fName
+					}elseif isdir(fName) != null {
+	
+						// --途中-- 1/14 2:09
+						// フォルダ内部も削除するルーチン要考察
+						
+					}
+					chdir ddir
+					dirlist list, "*.*", 2
+					notesel@hsp list
+					gosub *Calc
+				}
+			}
+			deletenowf = 0
+		}
+	}elseif iparam == WM_RBUTTONDOWN {
+		wait 10 :end
+	}
+	return
+	
+*DumpFolder
+	dialog "ゴミ箱にするフォルダ選択", 66
+	if stat == NULL :return
+	ddir = refstr
+	chdir ddir
+	
+	return
+	
+	

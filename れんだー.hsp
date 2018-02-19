@@ -1,0 +1,61 @@
+	
+	#include "targetfind.as"
+	
+	#uselib "user32.dll"
+	#func	keybd_event			"keybd_event"		int, int, int, int
+	#cfunc	GetForegroundWindow	"GetForegroundWindow"
+	#define	KEYEVENTF_KEYUP			0x2
+	
+	bgscr 0, 100, 20, 0
+	title "Shuffler"
+	font msgothic, 10
+	
+	oncmd gosub *cmd, WM_LBUTTONDOWN
+	oncmd gosub *exit, WM_RBUTTONDOWN
+	
+	
+	key = 'D'
+	shortcutKey = 'S'
+	count = 0
+	
+	handle = FindWindow(-1, "Windows", "‘¾ŒÛ‚³‚ñŽŸ˜Y Ver.2.92")
+	if NULL == handle :dialog "‘¾ŒÛ‚³‚ñ‹N“®‚µ‚Ä‚È‚¢", 0, "", NULL :end
+	
+*main
+	active = handle == GetForegroundWindow()
+	if count {
+		keybd_event key, 0, 0, 0
+		wait 1
+		keybd_event key, 0, KEYEVENTF_KEYUP, 0
+		
+		count--
+	}else :if 0x8000 & getkey(shortcutKey) {
+		if active {
+			count = 10
+		}
+	}
+	
+	redraw 0
+	
+	if active {
+		color 150, 200, 255
+	}else {
+		color 255, 200, 150
+	}
+	boxf
+	color :boxf 0, 0, ginfo(10), ginfo(11), 0
+	color :pos 0, 0
+	mes "count : "+count
+	
+	redraw 1
+	
+	wait 1
+	goto *main
+	
+*exit
+	wait 50
+	end :end
+	
+*cmd
+	sendmsg hwnd, WM_NCLBUTTONDOWN, 2
+	return

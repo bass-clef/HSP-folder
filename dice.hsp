@@ -1,0 +1,77 @@
+	
+	// サイコロ
+	
+	#define clear	colorwhite :boxf :color
+	#define pmes(%1) pos 0, 0 :mes %1
+	#define cmes(%1) clear :pmes %1
+	
+	screen 0, 300, 300, 8 :title "dice"
+	font msgothic, 300
+	initrrnd 6
+	nextr = rrnd()+1
+	repeat
+		repeat 
+			i = (i+1)\6
+			redraw 0
+			clear
+			repeat rnd(6)+1
+				xx = rnd(ginfo(12)-100)
+				yy = rnd(ginfo(13)-100)
+				color rnd(255), rnd(255), rnd(255)
+				aboxf xx, yy, xx+100, yy+100, rnd(40)+40
+			loop
+			color 128, 128, 128
+			pmes wintstr(i+1)
+			redraw 1
+			t = gettime(7)/100
+			repeat
+				if getkey(13) :i = -1 :break
+				if gettime(7)/100 != t :break
+				wait 1
+			loop
+			if i == -1 :break
+		loop
+	
+		nextr2 = rrnd()+1
+		clear
+		repeat nextr2
+			xx = rnd(ginfo(12)-100)
+			yy = rnd(ginfo(13)-100)
+			color rnd(255), rnd(255), rnd(255)
+			aboxf xx, yy, xx+100, yy+100, rnd(40)+40
+		loop
+		color 128, 128, 128
+		pmes wintstr(nextr)
+		nextr = nextr2
+		repeat :if getkey(13) { break } :wait 1 :loop
+		wait 200
+	loop
+	
+	#module
+	#defcfunc wintstr int i
+		str_ = "０"
+		poke str_, 1, peek(str_, 1)+i
+	return str_
+	#global
+	
+	#module
+	// ランダムではないランダムを生産
+	#deffunc initrrnd int max_, int index_
+		sdim table
+		notesel@hsp table
+		repeat max_, index_
+			noteadd str(cnt), -1, 0
+		loop
+		noteunsel
+		rrnd_max = max_
+		rrnd_index = index_
+	return
+	#defcfunc rrnd
+		notesel@hsp table
+		if notemax == 0 :initrrnd rrnd_max, rrnd_index :notesel@hsp table
+		i = rnd(notemax)
+		noteget@hsp prm, i
+		notedel i
+		noteunsel
+	return int(prm)
+	#global

@@ -1,0 +1,281 @@
+	
+	// 書き	SetClipBoardText str
+	// 読み	GetClipBoardText
+	
+	#uselib "user32.dll"
+	#cfunc	GetSysColorBrush	"GetSysColorBrush"	int
+	
+	#define	CBB_DATEFILE		""+dir_mydoc+"\\cbb.ini"
+	#define	LBN_DBLCLK			2
+	#define	EM_SETTABSTOPS		0x00CB
+	#define	wx					300
+	#define	wy					13
+	
+	sdim texted
+	sdim textnow
+	sdim text
+	sdim cbbtext
+	tcnt = 0
+	chk = 0, 1, 1
+	c_m = 0.18 :c_r = 0.0 :c_g = 0.0 :c_b = 0.0
+	
+	screen 0, ginfo(20), ginfo(21), 0, 7, 7, wx, wy
+	title "ClipBigboard"
+	slong hwnd@hsp, -16, glong(hwnd@hsp, -16) - WS_MINIMIZEBOX
+	oncmd gosub *WindowProc, WM_CTLCOLORSTATIC
+	oncmd gosub *WindowProc, WM_LBUTTONDOWN
+	oncmd gosub *WindowProc, WM_COMMAND
+	
+	objsize 100, wy
+	pos   0,  0 :chkbox "動作を一時停止", chk.0
+	pos 100,  0 :chkbox "重複を除外する", chk.1
+	objsize 80, wy
+	pos 200,  0 :chkbox "終了時保存", chk.2
+	
+	font msgothic, wy-2
+	objsize wx, wy+10 :objmode 2
+	pos   0, wy :listbox list, 0, "" :ListID = stat :hList = objinfo(ListID, 2)
+	
+	width wx, wy
+	gsel 0, 1
+	save
+	
+*main
+	if c_p == 0 {c_r += c_m :if c_r >= 255 :c_p ++
+	}elseif c_p == 1 {c_g += c_m :if c_g >= 255 :c_p ++
+	}elseif c_p == 2 {c_r -= c_m :if c_r <=   0 :c_p ++
+	}elseif c_p == 3 {c_b += c_m :if c_b >= 255 :c_p ++
+	}elseif c_p == 4 {c_g -= c_m :if c_g <=   0 :c_p ++
+	}elseif c_p == 5 {c_r += c_m :if c_r >= 255 :c_p ++
+	}elseif c_p == 6 :c_b -= c_m :if c_b <=   0 :c_p = 1
+	xx = wx-wy
+	redraw 0
+	color :boxf@hsp xx, 0, wx, wy-1
+	color c_r, c_g, c_b
+	boxf@hsp xx+1, 0, wx-1, wy-1
+	redraw 1, xx, 0, wy, wy
+	if chk.0 :wait 1 :goto *main	// 一時停止
+	
+	GetClipboardText cbbtext
+	memexpand textnow, strlen(cbbtext)+30
+	textnow = ""+gettimes(2)+"\n"+cbbtext+"\n\n"
+	
+	if strmid(textnow, 24, strlen(textnow)) != strmid(texted, 24, strlen(texted)) {
+		texted = textnow
+		
+		i = 1
+		if chk.1 {
+			// 重複除外
+			repeat length(text)
+				if strmid(textnow, 24, strlen(textnow)) == strmid(text.cnt, 24, strlen(text.cnt)) :i = 0 :break
+			loop
+		}
+		if i :text.tcnt = textnow :tcnt ++
+		
+		if view :draw
+		save
+	}
+	
+	wait 1
+	goto *main
+	
+*WindowProc
+	if iparam == WM_CTLCOLORSTATIC {
+		return GetSysColorBrush(5)
+	}elseif iparam == WM_LBUTTONDOWN {
+		xx = loword(lparam)
+		yy = hiword(lparam)
+		if (wx-wy <= xx && xx <= wx && 0 <= yy && yy <= wy) :if view :view = 0 :else :view = 1
+		if view :draw :else :width wx, wy :title "ClipBigboard"
+	}elseif iparam == WM_COMMAND {
+		if lparam == hList :if hiword(wparam) == LBN_DBLCLK {
+			objsize ginfo(20), ginfo(21)
+			notesel@hsp text.list
+			dialog "", 64, ""+(list+1)+"件目の内容 "+notemax+"行 "+notesize+"文字"
+			slong hwnd@hsp, -16, glong(hwnd@hsp, -16) | WS_SIZEBOX
+			width 306, 206, (ginfo(20)-300)/2, (ginfo(21)-200)/2
+			oncmd gosub *SubWndProc, WM_SIZING
+			
+			objmode 2 :font msgothic, 14
+			mesbox text.list, 0, 0, 5, 0 :hSubEdit = objinfo(stat, 2)
+			tab_s = 4*4
+			sendmsg hSubEdit, EM_SETTABSTOPS, 1, varptr(tab_s)
+			sendmsg hwnd@hsp, WM_SIZING
+			
+			dlgfor :wait 1 :loop
+		}
+	}
+	return
+*SubWndProc
+	if iparam == WM_SIZING {
+		ssize ginfo(12), ginfo(13), hSubEdit
+	}
+	return
+	
+#deffunc draw
+	sdim listbuf :sdim buf
+	yy = length(text)*wy
+	if yy > ginfo(21)-100 :yy = ginfo(21)-100
+	width wx, yy+wy
+	title "ClipBigboard - "+length(text)+"件"
+	ssize wx, yy+10, hList
+	repeat length(text)
+		buf = text.cnt
+		strrep buf, "\n", "  "
+		listbuf += ""+strmid(buf, 0, 32)
+		if strlen(buf) > 32 :listbuf += "..."
+		listbuf += "\n"
+	loop
+	objprm ListID, listbuf
+	return
+	
+#deffunc save
+	exist CBB_DATEFILE
+	if strsize == -1 {
+		dialog "データファイルを作成します", 2, "ClipBigboard"
+		if stat == 7 :end
+	}
+	size = 5
+	repeat length(text)
+		size += strlen(text.cnt)
+	loop
+	sdim savebuf, size
+	num = rnd(65536)
+	
+	savebuf = "CBB"
+	wpoke savebuf, 3, num
+	index = 5
+	repeat length(text)
+		Len = strlen(text.cnt)
+		memcpy savebuf, text.cnt, Len, index
+		index += Len
+	loop
+
+	CreateRTable b_table, -1, 256, 0
+	CreateRTable a_table, num, 256, 0
+	Encryption savebuf, 5, size, b_table, a_table	// 暗号化
+	
+	bsave CBB_DATEFILE, savebuf, size
+	
+	return
+	
+	#module
+	// 暗号化
+	#deffunc Encryption var buf, int index, int size, array b_table, array a_table
+		repeat size-index, index
+			i = -1
+			j = peek(buf, cnt)
+			repeat length(b_table)
+				if j == b_table.cnt :i = cnt :break
+			loop
+			if i != -1 {
+				poke buf, cnt, a_table.i
+			}
+		loop
+	return
+	
+	// 暗号化用テーブル作成
+	#deffunc CreateRTable array table, int random, int lp, int index
+		if random >= 0 :randomize random
+		sdim rbuf
+		sdim byte
+		
+		repeat lp, index
+			poke byte, 0, cnt
+			rbuf += ""+byte+"\n"
+		loop
+		
+		repeat
+			notesel@hsp rbuf
+			if random >= 0 :i = rnd(notemax) :else :i = 0
+			byte = noteget(i)
+			table.cnt = peek(byte, 0)
+			notedel i
+			if notemax == 0 :break
+		loop
+		randomize
+	return
+	
+	// 連続poke
+	#deffunc vpoke var buf, int index, array date
+		repeat length(date), index
+			poke buf, cnt, date(cnt-index)
+		loop
+	return
+	
+	// 任意の型で現在時刻・日付 取得
+	#defcfunc GetDayOfWeek int dayofweek
+		if dayofweek == 0 :return "日"
+		if dayofweek == 1 :return "月"
+		if dayofweek == 2 :return "火"
+		if dayofweek == 3 :return "水"
+		if dayofweek == 4 :return "木"
+		if dayofweek == 5 :return "金"
+		if dayofweek == 6 :return "土"
+	return
+	#define gt	gettime
+	#defcfunc gettimes int type
+		ret = 0
+		if type == 2 :ret = strf("%d %2d/%d (%s) %2d:%02d %2d", gt(0), gt(1), gt(3), GetDayOfWeek(gt(2)), gt(4), gt(5), gt(6))
+	return ret
+	#global
+	
+	#module ClipBoard
+	#uselib "kernel32.dll"
+	#cfunc	GlobalLock			"GlobalLock"		int
+	#cfunc	GlobalAlloc			"GlobalAlloc"		int, int
+	#func	GlobalUnlock		"GlobalUnlock"		int
+	#func	lstrcpy				"lstrcpy"			int, int
+	
+	#uselib "user32.dll"
+	#cfunc	IsClipboardFormatAvailable	"IsClipboardFormatAvailable"	int
+	#cfunc	GetClipboardData	"GetClipboardData"	int
+	#cfunc	OpenClipboard		"OpenClipboard"		int
+	#func	EmptyClipboard		"EmptyClipboard"
+	#func	SetClipboardData	"SetClipboardData"	int, int
+	#func	CloseClipboard		"CloseClipboard"
+	
+	#uselib "Pointer.dll"
+	#cfunc	r	"GetPointer"	str
+	
+	
+	#define GMEM_FIXED			0
+	#define	CF_TEXT				1
+	
+	// クリップボードにテキストデータコピー
+	#deffunc SetClipboardText str lpszText
+		// 文字列が空の場合はコピーしない
+		if strlen(lpszText) == 0 :return false;
+
+		// クリップボードのオープン
+		if not( OpenClipboard(null) ) :return false;
+
+		// ヒープ上にメモリ領域を確保し、文字列をコピー
+		iStrLen = strlen(lpszText) + 1;
+		hMem = GlobalAlloc(GMEM_FIXED, iStrLen);
+		lstrcpy hMem, r(lpszText)
+
+		// クリップボードへ文字列をコピーし、クローズ
+		EmptyClipboard		// クリップボードの中身を空にする
+		SetClipboardData CF_TEXT, hMem
+		CloseClipboard
+	return true;
+	
+	// クリップボードからテキスト取得
+	#deffunc GetClipboardText var strText
+		// クリップボードにテキストデータが入ってるかを調べる
+		if not( IsClipBoardFormatAvailable(CF_TEXT) ) :return strText
+		
+		// クリップボードのオープン
+		if not( OpenClipboard(null) ) :return strText
+		
+		// クリップボードからデータを取得し、strTextへコピー
+		hMem = GetClipboardData(CF_TEXT)
+		pMem = GlobalLock(hMem)
+		dupptr ptr, pMem, 2, 2
+		memexpand strText, strlen(ptr)
+		strText = ptr
+		GlobalUnlock hMem
+		CloseClipboard
+	return
+	#global

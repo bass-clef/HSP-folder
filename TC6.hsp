@@ -1,0 +1,18 @@
+	
+	
+	// ThaumCraft DB‚Åì¬‚µ‚½‘ŠŠÖ}‚ğ“–‚Ä‚Í‚ß‚é
+	
+	r = 24//15
+	
+	color :boxf :colorwhite
+	
+	x = 100
+	y = 100
+	repeat 6	// ˜ZŠpŒ`ì¬
+		a = deg2rad(cnt*60+30-89)
+		ta = deg2rad((cnt+1)*60+30-91)
+		line cos(a)*r+x, sin(a)*r+y, cos(ta)*r+x, sin(ta)*r+y
+	loop
+	
+	
+	

@@ -1,0 +1,822 @@
+	
+	// Photo viewer
+	
+	#packopt name "PhotoViewer.exe"
+	
+	#uselib "user32.dll"
+	#cfunc	OemKeyScan			"OemKeyScan"			int
+	#cfunc	GetClassLong		"GetClassLongA"			int, int
+	#func	GetKeyboardState	"GetKeyboardState"		int
+	#func	GetKeyNameText		"GetKeyNameTextA"		int, int, int
+	#func	SetTimer			"SetTimer"				int, int, int, int
+	#func	KillTimer			"KillTimer"				int, int
+	#func	ShowWindow			"ShowWindow"			int, int
+	#func	SetClassLong		"SetClassLongA"			int, int, int
+	#func	SetFocus			"SetFocus"				int
+	
+	#uselib "gdi32.dll"
+	#func	StretchBlt	"StretchBlt"	int, int, int, int, int, int, int, int, int, int, int
+	#cfunc	GetPixel	"GetPixel"		int, int, int
+	
+	#uselib "DllSomething.dll"
+	#func	RoteBlt		"RoteBlt"		int, float, float, float, float, int, int, int, int, int, float
+	#func	DCRevision	"DCRevision"	int, int, int, int, int, int
+	
+	#uselib "GetLastErrorMessage.dll"
+	#func	errdlg		"MessageErrorBox"
+	
+	#define	SW_HIDE		0
+	#define	SW_SHOW		5
+	
+	#define	WS_XMIN				260
+	#define	WS_YMIN				275
+	
+	#enum	WT_RESIZE	= 1001	// ウィンドウタイマー
+	#enum	WT_LOADFILE
+	#enum	WT_REUSEKEY
+	#enum	WT_JOYSTICK
+	#enum	S_MOVE		= 0		// 各サイズ
+	#enum	S_HMAGADD
+	#enum	S_KMAGADD
+	#enum	S_JMOVE
+	#enum	BM_SIZE		= 0		// ブックマーク構造体メンバインデックス
+	#enum	BM_POS		= 2		// makeword(x, y)
+	#enum	BM_MAG		= 6		// mag
+	#enum	BM_FILE		= 14	// ファイル名
+	#enum	BMARK_SIZE	= BM_FILE+1
+	#enum	global	MI_FILE = 10
+	#enum	global	MI_QUIT
+	#enum	global	MI_CLOS
+	#enum	global	MI_OPEN
+	#enum	global	MI_PREV
+	#enum	global	MI_NEXT
+	#enum	global	MI_MARK
+	#enum	global	MI_EDIT
+	#enum	global	MI_OPTI
+	#enum	global	MI_BUTT
+	#enum	global	MI_IMGS
+	
+	#include "mod_joystick.as"
+	
+	gosub *init
+	
+*create
+	screen 0, ginfo(20)+100, ginfo(21)+100, 2
+	hmwnd = hwnd@hsp
+	hmdc = hdc@hsp
+	slong hmwnd, -16, glong(hmwnd, -16) | WS_THICKFRAME | WS_MAXIMIZEBOX
+	SetClassLong hmwnd, -26, GetClassLong(hmwnd, -26) | 0x8
+	title "Photo viewer"
+	width 600, 500
+	font "ＭＳ 明朝", 16
+	
+*subcreate
+	MenuInit hmwnd, hMenu
+	objsize 80, 20
+	button gosub "前へ", *Jump :bPrevID = stat :hbPrev = objinfo(stat, 2)
+	button gosub "次へ", *Jump :bNextID = stat :hbNext = objinfo(stat, 2)
+	objsize 20, 20
+	button gosub "...", *Jump :bSelectID = stat :hbSelect = objinfo(stat, 2)
+	
+*show
+	gsel 0, 1
+	style = glong(hmwnd, -16)
+	
+	oncmd gosub *WindowProc, WM_CLOSE
+	oncmd gosub *WindowProc, WM_TIMER
+	oncmd gosub *WindowProc, WM_MOUSEWHEEL
+	oncmd gosub *WindowProc, WM_SIZE
+	oncmd gosub *WindowProc, WM_SIZING
+	oncmd gosub *WindowProc, WM_LBUTTONDOWN
+	oncmd gosub *WindowProc, WM_LBUTTONDBLCLK
+	oncmd gosub *WindowProc, WM_RBUTTONDOWN
+	oncmd gosub *WindowProc, WM_KEYDOWN
+	oncmd gosub *WindowProc, WM_SYSCOMMAND
+	oncmd gosub *WindowProc, WM_COMMAND
+	oncmd gosub *WindowProc, WM_MENUSELECT
+	oncmd gosub *WindowProc, WM_INITMENU
+	sendmsg hmwnd, WM_SIZING, 0, 0
+	SetTimer hmwnd, WT_JOYSTICK, 50, 0
+	
+	stop
+	
+*init
+	dim d_ws, 2		// ウィンドウサイズ (Drawで更新)
+	sdim filelist
+	sdim bmark,, 1 :bmc = 0 :bmm = 0	// bmark:サイズ, 座標, 倍率, ファイル名
+	bclr = RGB(255, 255, 255)	// しおりの色
+	img = 0.0, 0.0 :img2 = 0.0, 0.0 :img3 = 0.0, 0.0 :dim pt, 3
+	cID = -1		// 画像ID filelistのインデックス番号
+	imgl = 0		// 画像読み込み状態 1:メインのみ 2:サブも
+	d_imgl = 0		// 画像読み込み状態 (Drawで更新)
+	mag = 1.0		// 表示倍率
+	d_mag = 1.0		// 表示倍率 (Drawで更新)
+	magmin = 0.1	// 表示倍率最下
+	arota = 0		// 回転角度
+	d_arota = 0		// 回転角度 (Drawで更新)
+	himgdc = 0, 0, 0, 0	// 画像用hdc
+	size = 100.0, 0.0005, 0.05, 50.0
+	sch = 0			// ユーザーによる操作 1:操作されていた(いる)
+	usekf = 0
+	hMenu = 0		// メニュー用ハンドル
+	subimgf = 1		// 前の画像と次の画像を表示する
+	fast = 1		// 描画処理から回転を省く
+	//clrrev = 0x007F7F7F	// 色補正  中間色
+	clrrev = 0
+	addclr = 0x00444444		// 加算色
+	subclr = 0x00444444		// 減算色
+	
+*loadinit
+	ip = 0.0, 0.0
+	ddim d_ip, 2
+	return
+	
+*loadread
+	read 1, img, filelist, cID
+	imgn = img.0, img.1
+	return
+	
+*calc
+	if imgl != 0 {
+		wx = double(ginfo(12)) :wy = double(ginfo(13))
+		if sch == 0 {
+			i = wx/img.0
+			j = wy/img.1
+			if i < j :mag = i// :else :mag = j
+		}
+		ip = (wx-img.0*mag)/2.0, (wy-img.1*mag)/2.0
+		if img.1*mag > wy :ip.1 = 0.0
+		if strlen(filelist) != 0 {
+			notesel@hsp filelist
+//			title "Photo viewer - "+getpath(noteget(cID), 11)
+			title "Photo viewer - "+getpath(nowfile, 11)
+		}
+	
+		if clrrev {
+//			clrrev = GetPixel(himgdc.1, 0, 0)-0x00010101
+			DCRevision himgdc.1, img.0, img.1, clrrev, addclr, subclr
+		}
+	}
+	draw
+	return
+	
+	#deffunc draw int draw_frame
+	
+	/*do*
+	title ""+dc
+	dc++
+	/*~do*/
+	/**
+	if d_ip.0 == ip.0 && d_ip.1 == ip.1 && d_mag == mag && d_imgl == imgl && d_ws.0 == ginfo(12) && d_ws.1 == ginfo(13) && d_arota == arota :return
+	d_ip = ip.0, ip.1 :d_mag = mag :d_imgl = imgl :d_arota = arota
+	d_ws = ginfo(12), ginfo(13)
+	/**/
+	
+	redraw 0
+	colorwhite :boxf 0, 0, ginfo(12), ginfo(13)
+	if imgl > 0 {
+		color
+		if fast {
+			xx = ip.0 :yy = ip.1 :px = img.0*mag :py = img.1*mag
+			if draw_frame == 0 :StretchBlt hmdc, ip.0, ip.1, px, py, himgdc.1, 0, 0, img.0, img.1, SRCCOPY
+			boxf xx-1, yy-1, mag*img.0+ip.0+1, mag*img.1+ip.1+1, 0
+		}else {
+			if draw_frame == 0 {
+				RoteBlt hmdc, ip.0, ip.1, img.0*mag, img.1*mag, himgdc.1, 0, 0, img.0, img.1, arota+180
+			}else {
+				RoteBlt hmdc, ip.0, ip.1, img.0*mag, img.1*mag, himgdc.1, 0, 0, 0, 0, arota+180
+			}
+			dupptr rc, stat, 24, 4
+			xx = img.0 :yy = img.1 :px = 0 = 0 :py = 0
+			repeat 3
+				i = cnt*2
+				if rc(i) <= xx :xx = rc(i)
+				if rc(i+1) <= yy :yy = rc(i+1)
+				if rc(i) >= px :px = rc(i)
+				if rc(i+1) >= py :py = rc(i+1)
+			loop
+			boxf xx-1, yy-1, px+1, py+1, 0
+		}
+	}
+	if bmm {// しおりを表示
+		notesel@hsp filelist
+		str_ = getpath(""+dir_cur+"\\"+noteget(cID), 16)
+		repeat bmm
+			i = wpeek(bmark(cnt), BM_SIZE)
+			sdim j, i
+			memcpy j, bmark(cnt), i, 0, BM_FILE
+			if j == str_ {
+				p = lpeek(bmark(cnt), BM_POS)
+				xx = loword(p)+ip.0 :yy = hiword(p)+ip.1
+				if -100<xx && -30<yy && xx<ginfo(12) && yy<ginfo(13) {
+					color RR(bclr), GG(bclr), BB(bclr)
+					boxf xx, yy, xx+80, yy+20
+					color
+					boxf xx, yy, xx+80, yy+20, 0
+					pos xx+2, yy+3 :mes "しおり"+(cnt+1)
+				}
+			}
+		loop
+	}
+	if subimgf :if imgl > 1 {// 他の画像
+		wx = ginfo(12)-100 :wy = ginfo(13)-100
+		// prev
+		color
+		boxf 0, wy-1, 101, wy+100
+		StretchBlt hmdc, 0, wy, 100, 100, himgdc.2, 0, 0, img2.0, img2.1, SRCCOPY
+		
+		// next
+		boxf wx-1, wy-1, wx+100, wy+100
+		StretchBlt hmdc, wx, wy, 100, 100, himgdc.3, 0, 0, img3.0, img3.1, SRCCOPY
+	}
+	gosub *imgexdraw
+	return
+	
+*imgexdraw
+	/*do*
+	if imgl {
+		pos 3, 3
+		mes "倍率:"+mag
+		mes "位置:"+strf("%1.20gx%1.20g", ip.0, ip.1)
+		mes "画面サイズ:"+ginfo(12)+"x"+ginfo(13)
+		mes "回転角度  :"+arota
+		mes "Load Size:"+strf("%1.20gx%1.20g", img.0, img.1)
+		mes " Now Size:"+strf("%1.20gx%1.20g", img.0*mag, img.1*mag)
+	}
+	/*~do*/
+	/*do joystick*
+	colorwhite :boxf 3, 140, 150, 400 :color
+	pos 3, 140
+	mes "ジョイスティック"
+	repeat 13
+		mes ""+cnt+":"+joy.cnt
+	loop
+	/*~do joystick*/
+	
+	redraw 1
+	return 1
+	
+*Jump
+	if stat == bSelectID {
+		gosub *loadinit
+		gosub *loadread
+		SetTimer hmwnd, WT_LOADFILE, 5, 0
+	}elif stat == bPrevID {
+		notesel@hsp filelist
+		if notemax <= 1 :return
+		gosub *loadinit
+		cID = lim(cID-1, notemax-1)
+		copy 1, 2, img, img2
+		nowfile = prevfile
+		SetTimer hmwnd, WT_LOADFILE, 5, 0
+	}elif stat == bNextID {
+		notesel@hsp filelist
+		if notemax <= 1 :return
+		gosub *loadinit
+		cID = (cID+1)\notemax
+		copy 1, 3, img, img3
+		nowfile = nextfile
+		SetTimer hmwnd, WT_LOADFILE, 5, 0
+	}
+	gosub *calc
+	if stat :SetTimer hmwnd, WT_RESIZE, 40, 0
+	SetFocus hmwnd
+	return
+*KeyProc
+	sendmsg hmwnd, WM_KEYDOWN, wparam, lparam
+	return
+	
+*WindowProc
+	if iparam == WM_CLOSE {
+		oncmd 0
+	}elif iparam == WM_TIMER {
+		if wparam == WT_RESIZE {
+			KillTimer hmwnd, WT_RESIZE
+			mref bmscr, 67
+			sendmsg hmwnd, WM_SIZING, 0, 0
+			draw 0
+		}elif wparam == WT_LOADFILE {
+			KillTimer hmwnd, WT_LOADFILE
+			load filelist, cID, 2, 3, img2, img3
+		}elif wparam == WT_REUSEKEY {
+			KillTimer hmwnd, WT_REUSEKEY
+			usekf = 0
+		}elif wparam == WT_JOYSTICK {
+			joyGetPosEx joy, 0
+			if stat == 0 {
+				iped.0 = ip.0, ip.1 :maged = mag
+				if joy.2 == 0 :ip.0 -= size(S_JMOVE) :elif joy.2 == 0xFFFF :ip.0 += size(S_JMOVE)
+				if joy.3 == 0 :ip.1 -= size(S_JMOVE) :elif joy.3 == 0xFFFF :ip.1 += size(S_JMOVE)
+				if joy.8 & 1024 {
+					if joy.8 & 1 :ip.0 = 0.0
+					if joy.8 & 8 :ip.0 = double(0-(img.0*mag-ginfo(12)))
+					if joy.8 & 2 :ip.1 = 0.0
+					if joy.8 & 4 :ip.1 = double(0-(img.1*mag-ginfo(13)))
+				}else {
+					if joy.8 & 16 :void bPrevID :gosub *Jump
+					if joy.8 & 32 :void bNextID :gosub *Jump
+					if joy.8 & 1 :void bPrevID :gosub *Jump
+					if joy.8 & 8 :void bNextID :gosub *Jump
+					if joy.8 & 2 :mag += size(S_KMAGADD)
+					if joy.8 & 4 :mag -= size(S_KMAGADD) :if mag < magmin :mag = magmin
+				}
+				if iped.0 != ip.0 || iped.1 != ip.1 || maged != mag :draw 0
+				//gosub *imgexdraw//do
+			}
+		}elif wparam == WT_MESSAGE {
+			
+		}
+	}elif iparam == WM_MOUSEWHEEL {// 拡大縮小
+		w = cnv120(mousew)
+		iped = ip.0, ip.1
+		imged = img.0*mag, img.1*mag
+		maged = mag
+		mag += size(S_HMAGADD)*double(w)
+		imgn = img.0*mag, img.1*mag
+		ip = ip.0-(imgn.0-imged.0)/(imgn.0/(mousex-ip.0)), ip.1-(imgn.1-imged.1)/(imgn.1/(mousey-ip.1))
+		if mag < magmin :mag = magmin
+		if iped.0-ip.0 > 1000 || ip.0-iped.0 > 1000 :ip = iped.0, iped.1
+		if sch :draw 0
+		if sch == 0 {// 初期
+			sch = 1 :mag = maged
+			ip = iped.0, iped.1
+		}
+	}elif iparam == WM_SIZE {// サイズ変更
+		draw 0
+	}elif iparam == WM_SIZING {// サイズ変更 now
+		if lparam != 0 {
+			dupptr rc, lparam, 16, 4
+			if wparam\3 != 2 {
+				if rc.2-rc.0 < WS_XMIN :rc.0 = rc.2-WS_XMIN
+			}else {
+				if rc.2-rc.0 < WS_XMIN :rc.2 = rc.0+WS_XMIN
+			}
+			if wparam < 6 {
+				if rc.3-rc.1 < WS_YMIN :rc.1 = rc.3-WS_YMIN
+			}else {
+				if rc.3-rc.1 < WS_YMIN :rc.3 = rc.1+WS_YMIN
+			}
+		}
+		wx = ginfo(12)/4 :wy = ginfo(13)
+		smove wx*1-40, wy-25, hbPrev
+		smove wx*2-10, wy-25, hbSelect
+		smove wx*3-40, wy-25, hbNext
+	}elif iparam == WM_LBUTTONDOWN {// 画像移動
+		oncmd 0
+		mp = LOWORD(lparam), HIWORD(lparam)
+		iped = ip.0, ip.1
+		if fast :c = -1 :else :c = 20
+		repeat
+			if not(getkey(1)) :break
+			if mousex == -1 || mousey == -1 :break
+			ip = double(mousex-mp.0+iped.0), double(mousey-mp.1+iped.1)
+			if c == 0 :draw 1 :else :draw 0 :if c > 0 :c--
+			wait 1
+		loop
+		draw 0
+		oncmd 1
+	}elif iparam == WM_LBUTTONDBLCLK {
+		if glong(hmwnd, -16) == style {
+			wrc = ginfo(4), ginfo(5), ginfo(12), ginfo(13)
+			slong hmwnd, -16, 0x96000000
+			smove 0, 0, hmwnd
+			ssize ginfo(20), ginfo(21), hmwnd
+		}else {
+			slong hmwnd, -16, style
+			width wrc.2, wrc.3, wrc.0, wrc.1
+		}
+		sendmsg hmwnd, WM_TIMER, WT_RESIZE
+	}elif iparam == WM_RBUTTONDOWN {
+		// しおり追加 (0<bmc<9 余剰)
+		if strlen(filelist) == 0 :return
+		notesel@hsp filelist
+		str_ = getpath(""+dir_cur+"\\"+noteget(cID), 16)
+		i = strlen(str_)
+		xx = loword(lparam)-int(ip.0) :if xx < 0 :xx = 0
+		yy = hiword(lparam)-int(ip.1) :if yy < 0 :yy = 0
+		
+		memexpand bmark(bmc), BMARK_SIZE+i+1
+		wpoke bmark(bmc), BM_SIZE, i
+		lpoke bmark(bmc), BM_POS, MAKEWORD(xx, yy)
+		memcpy bmark(bmc), mag, 8, BM_MAG, 0
+		memcpy bmark(bmc), str_, i, BM_FILE, 0
+		bmc = (bmc+1)\10
+		bmm++
+		draw 0
+	}elif iparam == WM_KEYDOWN {
+		if usekf :return :else :usekf = 1 :SetTimer hmwnd, WT_REUSEKEY, 30, 0
+		if getkey('M') {
+			if '0' <= wparam && wparam <= '0'+bmm {
+				// しおりジャンプ
+				repeat 1, wparam-'0'
+					gosub *loadinit
+					i = wpeek(bmark(cnt), BM_SIZE)	// ファイル名 length
+					sdim j, i
+					memcpy j, bmark(cnt), i, 0, BM_FILE	// ファイル名取得
+					
+					exist j// ファイル存在確認
+					if strsize == -1 :break
+					
+					i = lpeek(bmark(cnt), BM_POS)	// 座標
+					ip = 0.0-double(loword(i)), 0.0-double(hiword(i))
+					memcpy mag, bmark(cnt), 8, 0, BM_MAG	// 倍率
+					void j
+					readf 1, img, filelist, cID
+					imgn = img.0, img.1
+					SetTimer hmwnd, WT_LOADFILE, 5, 0
+				loop
+			}
+		}elif getkey(226) {// 一括移動
+			if wparam == 37 {	ip.0 = 0.0
+			}elif wparam == 39 {ip.0 = double(0-(img.0*mag-ginfo(12)))
+			}elif wparam == 38 {ip.1 = 0.0
+			}elif wparam == 40 :ip.1 = double(0-(img.1*mag-ginfo(13)))
+		}elif getkey(17) {
+			imged = img.0*mag, img.1*mag
+			i = keycount/50+1
+			if wparam == 37 {	void bPrevID :gosub *Jump
+			}elif wparam == 39 {void bNextID :gosub *Jump
+			}elif wparam == 38 {mag -= size(S_KMAGADD)*i :if mag < magmin :mag = magmin
+			}elif wparam == 40 :mag += size(S_KMAGADD)*i
+			
+			if wparam == 38 || wparam == 40 {
+				imgn = img.0*mag, img.1*mag
+				ip = ip.0-(imgn.0-imged.0)/(imgn.0/(mousex-ip.0)), ip.1-(imgn.1-imged.1)/(imgn.1/(mousey-ip.1))
+			}
+		}elif getkey(16) {
+			if wparam == 37 {	arota -= 90	:if arota < 0 :arota = 270	// 回転
+			}elif wparam == 39 {arota += 90 :if arota > 359 :arota = 0
+			}elif wparam == 40 {
+			}elif wparam == 38 :
+		}else {
+			if wparam == 37 {	ip.0 -= size(S_MOVE)// 移動
+			}elif wparam == 39 {ip.0 += size(S_MOVE)
+			}elif wparam == 40 {ip.1 -= size(S_MOVE)
+			}elif wparam == 38 {ip.1 += size(S_MOVE)
+			}elif wparam == 'O' {void bSelectID :gosub *Jump
+			}elif wparam == 'I' {
+			}
+		}
+		draw 0
+		keycount++
+	}elif iparam == WM_KEYUP {
+		keycount = 0
+	}elif iparam == WM_SYSCOMMAND {
+		uCmdType = wparam & 0xFFF0
+		if uCmdType == 0xF030 {// 最大化
+			SetTimer hmwnd, WT_RESIZE, 10, 0
+		}elif uCmdType == 0xF120 {// 元の位置へ
+			SetTimer hmwnd, WT_RESIZE, 10, 0
+		}elif uCmdType == 0xF100 {
+			if mf {
+				MenuEnable hmwnd, hMenu
+				sendmsg hmwnd, WM_TIMER, WT_RESIZE
+			}
+		}
+	}elif iparam == WM_COMMAND {
+		wID = loword(wparam)
+		if wID == MI_QUIT {oncmd 0 :end
+		}elif wID == MI_CLOS {
+			if mf {
+				MenuEnable hmwnd, hMenu :mf = 0
+				ChangeMenuItem hmwnd, hMenu, MI_CLOS, 0, "×", "__RightJostify__"
+			}else {
+				MenuDisable hmwnd :mf = 1
+				ChangeMenuItem hmwnd, hMenu, MI_CLOS, 0, "＋", "__RightJostify__"
+			}
+			sendmsg hmwnd, WM_TIMER, WT_RESIZE
+		}elif wID == MI_OPEN {void bSelectID :gosub *Jump
+		}elif wID == MI_PREV {void bPrevID :gosub *Jump
+		}elif wID == MI_NEXT {void bNextID :gosub *Jump
+		}elif wID == MI_MARK {
+			
+		}elif wID == MI_OPTI {
+		}elif wID == MI_IMGS {
+			if subimgf :subimgf = 0 :else :subimgf = 1
+			draw 0
+		}elif wID == MI_BUTT {
+			if glong(hbSelect, -16) & WS_VISIBLE {
+				ShowWindow hbSelect, SW_HIDE
+				ShowWindow hbPrev, SW_HIDE
+				ShowWindow hbNext, SW_HIDE
+				ChangeMenuItem hWnd_, hMenu.2, MI_BUTT, 0, "", ""	// uncheck
+			}else {
+				ShowWindow hbSelect, SW_SHOW
+				ShowWindow hbPrev, SW_SHOW
+				ShowWindow hbNext, SW_SHOW
+				ChangeMenuItem hWnd_, hMenu.2, MI_BUTT, 0x08, "", ""	// check
+			}
+		}
+	}elif iparam == WM_MENUSELECT {
+		wID = loword(wparam)
+		if wID == 0 && hiword(wparam) == 0xFFFF {
+			if mf :MenuDisable hmwnd :sendmsg hmwnd, WM_TIMER, WT_RESIZE
+		}
+	}elif iparam == WM_INITMENU {
+		if glong(hbSelect, -16) & WS_VISIBLE {
+			ChangeMenuItem hWnd_, hMenu.2, MI_BUTT, 0x08, "", ""	// check
+		}else {
+			ChangeMenuItem hWnd_, hMenu.2, MI_BUTT, 0, "", ""	// uncheck
+		}
+		if subimgf {
+			ChangeMenuItem hWnd_, hMenu.2, MI_IMGS, 0x08, "", ""	// check
+		}else {
+			ChangeMenuItem hWnd_, hMenu.2, MI_IMGS, 0, "", ""	// uncheck
+		}
+	}
+	return
+	
+	
+	#module
+	#defcfunc neasy int num, int easy
+		if num < 0 :return easy
+		if num > 0 :return abs(easy)
+	return 0
+	
+	#defcfunc cnv120 int num
+		if num > 0 :return num-120
+	return num+120
+	
+	#defcfunc lim int num, int nmax
+		if num < 0 :return nmax
+	return num
+	
+	#deffunc dirlists var buf, str mask, int type
+		sdim buf :sdim buf2
+		maskbuf = mask
+		split maskbuf, ";", maskbuf
+		
+		repeat length(maskbuf)
+			dirlist buf2, maskbuf.cnt, type
+			buf += buf2
+		loop
+		
+		ispathnum = 0 :n = 0
+		sdim strprev :sdim strnext :sdim stro
+		notesel@hsp buf
+		stro = noteget(0)
+		strolen = strlen(stro)
+		for i, strolen, 0, -1
+			j = 0
+			if ('0' <= peek(stro, i)) && (peek(stro, i) <= '9') :j = 1
+			if 0 < i :if ('0' <= peek(stro, i-1)) && (peek(stro, i-1) <= '9') :n++ :_continue
+			if j {
+				ispathnum = 0
+				strprev = strmid(stro, 0, i)
+				strnext = strmid(stro, i+n, strolen)
+				exist ""+dir_cur+"\\"+strprev+(int(strmid(stro, i, n))+1)+""+strnext
+				if strsize != -1 :ispathnum = 1 :_break
+				n = 0
+			}
+		next
+		
+		if ispathnum {
+			sdim buf2
+			repeat
+				notesel@hsp buf
+				if notemax == 0 :break
+				stro = strprev+(cnt+1)+strnext
+				exist ""+dir_cur+"\\"+stro
+				if strsize == -1 :break
+				buf2 += ""+ stro +"\n"
+				notedel 0
+			loop
+			buf2 += buf
+			buf = buf2
+		}
+	return
+	#global
+	
+	#include "hspcv.as"
+	
+	#module __LOAD__
+	#deffunc read int scr, array ary, var dir, var celID
+		dialog "bmp;*.jpg;*.gif;*.png;*.ico;*.psd;*.tga;*.mpo", 16, "すべての画像ファイル"
+		if not(stat) :return 1
+	#deffunc readf int scr, array ary, var dir, var celID
+		fName = refstr
+		imgl@ = 1
+		sdim dir
+		chdir getpath(fName, 32)
+		dirlists dir, "*.bmp;*.jpg;*.gif;*.png;*.ico;*.psd;*.tga;*.mpo", 2
+		notesel@hsp dir
+		cID = -1
+		repeat notemax
+			if getpath(noteget(cnt), 16) == getpath(fName, 27) :celID = cnt :break
+		loop
+		
+		buffer scr
+		cvload fName, 0
+		cvgetimg 0, 1
+//		picload fName
+		ary = double(ginfo(12)), double(ginfo(13))
+		himgdc@(scr) = hdc@hsp
+		nowfile@ = fName
+		
+		gsel 0, 1
+	return 0
+	
+	#deffunc load var dir, int celID, int buf2, int buf3, array img2, array img3
+		if strlen(dir) == 0 :return
+		notesel@hsp dir
+		if notemax == 1 :return
+		sdim prevfile@ :sdim nextfile@
+	
+		buffer buf2
+		prevfile@ = ""+dir_cur+"\\"+noteget(lim(celID-1, notemax-1))
+		exist prevfile@
+		if strsize != -1 {
+//			picload prevfile@
+			cvload prevfile@, 0
+			cvgetimg 0, 1
+		}
+		img2 = double(ginfo(12)), double(ginfo(13))
+		himgdc@(buf2) = hdc@hsp
+		
+		buffer buf3
+		nextfile@ = ""+dir_cur+"\\"+noteget((celID+1)\notemax)
+		exist nextfile@
+		if strsize != -1 {
+			cvload nextfile@, 0
+			cvgetimg 0, 1
+		}
+		img3 = double(ginfo(12)), double(ginfo(13))
+		himgdc@(buf3) = hdc@hsp
+		
+		gsel 0, 1
+		imgl@ = 2
+	return
+	
+	#deffunc copy int to, int from, array tobuf, array frombuf
+		tobuf = frombuf.0, frombuf.1
+		buffer to, tobuf.0, tobuf.1
+		pos 0, 0 :gcopy from, 0, 0, tobuf.0, tobuf.1
+		himgdc@(to) = hdc@hsp
+		
+		gsel 0, 1
+	return
+	#global
+	
+	#module __MENU__
+	#uselib "user32.dll"
+	#cfunc	CreateMenu				"CreateMenu"
+	#cfunc	CreatePopupMenu			"CreatePopupMenu"
+	#func	InsertMenuItem			"InsertMenuItemA"	int, int, int, var
+	#func	SetMenuItemInfo			"SetMenuItemInfoA"	int, int, int, var
+	#func	SetMenu					"SetMenu"			int, int
+	#func	DestroyMenu				"DestroyMenu"		int
+	#func	DrawMenuBar				"DrawMenuBar"		int
+	
+	#enum	cbSize = 0
+	#enum	fMask
+	#enum	fType
+	#enum	fState
+	#enum	wID
+	#enum	hSubMenu
+	#enum	hbmpChecked
+	#enum	hbmpUnchecked
+	#enum	dwItemData
+	#enum	dwTypeData
+	#enum	cch
+	#enum	hbmpItem
+	
+	// メニュー削除
+	#deffunc MenuDelete int hWnd_, var hMenu_ onexit
+		if hMenu_ :DestroyMenu hMenu_ :hMenu_ = 0
+	return
+	
+	// メニュー非表示
+	#deffunc MenuDisable int hWnd_
+		SetMenu hWnd_, NULL
+		DrawMenuBar hWnd_
+	return
+	
+	// メニュー表示
+	#deffunc MenuEnable int hWnd_, int hMenu_
+		SetMenu hWnd_, hMenu_
+	return
+	
+	//メニュー作成
+	#deffunc MenuInit int hWnd_, array hMenu_
+		hMenu_.2 = CreatePopupMenu()
+		if hMenu_.2 == 0 :return FALSE
+		AddMenuItem hMenu_.2, "前へ (&P)\t\tCtrl+→", MI_PREV, 0, "前の画像を読み込みます"
+		AddMenuItem hMenu_.2, "次へ (&N)\t\tCtrl+←", MI_NEXT, 0, "次の画像を読み込みます"
+		AddMenuItem hMenu_.2, "", 0, 0, ""
+		AddMenuItem hMenu_.2, "しおり (&M)\t\tM+数字", MI_MARK, 0, "しおりの一覧を表示します"
+		AddMenuItem hMenu_.2, "", 1, 0, ""
+		AddMenuItem hMenu_.2, "ボタン (&B)", MI_BUTT, 0, "ボタンの表示・非表示の切り替えをします"
+		AddMenuItem hMenu_.2, "サブ画像 (&S)", MI_IMGS, 0, "ボタンの表示・非表示の切り替えをします"
+		AddMenuItem hMenu_.2, "", 2, 0, ""
+		AddMenuItem hMenu_.2, "設定 (&O)", MI_OPTI, 0, "詳細の設定を行います"
+		
+		hMenu_.1 = CreatePopupMenu()
+		if hMenu_.1 == 0 :return FALSE
+		AddMenuItem hMenu_.1, "開く (&O)\t\tO", MI_OPEN, 0, "最初の画像を読み込みます"
+		AddMenuItem hMenu_.1, "", 2, 0, ""
+		AddMenuItem hMenu_.1, "終了 (&Q)\t\tAlt+F4", MI_QUIT, 0, "終了します"
+		
+		hMenu_.0 = CreateMenu()
+		if hMenu_.0 == 0 :return FALSE
+		AddMenuItem hMenu_.0, "ファイル (&F)", MI_FILE, hMenu_.1, ""
+		AddMenuItem hMenu_.0, "編集 (&E)", MI_OPER, hMenu_.2, ""
+		AddMenuItem hMenu_.0, "×", MI_CLOS, 0, "__RightJostify__"
+		
+		SetMenu hWnd_, hMenu_
+	return TRUE
+	// メニューアイテム追加
+	#deffunc AddMenuItem int hMenu_, str ItemName, int nId, int hSMenu, str ItemDate
+		dim mii, 12	//MENUITEMINFO
+		
+		mii.cbSize		= 48		//sizeof(MENUITEMINFO)
+		mii.fMask		= $32		//MIIM_TYPE | MIIM_ID | MIIM_DATA
+		mii.wID			= nId
+		dwItemDate		= ItemDate
+		mii.dwItemData	= varptr(dwItemDate)
+	
+		if ItemDate == "__RightJostify__" {
+			mii.fType	= 0x4000	//MFT_STRING | MFT_RIGHTJUSTIFY
+			dwTypeDate	= ItemName
+			mii.dwTypeData	= varptr(dwTypeDate)
+		}else :if ItemName != "" {			// NULL = セパレーター
+			mii.fType	= 0			//MFT_STRING
+			dwTypeDate	= ItemName
+			mii.dwTypeData	= varptr(dwTypeDate)
+		}else :if ItemDate == "__MenuDisabled__" {
+			mii.fMask	|= $1		//MIIM_STATE
+			mii.fState	= $3
+			mii.fType	= 0			//MFT_STRING
+			dwTypeDate	= ItemName
+			mii.dwTypeData	= varptr(dwTypeDate)
+		}else :mii.fType	= $800	//MFT_SEPARATOR
+		
+		if hSMenu != NULL {			// サブメニュー
+			mii.fMask	   |= $4	//MIIM_SUBMENU
+			mii.hSubMenu	= hSMenu
+		}
+		
+		InsertMenuItem hMenu_, nId, FALSE, mii
+	return
+	
+	// メニューアイテム変更
+	#deffunc ChangeMenuItem int hWnd_, int hMenu_, int nId, int uState, str ItemName, str ItemDate
+		dim mii, 12	//MENUITEMINFO
+		
+		mii.cbSize = 48
+		mii.fMask  = $3	//MIIM_ID | MIIM_STATE
+		mii.fState = uState
+		mii.wID    = nId
+		
+		if ItemName != "" {
+			mii.fMask	   |= $10	//MIIM_TYPE
+			mii.fType		= 0
+			dwTypeDate		= ItemName
+			mii.dwTypeData	= varptr(dwTypeDate)
+		}
+		if ItemDate == "__MenuDisabled__" {
+			mii.fState	= $3
+			mii.fType	= 0			//MFT_STRING
+			dwTypeDate	= ItemName
+			mii.dwTypeData	= varptr(dwTypeDate)
+		}else :if ItemDate == "__RightJostify__" {
+			mii.fType	= 0x4000	//MFT_STRING | MFT_RIGHTJUSTIFY
+		}else :if ItemDate != "" {
+			mii.fMask	   |= 0x20	//MFT_DATA
+			dwItemDate		= ItemDate
+			mii.dwItemData	= varptr(dwItemDate)
+		}
+	
+		SetMenuItemInfo hMenu_, nId, FALSE, mii
+		DrawMenuBar hWnd_
+	return
+	#global
+	
+	#module __BITCALC__
+	// short int から int へ変換
+	#defcfunc short int num
+	return (num >> 8)
+	
+	// ブーリアン型に変換
+	#defcfunc boolean int num
+		if num :return 1
+	return 0
+	
+	// 2の累乗取得
+	#defcfunc reg2 int num
+	return 1 << num
+	
+	// ビットセット false
+	#deffunc sbfalse var num, int bit
+		num &= 0xFFFFFFFF ^ reg2(bit)
+	return
+	
+	// ビットセット true
+	#deffunc sbtrue var num, int bit
+		num |= reg2(bit)
+	return
+	
+	// ビット取得
+	#defcfunc gbool int num, int bit
+	return boolean(num & reg2(bit))
+	#global
+	

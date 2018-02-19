@@ -1,0 +1,154 @@
+	
+	#include "BlankIdentifier.as"
+	#include "keys.as"
+	
+	
+	initBlankId blankSushi, blankCount
+	initKeys
+	keys = VK_LBUTTON, VK_RBUTTON
+	repeat length(keys)
+		registoryKey keys.cnt, 1, 10
+	loop
+	
+	buffer 0
+	picload "sushi.bmp"
+	max = ginfo(12)/32
+	
+	screen 2, 640, 480, 2
+	font msgothic, 10
+	
+	screen 1, 10*32, 32
+	tit = "ŽõŽi—¬‚µ ‰ü‘¢ver"
+	title tit
+	gmode 2
+	
+	
+	dim sushiX
+	dim sushiY
+	dim sushiId
+	sushiCount = 0
+	battaFlag = false
+	
+	repeat 11
+		if rnd(5) {
+			id = getBlankId(sushiCount, sushiList, blankCount, 100)
+			sushiX.id = 32*cnt
+			sushiY.id = -2
+			sushiId.id = rnd(max-1)+1
+		}
+		id = getBlankId(sushiCount, sushiList, blankCount, 100)
+		sushiX.id = 32*cnt
+		sushiY.id = 0
+		sushiId.id = 0
+	loop
+	
+*main
+	if oldBattaFlag != battaFlag {
+		oldBattaFlag = battaFlag
+		if battaFlag {
+			title tit+" HI SUSHI!!"
+		}else {
+			title tit
+		}
+	}
+	
+	calcKeys
+	if keyDowned(VK_RBUTTON) || keyJustBeforeDown(VK_RBUTTON) {
+		battaFlag = false
+	}
+	if keyDowned(VK_LBUTTON) || keyJustBeforeDown(VK_LBUTTON) {
+		xx = mousex
+		repeat 1
+		if xx == -1 :break
+		repeat sushiCount
+			if sushiX.cnt <= xx && xx <= sushiX.cnt+32 && sushiId.cnt != 0 {
+				if sushiId.cnt == 11 {
+					battaFlag = true
+					repeat sushiCount
+						if isBlankId(cnt, sushiCount, sushiList, blankCount) :continue
+						if 0 < sushiId.cnt && 10 != sushiId.cnt {
+							sushiId.cnt = 11
+						}
+					loop
+				}else :if sushiId.cnt == 10 {
+					battaFlag = false
+					repeat sushiCount
+						if isBlankId(cnt, sushiCount, sushiList, blankCount) :continue
+						if 0 < sushiId.cnt {
+							sushiId.cnt = 10
+						}
+					loop
+				}else {
+					sushiId.cnt = -1
+					id = cnt
+				}
+				break
+			}
+		loop
+		loop
+	}
+	
+	redraw 0
+	colorwhite :boxf :color
+	repeat sushiCount
+		if isBlankId(cnt, sushiCount, sushiList, blankCount) :continue
+		if sushiId.cnt == 0 {
+			// ŽM and ‰ñ“]
+			pos sushiX.cnt, sushiY.cnt :gcopy 0, sushiId.cnt*32, 0, 32, 32	// ƒŒ[ƒ“
+		}
+	loop
+	
+	repeat sushiCount
+		if isBlankId(cnt, sushiCount, sushiList, blankCount) :continue
+		if 0 < sushiId.cnt {
+			// ŽõŽi
+			pos sushiX.cnt, sushiY.cnt :gcopy 0, 0, 32, 32, 32	// ŽM
+			pos sushiX.cnt, sushiY.cnt :gcopy 0, sushiId.cnt*32, 64, 32, 32		// ŽõŽi
+			if sushiX.cnt == -32 {
+				if battaFlag {
+					sushiId.cnt = 11
+				}else {
+					sushiId.cnt = rnd(max-1)+1
+				}
+			}
+		}
+		if sushiX.cnt == -32 {
+			xx = 10*32
+			if 0 < sushiId.cnt {
+				xx += 32
+				repeat sushiCount
+					if sushiId.cnt <= 0 {
+						if sushiX.cnt == xx :xx += 32 :continue 0
+					}
+				loop
+			}
+			sushiX.cnt = xx
+		}
+		sushiX.cnt--
+	loop
+	redraw 1
+	
+	if 5 < rnd(10) {
+		repeat sushiCount
+			if sushiId.cnt == -1 {
+				sushiX.cnt += 32*10
+				sushiY.cnt = -2
+				sushiId.cnt = rnd(max-1)+1
+				break
+			}
+		loop
+	}
+	
+	gsel 2
+	redraw 0
+	colorwhite :boxf :color
+	repeat sushiCount
+		if isBlankId(cnt, sushiCount, sushiList, blankCount) :continue
+		pos 5, 5+cnt*10 :mes strf("F:%d X:%d Y:%d", sushiId.cnt, sushiX.cnt, sushiY.cnt)
+	loop
+	redraw 1
+	gsel 1
+	
+	wait 3
+	goto *main
+	

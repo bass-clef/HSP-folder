@@ -1,0 +1,41 @@
+	
+/*
+	#module
+	#uselib "kernel32.dll"
+	#cfunc	LoadLibrary		"LoadLibraryA"		sptr
+	#cfunc	GetProcAddress	"GetProcAddress"	int, sptr
+	#func	FreeLibrary		"FreeLibrary"		int
+	
+	#deffunc loadfunc str dllname, str funcname
+		hModule(dllcnt) = LoadLibrary(dllname)
+		lpFunc(dllcnt) = GetProcAddress(hModule, funcname)
+		using(dllcnt) = 1
+		dllcnt++
+	return (dllcnt-1)
+	
+	#deffunc freelib onexit
+		repeat dllcnt
+			if using(cnt) :FreeLibrary hModule(cnt) :using(cnt) = 0
+		loop
+	return
+	
+	#defcfunc call array ary, int nModule, int prmmax
+	return callfunc(ary, lpFunc(nModule), prmmax)
+	#global
+*/
+	
+	#uselib "kernel32.dll"
+	#cfunc	LoadLibrary		"LoadLibraryA"		sptr
+	#cfunc	GetProcAddress	"GetProcAddress"	int, sptr
+	#func	FreeLibrary		"FreeLibrary"		int
+	
+	#include "InvalidSystemKey.as"
+//	hModule(dllcnt) = LoadLibrary(dllname)
+//	"InvalidSystemKey.dll", "SystemHookStart"
+	SystemHookStart = GetProcAddress(varptr(dll1), funcname)
+	
+	i = 0
+	if callfunc(i, SystemHookStart, 0)
+	
+	stop
+	

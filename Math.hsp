@@ -1,0 +1,49 @@
+	
+	// •û’ö®
+	
+	// “š‚¦ [ x = 200 ]
+	// Š„‡ [ 50% : 100 = 100% : x ]
+	// •û’ö®‚É’¼‚µ‚Ä [ 50% * x = 100 * 100% ]
+	// •û’ö®‚ğ‰ğ‚¢‚Ä [ 50% * x / 50% = 100 * 100% / 50% ]
+	// •û’ö®‚ğ•ª‚èˆÕ‚­‚µ‚Ä [ x = 100 * 100% / 50% ]
+	
+	#define D double
+	
+	sdim ans
+	prm1 = 0.0 :prm2 = 0.0
+	
+	screen 0, 300, 80, 0
+	title "‚P‚O‚O“‚ÍH"
+	font msgothic, 14
+	
+	objsize 200, 20
+	objmode 2
+	
+	pos   1,  3 :mes "‚P‚O‚O“‚ÍH"
+	
+	pos   1, 22 :mes "Œ»İ‚Ì”’l"
+	pos 100, 20 :input prm1 :title "", objinfo(stat, 2)
+	
+	pos   1, 42 :mes "Œ»İ‚ÌŠ„‡(%)"
+	pos 100, 40 :input prm2 :title "", objinfo(stat, 2)
+	
+	pos   1, 62 :mes "‚P‚O‚O“‚Ì”’l"
+	pos 100, 60 :input ans
+	hAnsInput = objinfo(stat, 2)
+	
+	repeat
+		if (prm1 != 0) && (prm2 != 0) :if (prm1 != prm1ed) || (prm2 != prm2ed) {
+			prm1 = D(gtext(objinfo(0, 2)))
+			prm2 = D(gtext(objinfo(1, 2)))
+			prm1ed = prm1 :prm2ed = prm2
+			ans = 0.0
+			ans = D(prm1) * 100.0 / D(prm2)
+			redraw 0
+			colorwhite :boxf 200, 0, 300, 80 :color
+			pos 200, 20 :mes strf("%1.20g", prm1)
+			pos 200, 40 :mes strf("%1.20g", prm2)
+			title strf("%1.20g", ans), hAnsInput
+			redraw 0
+		}
+		wait 1
+	loop

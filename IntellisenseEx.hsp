@@ -1,0 +1,396 @@
+	
+	
+	/*
+	 * Intellisense
+	 */
+	
+	/**
+	 * include しているファイル中から 探索
+	 * 選択して Ctrl+Space で候補を 選出/表示 -> 1件だと貼り付け
+	 * 選択しているテキストの 補完/引数の調査
+	 */
+	
+	/* bugs */
+	/*
+	編集中ファイルの探索が正常にできてない
+		ファイルに戻った時に戻れてない
+	*/
+	
+	
+	#include "hsedsdk.as"
+	#include "hspext.as"
+	#include "StringTypeDevider.as"
+	#include "array.as"
+	#include "BlankIdentifier.as"
+	
+	#uselib "user32.dll"
+	#func	setClipboardViewer		"SetClipboardViewer"	int
+	#func	changeClipboardChain	"ChangeClipboardChain"	int, int
+	#cfunc	getForegroundWindow		"GetForegroundWindow"
+	
+	#enum	T_COMMENT	= T_MAX
+	#enum	T_COMMENTS
+	#enum	T_SHAPE
+	#enum	T_MINUS
+	
+	initalize
+	
+	sdim dir_HSPEdit
+	defList = "deffunc", "defcfunc", "define", "enum", "const", "func", "cfunc", "addition", "include"
+	
+	gosub *initfind
+	
+	screen 0, 600, 150, 0
+	title "HSP Intellisense Ex"
+	oncmd gosub *changedclipboard, WM_DRAWCLIPBOARD
+	oncmd gosub *changecbchain, WM_CHANGECBCHAIN
+	onexit *exit
+	font msgothic, 12
+	
+	setClipboardViewer hwnd :hViewerNextWnd = stat
+	
+	oldTab = -1
+	
+*main
+	
+	hsed_getacttabid idTab
+	if oldTab != idTab {
+		oldTab = idTab
+		gosub *find
+	}
+	
+	wait 10
+	goto *main
+	
+	
+*exit
+	
+	changeClipboardChain hwnd, hViewerNextWnd
+	
+	end :end
+	
+	
+*changedclipboard
+	
+	sendmsg hViewerNextWnd, iparam, wparam, lparam
+	hsed_getwnd hHSPE, 0
+	if hHSPE == getForegroundWindow() :gosub *find
+	
+	return
+	
+	
+*changecbchain
+	
+	if wparam == hViewerNextWnd {
+		hViewerNextWnd = lparam
+	}else :if hViewerNextWnd {
+		sendmsg hViewerNextWnd, iparam, wparam, lparam
+	}
+	
+	return
+	
+	
+*find
+	
+	if finding :return
+	finding =  1
+	
+	oneline "ファイルを探索中..."
+	
+	gosub *getNowText
+	if stat :return	// now file is not save
+	
+	if actfile != actfiled {
+		actfiled = actfile
+		gosub *baseDevide
+	}
+	
+	clipget buf
+	
+	colorwhite :boxf :color
+	pos 0, 0
+	
+	matched = 0
+	notesel@hsp allBuf
+	repeat definitionCount
+		id = definitionList(cnt)
+		if buf != allPrms.id {
+			continue
+		}
+		
+		matched++
+		mes "matched"
+		mes ""+cnt+":p["+ allPrms.id +"] t["+ allTypes.id +"] b["+ allBases.id +"]"
+		line_ = lineList.cnt
+		mes "line ["+ line_ +"]"
+		mes "file ["+fileList.definitionFileList(cnt)+"]"
+		notesel@hsp bufferList.definitionFileList(cnt)
+		mes "def ["+ noteget(line_) +"]"
+	loop
+	if 0 == matched {
+		if strlen(buf) {
+			oneline ""+ buf +" は見つかりませんでした"
+		}else {
+			
+		}
+	}
+	
+	finding = 0
+	
+	return
+	
+*baseDevide
+	logmes "baseFile --------------------------\n"+allBuf+"\nbaseFile--------------------------"
+	
+	sdim allDirList :dirCount = 0
+	sdim definitionList :definitionCount = 0
+	sdim definitionFileList
+	sdim fileList :fileCount = 0
+	dim lineList
+	initBlankId dir
+	initBlankId definitions
+	initBlankId files
+	initBlankId bufferes
+	allLength = 0
+	
+	devideStringType allBuf, allPrms, allTypes, allBases
+	throughtFlag = 0
+	allLength = length(allPrms)
+	/*
+	logmes "base ---"
+	repeat allLength
+		logmes ""+cnt+"["+ allPrms.cnt +"]"
+	loop
+	/**/
+	logmes "----------------------- ["+allLength+"]"
+	
+	crlf = 0
+	for count, 0, allLength, 1
+		await
+		if allTypes.count == T_WS :crlf++
+		if allTypes.count == T_COMMENTS {
+			notesel@hsp allPrms.count
+			crlf += notemax-1
+		}
+		if allTypes.count == T_COMMENT {
+			notesel@hsp allPrms.count
+			crlf += notemax
+		}
+		
+		if throughtFlag {
+//			logmes ""+count+":("+throughtFlag+")t["+allTypes.count+"]p["+ allPrms.count +"]"
+		}
+		
+		// chdir
+		if T_MINUS == allTypes.count {
+			if allTypes(count+1) == T_STR {
+				dir = strtrim(allPrms(count+1), 0, '\"')
+				strrep dir, "\\\\", "\\"
+				if isdir(getpath(dir, 32)) {
+					allDirList.getBlankId(dirCount, dir, INT_MAX-1) = getpath(dir, 32)
+					chdir ""+getpath(dir, 32)
+					logmes "move dir ["+ getpath(dir, 32) +"]"
+				}
+				exist dir
+				if strsize != -1 {
+					oldFileId = nowFileId
+					repeat fileCount
+						if dir == fileList.cnt :nowFileId = cnt :break
+					loop
+					if oldFileId != nowFileId {
+						logmes "return"
+						crlf = 0
+					}
+				}
+				_continue
+			}
+		}
+		
+		// #def<>
+		if -1 == throughtFlag {
+			if allPrms.count == "global" :throughtType++ :_continue
+			if allPrms.count == "ctype" :throughtType++ :_continue
+			throughtFlag = 0
+//			logmes "["+ allPrms.count +"]"
+			if allPrms.throughtType == "include" || allPrms.throughtType == "addition" {
+				logmes "include"
+				throughtFlag = -2
+			}else {
+				id = getBlankId(definitionCount, definitions, INT_MAX-1)
+				definitionList.id = count
+				definitionFileList.id = nowFileId
+				lineList.id = crlf
+			}
+		}
+		if -2 == throughtFlag {
+			if allTypes.count == T_STR {
+				fileName = strtrim(allPrms.count, 0, '\"')
+				logmes "load ["+fileName+"]"
+				nFile = -1
+				repeat dirCount
+					exist ""+allDirList.cnt+"\\"+fileName
+					if strsize != -1 {
+						size = strsize
+						nFile = cnt
+						break
+					}
+				loop
+				if nFile == -1 :throughtFlag = 0 :_continue
+				repeat fileCount
+					if fileList.cnt == (""+allDirList.nFile+"\\"+fileName) :nFile = -1 :break
+				loop
+				if nFile == -1 :throughtFlag = 0 :_continue
+				sdim buf, size+1
+				crlf = 0
+				nowFile = ""+allDirList.nFile+"\\"+fileName
+				bload nowFile, buf, size
+				nowFileId = getBlankId(fileCount, files, INT_MAX-1)
+				fileList.nowFileId = nowFile
+				bufferList.nowFileId = buf
+				
+				buf += "\n=<\""+ nowFile +"\"\n"
+				devideStringType buf, prms, types, bases
+				array_add allPrms, count+1, prms
+				array_add allTypes, count+1, types
+				array_add allBases, count+1, bases
+				allLength += length(prms)
+				throughtFlag = 0
+				logmes "loaded ["+allPrms.count+"] ["+nowFileId+"] ("+fileList.nowFileId+")"
+				logmes "----------------------- ["+length(prms)+"]"
+			}else :throughtFlag = 0 :_continue
+		}
+		if throughtFlag < 0 :_continue
+		
+		// <#>
+		if 0 == throughtFlag :if T_SHAPE != allTypes.count {
+			_continue
+		}else {
+			throughtFlag = 1
+		}
+		// #<def>
+		if 1 == throughtFlag :if T_ID != allTypes.count {
+			_continue
+		}else {
+			throughtFlag++
+		}
+		n = 1
+		repeat length(defList)
+			if defList.cnt == allPrms.count :n = 0 :break
+		loop
+		if n :throughtFlag = 0 :_continue
+//		logmes "def ["+allPrms.count+"] ("+throughtFlag+")"
+		
+		throughtType = count
+		throughtFlag = -1
+	next
+	logmes " end"
+	
+	return
+	
+	
+*getNowText
+	
+	// defファイル
+	sdim allBuf
+	sdim buf
+	tempDir = dir_common
+	strrep tempDir, "\\", "\\\\"
+	allBuf = "=<\""+tempDir+"\"\n#include \"hspdef.as\"\n"
+	
+	// 現在編集中のファイル取得
+	sdim actfile
+	hsed_getacttabid idTab
+	hsed_getpath actfile, idTab
+	if strlen(actfile) {
+		tempDir = getpath(actfile, 32)
+		strrep tempDir, "\\", "\\\\"
+		allBuf += "=<\""+tempDir+"\"\n#include \""+getpath(actfile, 11)+"\"\n"
+		return 0
+	}
+	
+	return -1
+	
+	
+*initfind
+	
+	hsed_exist
+	if stat == 0 :dialog "ＨＳＰエディタが起動していません。", 0, gtext(hwnd) :return
+	hsed_getver var, 2
+	if stat == 0 {
+		split var, "ver", prm
+		var = int(double(prm.1)*100)
+		if var < 300 :dialog "バージョンが対応していません。\nvar 3.xx 以上で起動してください。" :return
+		dir_HSPEdit = "C:\\hsp"+var+"\\"
+		exist ""+dir_HSPEdit+"hsed3.exe"
+		if strsize == -1 :dir_HSPEdit = ""
+	}else {
+		dialog "バージョンの取得に失敗しました。", 0, gtext(hwnd)
+		return
+	}
+	dir_common = ""+strtrim(dir_HSPEdit, 2, '\\')+"\\common\\"
+	
+	return
+	
+	
+#deffunc initalize
+
+	initTypes
+	// エスケープシーケンス
+	addType T_THROUGHT :id = stat
+	setInvalidStatus id, PREV_TOKEN, sstr(0x80)+sstr(0x9F)+sstr(0xE0)+sstr(0xFE)
+	addTypePrms id, TF_NEXT | TF_LOCK | TF_INTERRUPT, "\\\\"
+	addTypePrms id, TF_LAST | TF_LASTDELETE, sstr(1)+sstr(255)
+	
+	// 文字列
+	addType T_STR :id = stat
+	addTypePrms id, TF_NEXT, "{{"
+	addTypePrms id, TF_NEXT | TF_LOCK, "\"\""
+	addTypePrms id, TF_NEXT | TF_LOOP | TF_LABEL, sstr(1)+sstr('\"'-1)+sstr('\"'+1)+sstr(255)
+	addTypePrms id, TF_NEXT, "\"\""
+	addTypePrms id, TF_LAST | TF_UMGOTOLABEL, "}}"
+	addType T_STR :id = stat
+	addTypePrms id, TF_NEXT | TF_LOCK, "\"\""
+	addTypePrms id, TF_NEXT | TF_LOOP, sstr(1)+sstr('\"'-1)+sstr('\"'+1)+sstr(255)
+	addTypePrms id, TF_LAST, "\"\""
+	addType T_STR :id = stat
+	addTypePrms id, TF_NEXT | TF_LOCK, "''"
+	addTypePrms id, TF_NEXT | TF_LOOP, sstr(1)+sstr('\''-1)+sstr('\''+1)+sstr(255)
+	addTypePrms id, TF_LAST, "''"
+	
+	// White Space [空白, タブ, 改行, コメント]
+	addType T_WS :id = stat		// 改行
+	addTypePrms id, TF_NEXT, ""+sstr(0xD)+sstr(0xD)
+	addTypePrms id, TF_LAST, ""+sstr(0xA)+sstr(0xA)
+	addType T_COMMENTS :id = stat		// コメント
+	addTypePrms id, TF_NEXT, "//"
+	addTypePrms id, TF_NEXT | TF_LOCK, "**"
+	addTypePrms id, TF_NEXT | TF_LOOP | TF_LABEL, sstr(1)+sstr('*'-1)+sstr('*'+1)+sstr(255)
+	addTypePrms id, TF_NEXT, "**"
+	addTypePrms id, TF_LAST | TF_UMGOTOLABEL, "//"
+	addType T_COMMENT :id = stat		// コメント
+	addTypePrms id, TF_NEXT, "//"
+	addTypePrms id, TF_NEXT | TF_LOCK, "//"
+	addTypePrms id, TF_NEXT | TF_LOOP | TF_LABEL, sstr(1)+sstr(0xC)+sstr(0xE)+sstr(255)
+	addTypePrms id, TF_NEXT, ""+sstr(0xD)+sstr(0xD)
+	addTypePrms id, TF_LAST | TF_UMGOTOLABEL, ""+sstr(0xA)+sstr(0xA)
+	
+	// ID [hoge, abc]
+	addType T_ID :id = stat		// hoge foo_
+	setInvalidStatus id, PREV_TOKEN, "09AZaz"
+	setValidStatus id, NOW_TOKEN, sstr(1)+sstr('A'-1)+sstr('Z'+1)+sstr('_'-1)+sstr('_'+1)+sstr('a'-1)+sstr('z'+1)+sstr(255)
+	addTypePrms id, TF_NEXT | TF_LOOP | TF_MAYBELAST, "azAZ__"
+	addTypePrms id, TF_LOOP | TF_MAYBELAST, "azAZ09__"
+	
+	// #
+	addType T_SHAPE :id = stat
+	addTypePrms id, TF_LAST, "##"
+	
+	// -
+	addType T_MINUS :id = stat
+	addTypePrms id, TF_NEXT, "=="
+	addTypePrms id, TF_LAST, "<<"
+	
+	return
+	
+	
+	

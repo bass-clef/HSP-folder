@@ -1,0 +1,160 @@
+	
+	
+	// 行単位 で スペース で インデント
+	
+	
+	sdim buf
+	indent_beg = "<"
+	indent_end = "</"
+	indent_word = " "
+	indent_num = 2
+	num = 2
+	
+	tag_beg = '<'
+	tag_end = '>'
+	
+	meshgt = 40
+	
+	gsel 0, -1
+	screen 1, ginfo(20), ginfo(21), 0,,, 480, 200
+	oncmd gosub *resizing, WM_SIZING
+	title "Indent"
+	
+	objmode 2, 0 :font msgothic, 12
+	pos 0,  0 :input indent_word, 100, 20
+	objsize 50, 20
+	pos 100, 0 :combox num, 0, "1\n2\n4\n8\n16"
+	pos 150, 0 :input indent_beg
+	pos 200, 0 :input indent_end
+	objsize ginfo(12), 20
+	pos 0, 20 :button gosub "インデント", *indent			:hBtn = objinfo(stat, 2)
+	pos 0, 40 :mesbox buf, ginfo(12), ginfo(13)-meshgt, 5, 0	:EditID = stat
+	hEdit = objinfo(EditID, 2)
+	
+	stop
+	
+*resizing
+	dim rc, 4
+	dupptr rc, lparam, 16, 4
+	
+	wdh = rc.2-rc.0 -16
+	hgt = rc.3-rc.1 -38
+	ssize wdh, hgt-meshgt, hEdit
+	ssize wdh, 20, hBtn
+	
+	return
+	
+*indent
+	AutoIndents
+	objprm EditID, buf
+	
+	return
+	
+	#deffunc AutoIndents
+	nIndent = 0
+	indent_num = powf(2, num)
+	
+	// エスケープシーケンス置換
+	strrep indent_word, "\\t", "\t"
+	strrep indent_word, "\\n", "\n"
+	strrep indent_word, "\\r", ""+spestr(0xD)
+	for i, 255, -1, -1
+		strrep indent_word, "\\"+i, ""+spestr(i)
+	next
+	
+	sdim word :wmax = 0
+	sdim tag :tagmax = 0
+	dim fTag
+	
+	// タグ収集
+	n = -1 :m = -1
+	for i, 0, strlen(buf), 1
+		token = peek(buf, i)
+		if n == -1 {
+			repeat length(tag_beg)
+				if token == tag_beg.cnt :n = cnt :break
+			loop
+		}else {
+			if token != ' ' && token != '\t' {
+				repeat length(tag_end)
+					if token == tag_end.cnt :m = cnt :break
+				loop
+			}else :if m == -2 :m = 0
+			if m < 0 {
+				memexpand word.wmax, word_len+2
+				poke word.wmax, word_len, token
+				poke word.wmax, word_len+1, 0
+				word_len++
+				m = -2
+			}else {
+				n = -1
+				m = -1
+				word_len = 0
+				wmax++
+			}
+		}
+	next
+	
+	// 対になっているタグを分別
+	dim addIndent, wmax
+	subword = '/'
+	repeat wmax
+		token = word.cnt
+		
+		i = 0
+		repeat wmax
+			if token == strtrim(word.cnt, 0, subword) :i++
+		loop
+		
+		if i\2 :word.cnt = ""
+		if peek(word.cnt, 0) == subword :addIndent.cnt-- :else :addIndent.cnt++
+	loop
+	
+	// インデント
+	wIndex = 0
+	notesel@hsp buf
+	repeat notemax
+		noteget@hsp inf, cnt
+		
+		index = 0
+		nAdd = 0
+		repeat
+			if wmax == wIndex :break
+			if word.wIndex == "" :wIndex++ :continue
+			wed = wIndex
+			i = instr(inf, index, word.wIndex)
+			if i != -1 {
+				index += i+strlen(word.wIndex)
+				nAdd += addIndent.wIndex
+				wIndex++
+			}
+			if wed == wIndex :break
+		loop
+		
+		// 開始の時は追加しない
+		if nAdd < 0 :nIndent += nAdd
+		
+		DelWS inf
+		repeat indent_num*nIndent
+			inf = indent_word+inf
+		loop
+		noteadd inf, cnt, -1
+		
+		if 0 < nAdd :nIndent += nAdd
+	loop
+	
+	return
+	
+	#module
+	#deffunc DelWS var v
+		v_len = strlen(v)
+		repeat
+			v = strtrim(v, 0, ' ')
+			v = strtrim(v, 0, '\t')
+			v_nlen = strlen(v)
+			if v_len == v_nlen :break
+			v_len = v_nlen
+		loop
+	return
+	#global
+	

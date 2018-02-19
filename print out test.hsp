@@ -1,0 +1,28 @@
+	
+	#uselib "winspool.drv"
+	#func	GetDefaultPrinter	"GetDefaultPrinterA"	int, int
+	#uselib "gdi32.dll"
+	#func	CreateDC			"CreateDC"				sptr, sptr, sptr, int
+	
+	cch = 0
+	GetDefaultPrinter NULL, varptr(cch)
+	sdim buf, cch
+	GetDefaultPrinter varptr(buf), varptr(cch)
+	
+	mes buf
+	mes cch
+	
+	/*
+	DOCINFO docinfo
+	hdrdc = CreateDC(NULL, buf, NULL, NULL)
+	
+	StartDoc hdrdc, varptr(docinfo)
+	StartPage hdrdc
+	
+	// Ç»ÇÒÇÁÇ©ÇÃëÄçÏ
+	
+	EndPage hdrdc
+	EndDoc hdrdc
+	DeleteDC hdrdc
+	*/
+	

@@ -1,0 +1,726 @@
+	
+	
+	/**
+	 *
+	 * éıéió¨Çµ
+	 *
+	 * @author	Humi <music_love_d0_0b@yahoo.co.jp>
+	 * @varsion	3.0
+	 */
+	
+	
+	/* bugs */
+	/*
+	4shiÉÇÅ[ÉhÇ≈ÇÃç¿ïWïœâª
+	*/
+	
+	#packopt hide 1
+	#packopt name "éıéió¨Çµ â¸ë¢ver 3_2"
+	
+	
+	#include "BlankIdentifier.as"
+	#include "keys.as"
+	
+	#uselib "user32.dll"
+	#func	setTimer	"SetTimer"	int, int, int, int
+	#func	killTimer	"KillTimer"	int, int
+	
+	#define	TI_MAINLOOP		1000
+	#define SUSHI_CAN_GENERATE_MAX	200
+	#define OBJECT_CAN_GENERATE_MAX	50000
+	
+	#define ST_NOPARENT		-1
+	#enum	ST_LANE 		= 1
+	#enum	ST_PLATE
+	#enum	ST_SUSHI
+	#enum	ST_4SHI
+	
+	#enum	S_MODE_PEKA		= 10
+	#enum	S_MODE_BATTA
+	#enum	S_MODE_SALT
+	#enum	S_MODE_4SHI
+	
+	
+	#define ctype isNotSushi(%1)		(ST_LANE == %1 || ST_PLATE == %1)
+	#define ctype isLane(%1)			(ST_LANE == %1)
+	#define ctype isSushi(%1)			(ST_SUSHI == %1)
+	#define ctype isExtra(%1)			(sushiMax <= %1)
+	#define ctype isSalt(%1)			((sushiMax + S_MODE_SALT) == %1)
+	#define generateSushi(%1, %2=ST_NOPARENT)	generateSushi__ %1, %2
+	
+	
+	#define DEBUG_ON
+
+	#ifndef _DEBUG
+	#undef DEBUG_ON
+	#else
+	#include "debugmodule.as"
+	#endif
+	
+	initialize
+	
+	
+	#ifndef DEBUG_ON
+	stop
+	#endif
+	
+*mainloop
+	
+	calcKeys
+	
+	calcSushi
+	drawSushi
+	
+	#ifdef DEBUG_ON
+	wait 1
+	goto *mainloop
+	#endif
+	
+	return
+	
+	
+*windowProc
+	
+	switch iparam
+	case WM_TIMER
+		if TI_MAINLOOP == wparam :gosub *mainloop
+		swbreak
+	case WM_CLOSE
+		killTimer hMainWnd, TI_MAINLOOP
+		swbreak
+	swend
+	
+	return
+	
+
+#deffunc initialize
+	
+	randomize
+	
+	initBlankId sushi
+	initBlankId image
+	initKeys
+	initVariable
+	initWindow
+	
+	// äƒéãÇ∑ÇÈÉLÅ[ÇÃìoò^
+	keys = VK_LBUTTON, VK_RBUTTON
+	repeat length(keys)
+		registoryKey keys.cnt, 1, 5
+	loop
+	
+	// ÉåÅ[ÉìÇÃê∂ê¨
+	repeat maxSushiLane+1
+		generateSushi ST_LANE
+	loop
+	repeat maxSushiLane+1
+		if isLane(sushitype.cnt) {
+			sushiX.cnt -= sushiWindowWidthSize
+		}
+	loop
+	
+	// èââÒéıéiÇÃê∂ê¨
+	randomGenerate
+	
+	return
+	
+	
+#deffunc initVariable
+
+	dim sushiX
+	dim sushiY
+	dim sushiWidth
+	dim sushiHeight
+	dim sushiImageX
+	dim sushiImageY
+	dim imageId
+	dim sushiType
+	sushiCount = 0
+	sushiMode = 0
+	
+	dim imageId
+	dim imageX
+	dim imageY
+	dim imageWidth
+	dim imageHeight
+	imageCount = 0
+	
+	_4shiCount = 0
+	
+	waitTime = 16
+	
+	sushiImageWidthSize = 32
+	sushiImageHeightSize = 32
+	
+	sushiWindowWidthSize = 480
+	sushiWindowHeightSize = sushiImageHeightSize
+	tit = "éıéió¨Çµ â¸ë¢ver 3.2"
+	
+	sushiImageId = 0
+	sushiWindowId = 1
+	sushiDebugWindowId = 2
+	whiteImageId = 3
+	blankImageBeginId = 4
+	
+	maxSushiLane = sushiWindowWidthSize / sushiImageWidthSize
+	
+	return
+	
+	
+#deffunc initWindow
+
+	buffer whiteImageId, ginfo(20), ginfo(21)
+	colorwhite :boxf
+	
+	buffer sushiImageId
+	picload "sushi.bmp"
+	sushiMax = ginfo(12)/32
+	
+	#ifdef DEBUG_ON
+	screen sushiDebugWindowId, ginfo(20), ginfo(21), 0,,, 640, 480
+	title "sushi debug"
+	font msgothic, 10
+	#endif
+	
+	screen sushiWindowId, sushiWindowWidthSize, sushiWindowHeightSize
+	hMainWnd = hwnd
+	title tit
+	gmode 2
+	
+	oncmd gosub *windowProc, WM_TIMER
+	oncmd gosub *windowProc, WM_CLOSE
+	
+	#ifndef DEBUG_ON
+	setTimer hMainWnd, TI_MAINLOOP, waitTime
+	#endif
+	
+	return
+	
+	
+#deffunc calcSushi
+
+	// éwíËÉÇÅ[Éhâèú
+	if keyDowned(VK_RBUTTON) || keyJustBeforeDown(VK_RBUTTON) {
+		sushiMode = false
+		_4shiCount = 0
+		changeSushiMode -1
+	}
+	
+	// éıéiä÷åWÇÃåvéZ
+	moveSushis
+	
+	// éÊÇÈ
+	takeSushiByPlayer
+	
+	// ÉâÉìÉ_ÉÄê∂ê¨
+	randomGenerate
+	
+	return
+	
+#deffunc drawSushi
+
+	redraw 0
+	color 230, 230, 230 :boxf :color
+	
+	// ÉåÅ[Éì -> éM -> éıéi -> ì¡éÍobject
+	repeat sushiCount
+		if isBlankId(cnt, sushiCount, sushi) :continue
+		if isSushi(sushiType.cnt) :continue
+		if isExtra(sushiType.cnt) :continue
+		
+		pos sushiX.cnt, sushiY.cnt
+		gcopy imageId.cnt, imageX.cnt, imageY.cnt, imageWidth.cnt, imageHeight.cnt
+	loop
+	
+	repeat sushiCount
+		if isBlankId(cnt, sushiCount, sushi) :continue
+		if isNotSushi(sushiType.cnt) :continue
+		if isExtra(sushiType.cnt) :continue
+		
+		pos sushiX.cnt, sushiY.cnt
+		gcopy imageId.cnt, imageX.cnt, imageY.cnt, imageWidth.cnt, imageHeight.cnt
+	loop
+	
+	repeat sushiCount
+		if isExtra(sushiType.cnt) {
+			pos sushiX.cnt, sushiY.cnt
+			gcopy imageId.cnt, imageX.cnt, imageY.cnt, imageWidth.cnt, imageHeight.cnt
+		}
+	loop
+	
+	#ifdef DEBUG_ON
+	/**/
+	repeat sushiCount
+		if isBlankId(cnt, sushiCount, sushi) :continue
+		color 127, 127, 64 * sushiType.cnt
+		x = sushiX.cnt
+		boxf x, 0, x+sushiImageWidthSize, sushiImageHeightSize, 0
+		line x, 0, x+sushiImageWidthSize, sushiImageHeightSize
+		pos x, 0 :mes sushiType.cnt
+	loop
+	/**/
+	#endif
+	
+	redraw 1
+	
+	
+	#ifdef DEBUG_ON
+	gsel sushiDebugWindowId
+	redraw 0
+	color 200, 200, 200 :boxf :color
+	
+	pos 5, 5
+	mes "sushis allocated: "+sushiCount+" count:"+countSushi()
+	mes "image allocated: "+imageCount
+	mes "lestNewId:"+ginfo_newid
+	cy = ginfo_cy+10
+	toNextLineMax = (ginfo(13)-cy)/10-1
+	
+	gmode 2
+	repeat sushiCount
+		if isBlankId(cnt, sushiCount, sushi) :continue
+		imgxx = sushiImageX.cnt*sushiImageWidthSize
+		xx = sushiX.cnt/sushiImageWidthSize
+		x = 250*(cnt/toNextLineMax)+5
+		y = (cnt\toNextLineMax)*10+5+cy
+		pos x, y :mes strf("%3d t:%d X:%3d[%2d]x%d img:%2d:%d[%d]x%d", cnt, sushiType.cnt, sushiX.cnt, xx, sushiY.cnt, imageId.cnt, sushiImageX.cnt, imgxx, sushiImageY.cnt)
+		pos x, y :gcopy imageId.cnt, imageX.cnt, imageY.cnt, imageWidth.cnt, imageHeight.cnt
+	loop
+	
+	redraw 1
+	gsel sushiWindowId
+	#endif
+	
+	return
+	
+
+	
+	/**
+	 * éıéiÇÃåvéZ
+	 */
+#deffunc moveSushis
+
+	repeat sushiCount
+		if isBlankId(cnt, sushiCount, sushi) :continue
+	
+		switch sushiType.cnt
+		case sushiMax + S_MODE_SALT
+			sushiY.cnt++
+			if sushiWindowHeightSize < sushiY.cnt {
+				removeSushi cnt
+			}
+			swbreak
+	
+		case sushiMax + S_MODE_PEKA
+			sushiX.cnt -= 2
+			if sushiX.cnt == -imageWidth.cnt {
+				removeSushi cnt
+			}
+			xx = sushiX.cnt
+			// êGÇÍÇΩéıéiÇÉyÉJÇ…Ç∑ÇÈ
+			repeat sushiCount
+				if isBlankId(cnt, sushiCount, sushi) :continue
+				if isNotSushi(sushiType.cnt) :continue
+				if isExtra(sushiType.cnt) :continue
+				if sushiImageX.cnt == S_MODE_PEKA {
+					continue
+				}
+				if xx < sushiX.cnt || sushiX.cnt+sushiImageWidthSize < xx {
+					continue
+				}
+				if sushiImageX.cnt == S_MODE_4SHI {
+					generateSushi ST_PLATE, cnt
+				}
+				sushiImageX.cnt = S_MODE_PEKA
+				removeImage cnt
+				makeImage cnt, 0, 0, sushiImageWidthSize, sushiImageHeightSize
+				imageId.cnt = stat
+			loop
+			swbreak
+	
+		default
+			if sushiMode == S_MODE_4SHI {
+				sushiX.cnt -= powf(2, _4shiCount)
+			}
+			sushiX.cnt--
+			if sushiX.cnt/sushiImageWidthSize <= -imageWidth.cnt/sushiImageWidthSize {
+				removeSushi cnt
+			}
+		swend
+	loop
+	
+	return
+	
+	
+	/**
+	 * ÉÜÅ[ÉUÅ[Ç™éıéiÇéÊÇÈ
+	 */
+#deffunc takeSushiByPlayer
+	
+	if ginfo_act == -1 :return
+	if false == keyDowned(VK_LBUTTON) && false == keyJustBeforeDown(VK_LBUTTON) {
+		return
+	}
+	if mousex == -1 :return
+	
+	switch sushiMode
+	case S_MODE_SALT
+		repeat rnd(6)+3
+			// âñobjectê∂ê¨
+			newId = getBlankId(sushiCount, sushi, OBJECT_CAN_GENERATE_MAX)
+			sushiX.newId = mousex+rnd(10)-5
+			sushiY.newId = mousey+rnd(10)-5
+			sushiType.newId = sushiMax + S_MODE_SALT
+			sushiImageX.newId = 0
+			sushiImageY.newId = 0
+			imageId.newId = whiteImageId
+			imageX.newId = 0
+			imageY.newId = 0
+			imageWidth.newId = 2
+			imageHeight.newId = 2
+			// É}ÉEÉXâ∫ÇÃéıéiÇ…âñí«â¡
+			repeat sushiCount
+				if isBlankId(cnt, sushiCount, sushi) :continue
+				if isNotSushi(sushiType.cnt) :continue
+				if isExtra(sushiType.cnt) :continue
+				if sushiX.cnt <= mousex && mousex <= sushiX.cnt+sushiImageWidthSize {
+					xx = sushiX.newId \ sushiImageWidthSize
+					gsel imageId.cnt
+					repeat sushiImageHeightSize
+						pget xx, cnt
+						if ginfo_r || cnt == sushiImageHeightSize-1 {
+							if cnt == 0 :break
+							colorwhite
+							pset xx, cnt-1+rnd(5)
+							break
+						}
+					loop
+					gsel sushiWindowId
+				}
+			loop
+		loop
+		swbreak
+	
+	default
+		// çÌèú
+		repeat sushiCount
+			if isBlankId(cnt, sushiCount, sushi) :continue
+			if isLane(sushiType.cnt) :continue
+			if sushiX.cnt <= mousex && mousex <= sushiX.cnt+sushiImageWidthSize {
+				switch sushiType.cnt
+				case ST_PLATE
+				case sushiMax + S_MODE_PEKA
+				case sushiMax + S_MODE_SALT
+					// çÌèúÇµÇ»Ç¢
+					swbreak
+					
+				default
+					switch sushiImageX.cnt
+					case S_MODE_PEKA
+						removeSushi cnt, 1, 1
+						swbreak
+						
+					default
+						removeSushi cnt, 1
+					swend
+				swend
+			}
+		loop
+	swend
+	
+	return
+	
+	
+	/**
+	 * éıéiÇÃÉâÉìÉ_ÉÄê∂ê¨
+	 */
+#deffunc randomGenerate
+	
+	if maxSushiLane < countSushi() :return
+	
+	// ç¿ïWÇ™Ç´ÇËÇÃÇ¢Ç¢éûÇ…ÇµÇ©ê∂ê¨ÇµÇ»Ç¢
+	i = -1
+	repeat sushiCount	// Ç«ÇÍÇ≈Ç‡Ç¢Ç¢Ç©ÇÁÉåÅ[ÉìÇÃIDÇéÊìæ
+		if isBlankId(cnt, sushiCount, sushi) :continue
+		if isLane(sushiType.cnt) {
+			i = cnt
+			break
+		}
+	loop
+	if sushiX.i \ sushiImageWidthSize {
+		// éÊìæÇµÇΩÉåÅ[ÉìIDÇÃÇ´ÇËÇ™à´Ç¢Ç∆ê∂ê¨Ç»Çµ
+		return
+	}
+	
+	// ämóßÇÃéZèo
+	probability = 3 < rnd(10)
+	switch sushiMode
+	case S_MODE_BATTA
+		probability = 1
+		swbreak
+	swend
+	#ifdef DEBUG_ON
+	probability = 1
+	#endif
+	if probability == 0 {
+		return
+	}
+	
+	// ê∂ê¨
+	generateSushi ST_SUSHI :id = stat
+	if -1 == id :return
+	switch sushiImageX.id
+	case S_MODE_4SHI
+		swbreak
+	default
+		generateSushi ST_PLATE, id
+		swbreak
+	swend
+	
+	// ê∂ê¨å„ÇÃèàóù
+	switch sushiMode
+	case S_MODE_BATTA
+		sushiImageX.id = S_MODE_BATTA
+		removeImage id
+		makeImage id, 0, 0, sushiImageWidthSize, sushiImageHeightSize
+		imageId.id = stat
+		swbreak
+	swend
+	
+	return
+
+
+	/**
+	 * éıéiÇÃê∂ê¨
+	 */
+#deffunc generateSushi__ int type, int parent
+
+	count = sushiCount
+	newId = getBlankId(sushiCount, sushi, SUSHI_CAN_GENERATE_MAX)
+	if -1 == newId :return
+	beginX = sushiWindowWidthSize / sushiImageWidthSize
+	
+	sushiY.newId = 0
+	sushiType.newId = type
+	
+	switch type
+	case ST_LANE
+		sushiImageX.newId = 0
+		sushiImageY.newId = 0
+		swbreak
+		
+	case ST_PLATE
+		sushiImageX.newId = 0
+		sushiImageY.newId = 1
+		swbreak
+		
+	default
+		sushiY.newId = -2
+		sushiImageX.newId = (rnd(sushiMax-1)+1)
+		sushiImageY.newId = 2
+	swend
+	
+	#ifdef DEBUG_ON
+	if type == ST_SUSHI {
+		sushiImageX.newId = S_MODE_4SHI
+	}
+	#endif
+	
+	// âÊëúÇÃê∂ê¨
+	makeImage newId, 0, 0, sushiImageWidthSize, sushiImageHeightSize
+	imageId.newId = stat
+	if -1 == imageId.newId {
+		setBlankId newId, sushi
+		return
+	}
+	
+	// èdï°ämîF
+	repeat count
+		if isBlankId(cnt, sushiCount, sushi) :continue
+		if type != sushiType.cnt :continue
+		
+		if beginX == (sushiX.cnt / sushiImageWidthSize) {
+			beginX++
+			continue 0
+		}
+	loop
+	sushiX.newId = beginX * sushiImageWidthSize
+	logmes ""+beginX+" : "+type+" , "+sushiX.newId
+	
+	// êeÇÃç¿ïWåpè≥
+	switch parent
+	case ST_NOPARENT
+		swbreak
+		
+	default
+		sushiX.newId = sushiX.parent
+		sushiY.newId = sushiY.parent
+		swbreak
+	swend
+	
+	return newId
+	
+	
+	/**
+	 * âÊëúIDÇÃämï€
+	 */
+#deffunc makeImage int __parent, int __x, int __y, int __width, int __height
+	
+	imageNewId = getBlankId(imageCount, image, OBJECT_CAN_GENERATE_MAX)
+	if -1 == imageNewId {
+		return -1
+	}
+	imageId.__parent = imageNewId + blankImageBeginId
+	imageX.__parent = __x
+	imageY.__parent = __y
+	imageWidth.__parent = __width
+	imageHeight.__parent = __height
+	x = sushiImageX.__parent * sushiImageWidthSize
+	y = sushiImageY.__parent * sushiImageHeightSize
+	if imageCount-1 <= imageNewId {
+		buffer imageId.__parent, __width, __height
+	}else {
+		gsel imageId.__parent
+	}
+	pos 0, 0
+	gcopy sushiImageId, x, y, __width, __height
+	gsel sushiWindowId
+	
+	return imageId.__parent
+
+
+	/**
+	 * éıéiÇÃçÌèú
+	 */
+#deffunc removeImage int deleteId
+	
+	if 0 <= imageId.deleteId - blankImageBeginId {
+		setBlankId imageId.deleteId - blankImageBeginId, image
+	}
+	
+	return
+	
+	
+	/**
+	 * éıéiÇÃçÌèú
+	 */
+#deffunc removeSushi int deleteId, int isbyUser, int notDelete
+	
+	if not(notDelete) {
+		setBlankId deleteId, sushi
+		removeImage deleteId
+		if sushiType.deleteId == ST_SUSHI {
+			// éMÇ‡àÍèèÇ…çÌèú
+			xx = sushiX.deleteId
+			repeat sushiCount
+				if isBlankId(cnt, sushiCount, sushi) :continue
+				if isSushi(sushiType.cnt) :continue
+				if isExtra(sushiType.cnt) :continue
+				if isLane(sushiType.cnt) :continue
+				if sushiX.cnt == xx {
+					setBlankId cnt, sushi
+					removeImage cnt
+				}
+			loop
+		}
+	}
+	
+	if isLane(sushiType.deleteId) {
+		// ÉåÅ[ÉìÇÃåJï‘Çµ
+		generateSushi sushiType.deleteId, ST_NOPARENT
+	}
+	
+	if isbyUser {
+		// ÉÜÅ[ÉUÅ[Ç…ÇÊÇÈçÌèú
+		oldSushiMode = sushiMode
+		switch sushiType.deleteId
+		case ST_SUSHI
+			sushiMode = sushiImageX.deleteId
+			
+			switch sushiMode
+			case S_MODE_4SHI
+				oldSushiMode = -1
+			swend
+			
+			swbreak
+		swend
+	
+		changeSushiMode deleteId
+	}
+	
+	return
+	
+	
+	/**
+	 * éıéiÉÇÅ[ÉhÇÃïœçX
+	 */
+#deffunc changeSushiMode int parent
+
+	if oldSushiMode == sushiMode :return
+	oldSushiMode = sushiMode
+	
+	logmes "changed mode"
+	
+	switch sushiMode
+	case S_MODE_PEKA
+		// ìdãCÉIÉuÉWÉFÉNÉgÇÃçÏê¨
+		sushiMode = false
+		newId = getBlankId(sushiCount, sushi, OBJECT_CAN_GENERATE_MAX)
+		sushiX.newId = sushiX.parent/2*2
+		sushiY.newId = 14
+		sushiType.newId = sushiMax + S_MODE_PEKA
+		sushiImageX.newId = 1
+		sushiImageY.newId = 0
+		makeImage newId, 0, 0, sushiImageWidthSize, sushiImageHeightSize :newImageid = stat
+		imgxx = sushiImageX.newId*sushiImageWidthSize
+		xx = sushiX.newId/sushiImageWidthSize
+		logmes strf("%3d t:%d X:%3d[%2d]x%d img:%2d:%d[%d]x%d", newId, sushiType.newId, sushiX.newId, xx, sushiY.newId, imageId.newId, sushiImageX.newId, imgxx, sushiImageY.newId)
+		swbreak
+	
+	case S_MODE_BATTA
+		// ëSéıéiÇÇŒÇ¡ÇΩÇ‹ÇÒÇ…ïœçX
+		title tit+" HI SUSHI"
+		repeat sushiCount
+			if isBlankId(cnt, sushiCount, sushi) :continue
+			if isNotSushi(sushiType.cnt) :continue
+			if sushiImageX.cnt == S_MODE_4SHI {
+				generateSushi ST_PLATE, cnt
+			}
+			sushiImageX.cnt = S_MODE_BATTA
+			removeImage cnt
+			makeImage cnt, 0, 0, sushiImageWidthSize, sushiImageHeightSize
+			imageId.cnt = stat
+		loop
+		swbreak
+		
+	case S_MODE_SALT
+		title tit+" âñ"
+		swbreak
+	
+	case S_MODE_4SHI
+		title tit+" ÇSéÅ "+int(powf(2, _4shiCount+1))+"î{ë¨"
+		_4shiCount++
+		swbreak
+		
+	default
+		title tit
+		_4shiCount = 0
+	swend
+
+	return
+	
+	
+	/**
+	 * éıéiÇÃå¬êî
+	 */
+#defcfunc countSushi
+	
+	count = 0
+	repeat sushiCount
+		if isBlankId(cnt, sushiCount, sushi) :continue
+		if isNotSushi(sushiType.cnt) :continue
+		if isExtra(sushiType.cnt) :continue
+		count++
+	loop
+	
+	return count

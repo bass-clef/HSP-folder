@@ -1,0 +1,897 @@
+#uselib "user32.dll"
+#func FillRect "FillRect" int, var, int
+#func FrameRect "FrameRect" int, var, int
+#func ReleaseDC "ReleaseDC" int, int
+#cfunc ChildWindowFromPoint "ChildWindowFromPoint" int, int, int
+#cfunc GetDC "GetDC" int
+#cfunc GetAncestor "GetAncestor" int, int
+#cfunc WindowFromPoint "WindowFromPoint" int, int
+#func DestroyWindow "DestroyWindow" int
+#func EnableWindow "EnableWindow" int, int
+#func GetClientRect "GetClientRect" int, var
+#func GetWindowRect "GetWindowRect" int, var
+#func SetActiveWindow "SetActiveWindow" int
+#func SetWindowLongA "SetWindowLongA" int, int, int
+#func SetWindowPos "SetWindowPos" int, int, int, int, int, int, int
+#func SetWindowTextA "SetWindowTextA" int, str
+#cfunc GetAsyncKeyState "GetAsyncKeyState" int
+#cfunc GetSystemMetrics "GetSystemMetrics" int
+#cfunc GetWindowLongA "GetWindowLongA" int, int
+#cfunc IsWindow "IsWindow" int
+#cfunc MessageBoxA "MessageBoxA" int, str, str, int
+#cfunc PostMessageA "PostMessageA" int, int, int, int
+#cfunc IsWindowVisible "IsWindowVisible" int
+#func GetWindowThreadProcessId "GetWindowThreadProcessId" int, int
+
+#uselib "gdi32.dll"
+#func Arc "Arc" int, int, int, int, int, int, int, int, int
+#func Ellipse "Ellipse" int, int, int, int, int
+#func SetDCBrushColor "SetDCBrushColor" int, int
+#func SetDCPenColor "SetDCPenColor" int, int
+#cfunc GetPixel "GetPixel" int, int, int
+
+#uselib "shlwapi.dll"
+#cfunc PathIsDirectoryA "PathIsDirectoryA" str
+
+#uselib "Comdlg32.dll"
+#cfunc ChooseColorA "ChooseColorA" var
+#cfunc GetOpenFileNameA "GetOpenFileNameA" int
+#cfunc GetSaveFileNameA "GetSaveFileNameA" int
+
+#uselib "shell32.dll"
+#cfunc SHBrowseForFolderA "SHBrowseForFolderA" var
+#func SHGetPathFromIDListA "SHGetPathFromIDListA" int, var
+
+#uselib "ole32.dll"
+#func OleInitialize "OleInitialize" nullptr
+#func OleUninitialize "OleUninitialize"
+#func CoTaskMemFree "CoTaskMemFree" int
+
+#uselib "Pointer.dll"
+#cfunc GetPointer "GetPointer" str
+
+#uselib "EnumWindows.dll"
+#cfunc GetWindows "GetWindows" int, int
+
+#uselib "kernel32.dll"
+#cfunc OpenProcess "OpenProcess" int, int, int
+#func CloseHandle "CloseHandle" int
+
+#uselib "psapi.dll"
+#cfunc EnumProcessModules "EnumProcessModules" int, int, int, int
+#cfunc GetModuleFileNameExA "GetModuleFileNameExA" int, int, var, int
+
+	goto *label_07
+#deffunc void_var var prm_0
+	return prm_0
+#defcfunc not int prm_1
+	if ( prm_1 ) {
+		return 0
+	}
+	return 1
+#defcfunc gethbrush__
+	mref var_0, 67
+	return var_0(36)
+#defcfunc gethfont__
+	mref var_0, 67
+	return var_0(38)
+#defcfunc strnum__ var prm_2, int prm_3
+	var_0 = 0
+	repeat strlen(prm_2)
+		if ( peek(prm_2, cnt) == prm_3 ) {
+			var_0++
+		}
+	loop
+	return var_0
+#defcfunc spestr__ int prm_4
+	sdim var_1, 2
+	poke var_1, 0, prm_4
+	return var_1
+#defcfunc con__ int prm_5, var prm_6, var prm_7
+	if ( prm_5 ) {
+		return prm_6
+	}
+	return prm_7
+*label_07
+	goto *label_17
+#deffunc func int prm_45, int prm_46, int prm_47, int prm_48, int prm_49, int prm_50
+	var_2 = 0
+	var_3 = prm_49
+	if ( 0 ) {
+		var_4++
+	}
+	if ( var_3 == 1 | var_4 ) {
+		var_4 = 0
+		var_4++
+	}
+	if ( var_3 == 2 | var_4 ) {
+		var_4 = 0
+		var_4++
+	}
+	if ( var_3 == 3 | var_4 ) {
+		var_4 = 0
+		var_4++
+	}
+	if ( var_3 == 4 | var_4 ) {
+		var_4 = 0
+		var_5 = prm_45, prm_46, prm_47, prm_48
+		if ( prm_47 == 2147483647 ) {
+			var_5(2) = ginfo(12)
+		}
+		if ( prm_48 == 2147483647 ) {
+			var_5(3) = ginfo(13)
+		}
+		if ( prm_50 == 0 ) {
+			var_6 = hdc
+		}
+		else {
+			var_6 = prm_50
+		}
+		goto *label_09
+	}
+*label_09
+	var_3 = prm_49
+	if ( 0 ) {
+		var_4++
+	}
+	if ( var_3 == 1 | var_4 ) {
+		var_4 = 0
+		var_4++
+	}
+	if ( var_3 == 2 | var_4 ) {
+		var_4 = 0
+		SetDCBrushColor var_6, int(ginfo(16)) | int(ginfo(17)) << 8 | int(ginfo(18)) << 16
+		if ( prm_49 == 1 ) {
+			FrameRect var_6, var_5, gethbrush__()
+		}
+		else {
+			FillRect var_6, var_5, gethbrush__()
+		}
+		goto *label_10
+		var_4++
+	}
+	if ( var_3 == 3 | var_4 ) {
+		var_4 = 0
+		var_4++
+	}
+	if ( var_3 == 4 | var_4 ) {
+		var_4 = 0
+		SetDCPenColor var_6, int(ginfo(16)) | int(ginfo(17)) << 8 | int(ginfo(18)) << 16
+		SetDCBrushColor var_6, int(ginfo(16)) | int(ginfo(17)) << 8 | int(ginfo(18)) << 16
+		if ( prm_49 == 3 ) {
+			Arc var_6, var_5(0), var_5(1), var_5(2), var_5(3), var_5(0), var_5(1), var_5(0), var_5(1)
+		}
+		else {
+			Ellipse var_6, var_5(0), var_5(1), var_5(2), var_5(3)
+		}
+		goto *label_10
+		var_4++
+	}
+	if ( var_3 == 5 | var_4 ) {
+		var_4 = 0
+		if ( prm_50 == 0 ) {
+			var_6 = hdc
+		}
+		else {
+			var_6 = prm_50
+		}
+		var_2 = GetPixel(var_6, prm_45, prm_46)
+		color var_2 & 255, var_2 >> 8 & 255, var_2 >> 16 & 255
+		goto *label_10
+	}
+*label_10
+	var_3 = prm_49
+	if ( 0 ) {
+		var_4++
+	}
+	if ( var_3 == 1 | var_4 ) {
+		var_4 = 0
+		var_4++
+	}
+	if ( var_3 == 2 | var_4 ) {
+		var_4 = 0
+		var_4++
+	}
+	if ( var_3 == 3 | var_4 ) {
+		var_4 = 0
+		var_4++
+	}
+	if ( var_3 == 4 | var_4 ) {
+		var_4 = 0
+		var_2 = var_6
+		goto *label_11
+	}
+*label_11
+	if ( var_7 == 0 ) {
+		redraw 1, 0, 0, 0, 0
+		if ( 1 == 0 ) {
+			var_7 = 1
+		}
+		else {
+			var_7 = 0
+		}
+	}
+	return var_2
+#defcfunc vpget_ int prm_51, int prm_52, int prm_53, int prm_54
+	mref var_8, 66
+	var_9 = prm_53 * prm_54 - ((prm_52 + 1) * prm_53 - prm_51)
+	return int(peek(var_8, var_9 * 3 + 2)) | int(peek(var_8, var_9 * 3 + 1)) << 8 | int(peek(var_8, var_9 * 3)) << 16
+#deffunc vpset_ int prm_55, int prm_56, int prm_57, int prm_58, int prm_59
+	if ( prm_55 >= prm_57 | prm_56 >= prm_58 ) {
+		return
+	}
+	if ( prm_55 < 0 | prm_56 < 0 ) {
+		return
+	}
+	mref var_8, 66
+	var_9 = prm_57 * prm_58 - ((prm_56 + 1) * prm_57 - prm_55)
+	poke var_8, var_9 * 3 + 2, prm_59 & 255
+	poke var_8, var_9 * 3 + 1, prm_59 >> 8 & 255
+	poke var_8, var_9 * 3, prm_59 >> 16 & 255
+	return
+#defcfunc cfunc int prm_60, int prm_61, int, int, int prm_64, int prm_65
+	var_2 = 0
+	var_3 = prm_64
+	if ( 0 ) {
+		var_4++
+	}
+	if ( var_3 == 1 | var_4 ) {
+		var_4 = 0
+		if ( prm_65 == 0 ) {
+			var_2 = hdc
+		}
+		else {
+			if ( var_10(0) == 1 ) {
+				release
+			}
+			var_2 = GetDC(prm_65)
+			var_10 = 1, var_2, prm_65
+		}
+		goto *label_15
+		var_4++
+	}
+	if ( var_3 == 2 | var_4 ) {
+		var_4 = 0
+		if ( prm_65 == 0 ) {
+			if ( prm_60 == 16777215 | prm_61 == 16777215 ) {
+				var_2 = hwnd
+			}
+			else {
+				var_2 = WindowFromPoint(prm_60, prm_61)
+			}
+		}
+		else {
+			var_2 = ChildWindowFromPoint(prm_65, prm_60, prm_61)
+		}
+		goto *label_15
+		var_4++
+	}
+	if ( var_3 == 3 | var_4 ) {
+		var_4 = 0
+		var_2 = GetAncestor(prm_65, 1)
+		goto *label_15
+	}
+*label_15
+	return var_2
+#deffunc release onexit
+	if ( var_10(0) == 1 ) {
+		ReleaseDC var_10(1), var_10(2)
+		var_10(0) = 0
+	}
+	return
+*label_17
+	goto *label_40
+#deffunc spos_ int prm_109, int prm_110, int prm_111, int prm_112, int prm_113, int prm_114, int prm_115
+	SetWindowPos prm_109, prm_110, prm_111, prm_112, prm_113, prm_114, prm_115
+	return
+#deffunc postmsg_ int prm_116, int prm_117, int prm_118, int prm_119
+	return PostMessageA(prm_116, prm_117, prm_118, prm_119)
+#defcfunc mouse_x
+	var_11 = double((ginfo(10) - ginfo(12)) / 2)
+	void_var var_11
+	if ( ginfo(4) + refdval <= ginfo(0) & ginfo(0) <= ginfo(6) - refdval ) {
+		return mousex
+	}
+	return -1
+#defcfunc mouse_y
+	var_12 = double((ginfo(10) - ginfo(12)) / 2)
+	void_var var_12
+	var_13 = ginfo(11) - ginfo(13) - var_14
+	void_var var_13
+	if ( ginfo(5) + stat <= ginfo(1) & ginfo(1) <= ginfo(7) - refdval ) {
+		return mousey
+	}
+	return -1
+#defcfunc getkey int prm_120
+	return GetAsyncKeyState(prm_120)
+#defcfunc stick_ int prm_121, int prm_122, local prm_123
+	stick prm_123, prm_121, prm_122
+	return prm_123
+#deffunc notesel str prm_124
+	sdim var_15, strlen(prm_124)
+	var_15 = prm_124
+	notesel var_15
+	return
+#defcfunc noteget int prm_125
+	sdim var_16
+	noteget var_16, prm_125
+	return var_16
+#defcfunc cnvwtos int prm_126
+	var_17 = prm_126
+	return cnvwtos(var_17)
+#defcfunc strmid str prm_127, int prm_128, int prm_129
+	var_18 = prm_127
+	return strmid(var_18, prm_128, prm_129)
+#defcfunc strtrim str prm_130, int prm_131, int prm_132
+	var_18 = prm_130
+	// return /*0D 00 0105*/ ( var_18 prm_131 prm_132 )
+#defcfunc instr str prm_133, int prm_134, str prm_135
+	var_19 = prm_133
+	return instr(var_19, prm_134, prm_135)
+#deffunc input_ var prm_136, int prm_137, int prm_138, int prm_139, int prm_140
+	if ( prm_137 == (-1) ) {
+		var_20 = cfuncs(31, "", 0)
+	}
+	else {
+		var_20 = prm_137
+	}
+	if ( prm_138 == (-1) ) {
+		var_21 = cfuncs(32, "", 0)
+	}
+	else {
+		var_21 = prm_138
+	}
+	input prm_136, var_20, var_21, prm_139
+	var_22 = stat
+	if ( prm_140 != (-1) ) {
+		SetWindowLongA objinfo(var_22, 2), -20, prm_140
+		SetWindowPos objinfo(var_22, 2), , , , , , 55
+	}
+	return var_22
+#deffunc listbox_ var prm_141, int prm_142, str prm_143, int prm_144
+	listbox prm_141, prm_142, prm_143
+	var_22 = stat
+	if ( prm_144 > 0 ) {
+		if ( prm_144 == 1 ) {
+			SetWindowLongA objinfo(var_22, 2), -16, 1048576 | GetWindowLongA(objinfo(var_22, 2), -16)
+			SetWindowPos objinfo(var_22, 2), , , , , , 55
+		}
+	}
+	return var_22
+#deffunc dialog_ str prm_145, int prm_146, str prm_147, int prm_148
+	var_22 = 0
+	if ( prm_148 == 2147483647 ) {
+		var_23 = hwnd
+	}
+	else {
+		var_23 = prm_148
+	}
+	var_24 = prm_146
+	if ( 0 ) {
+		var_25++
+	}
+	if ( var_24 == 16 | var_25 ) {
+		var_25 = 0
+		dim var_26, 19
+		var_26(0) = 76, var_23
+		sdim var_18, 256
+		memset var_18, 0, 255
+		var_18 = strf("%s (%s)%c*.%s%c", prm_147, prm_145, 1, prm_145, 1)
+		var_18 += strf("All files (*.*)%c*.*%c%c", 1, 1, 1)
+		repeat strlen(var_18)
+			if ( peek(var_18, cnt) == 1 ) {
+				poke var_18, cnt, 0
+			}
+		loop
+		var_26(3) = varptr(var_18)
+		mref var_27, 65
+		var_26(7) = varptr(var_27)
+		var_26(8) = 260
+		var_28 = "ファイルを開く"
+		var_26(12) = varptr(var_28)
+		var_26(13) = 8388608 | 524288 | 131072
+		var_26(15) = GetPointer(refstr)
+		var_22 = GetOpenFileNameA(varptr(var_26))
+		goto *label_33
+		var_25++
+	}
+	if ( var_24 == 17 | var_25 ) {
+		var_25 = 0
+		dim var_26, 19
+		var_26(0) = 76, var_23
+		sdim var_18, 256
+		memset var_18, 0, 255
+		var_18 = strf("%s (%s)%c*.%s%c", prm_147, prm_145, 1, prm_145, 1)
+		var_18 += strf("All files (*.*)%c*.*%c%c", 1, 1, 1)
+		repeat strlen(var_18)
+			if ( peek(var_18, cnt) == 1 ) {
+				poke var_18, cnt, 0
+			}
+		loop
+		var_26(3) = varptr(var_18)
+		mref var_27, 65
+		var_26(7) = varptr(var_27)
+		var_26(8) = 260
+		var_28 = "名前をつけて保存"
+		var_26(12) = varptr(var_28)
+		var_26(13) = 8388608 | 524288 | 131072 | 2
+		var_26(15) = GetPointer(refstr)
+		var_22 = GetSaveFileNameA(varptr(var_26))
+		goto *label_33
+		var_25++
+	}
+	if ( var_24 == 32 | var_25 ) {
+		var_25 = 0
+		dialog prm_145, 32, prm_147
+		var_22 = stat
+		goto *label_33
+		var_25++
+	}
+	if ( var_24 == 33 | var_25 ) {
+		var_25 = 0
+		dialog prm_145, 33, prm_147
+		var_22 = stat
+		goto *label_33
+		var_25++
+	}
+	if ( var_24 == 35 | var_25 ) {
+		var_25 = 0
+		if ( length(var_29) == 1 ) {
+			dim var_29, 16
+			repeat 16
+				var_29(cnt) = int(255) | int(255) << 8 | int(255) << 16
+			loop
+		}
+		if ( strlen(prm_147) ) {
+			notesel prm_147
+			repeat noteinfo(0)
+				if ( strmid(noteget(cnt), 0, 1) == "$" ) {
+					var_29(cnt) = int("$" + noteget(cnt))
+				}
+				else {
+					var_29(cnt) = int(noteget(cnt))
+				}
+			loop
+		}
+		dim var_30, 9
+		var_30(0) = 36, var_23, 0
+		var_30(3) = int(ginfo(16)) | int(ginfo(17)) << 8 | int(ginfo(18)) << 16
+		var_30(4) = varptr(var_29)
+		var_30(5) = 3
+		var_22 = ChooseColorA(var_30)
+		if ( var_22 ) {
+			color var_30(3) & 255, var_30(3) >> 8 & 255, var_30(3) >> 16 & 255
+		}
+		goto *label_33
+		var_25++
+	}
+	if ( var_24 == 64 | var_25 ) {
+		var_25 = 0
+		var_31 = var_23
+		var_32 = ginfo(2)
+		var_33 = ginfo(25)
+		var_22 = var_33
+		EnableWindow var_31, 0
+		screen var_33, cfuncs(31, "", 0), cfuncs(32, "", 0), 4, (ginfo(20) - cfuncs(31, "", 0)) / 2, (ginfo(21) - cfuncs(32, "", 0)) / 2
+		funcs 0, 0, str(prm_147), 2, 0
+		var_34 = GetWindowLongA(hwnd, -16)
+		SetWindowLongA hwnd, -16, var_34 & 458752 ^ var_34
+		SetWindowLongA hwnd, -8, var_31
+		SetWindowPos hwnd, , , , , , 55
+		var_35 = hwnd
+		onexit gosub *label_34
+		goto *label_33
+		var_25++
+	}
+	if ( var_24 == 66 | var_25 ) {
+		var_25 = 0
+		OleInitialize
+		dim var_36
+		var_36(0) = var_23
+		var_36(1) = 0
+		sdim var_37, 260
+		var_36(2) = varptr(var_37)
+		var_36(3) = GetPointer(prm_145)
+		var_36(4) = 1 | 2 | 80
+		var_36(5) = 0, 0
+		var_36(6) = 0
+		var_38 = SHBrowseForFolderA(var_36)
+		if ( var_38 ) {
+			sdim var_37, 260
+			SHGetPathFromIDListA var_38, var_37
+			var_22 = stat
+			CoTaskMemFree var_38
+		}
+		else {
+			var_39 = 0
+			void_var var_39
+			var_40 = str("")
+			void_var var_40
+		}
+		OleUninitialize
+		var_41 = str(var_37)
+		void_var var_41
+		goto *label_33
+	}
+	if ( 1 ) {
+		var_42 = 262144
+		if ( prm_146 / 2 == 1 ) {
+			var_42 += 4
+		}
+		if ( prm_146 / 2 == 2 ) {
+			var_42 += 1
+		}
+		if ( prm_146 / 2 == 3 ) {
+			var_42 += 3
+		}
+		if ( prm_146 / 2 == 4 ) {
+			var_42 += 5
+		}
+		if ( prm_146 / 2 == 5 ) {
+			var_42 += 2
+		}
+		if ( prm_146 \ 2 ) {
+			var_42 += 48
+		}
+		else {
+			var_42 += 64
+		}
+		var_22 = MessageBoxA(var_23, prm_145, prm_147, var_42)
+	}
+*label_33
+	return var_22
+*label_34
+	if ( ginfo(2) != var_32 ) {
+		deldialog
+	}
+	return
+#deffunc deldialog
+	onexit 0
+	EnableWindow var_31, 1
+	SetActiveWindow var_31
+	DestroyWindow var_35
+	if ( var_32 != (-1) ) {
+		gsel var_32, 1
+	}
+	return
+#deffunc funcs int prm_149, int prm_150, str prm_151, int prm_152, int prm_153
+	var_22 = 0
+	if ( prm_153 == 0 ) {
+		var_23 = hwnd
+	}
+	else {
+		var_23 = prm_153
+	}
+	var_24 = prm_152
+	if ( 0 ) {
+		var_25++
+	}
+	if ( var_24 == 0 | var_25 ) {
+		var_25 = 0
+		SetWindowPos var_23, 0, prm_149, prm_150, 0, 0, 53
+		goto *label_37
+		var_25++
+	}
+	if ( var_24 == 1 | var_25 ) {
+		var_25 = 0
+		SetWindowPos var_23, 0, 0, 0, prm_149, prm_150, 54
+		goto *label_37
+		var_25++
+	}
+	if ( var_24 == 2 | var_25 ) {
+		var_25 = 0
+		SetWindowTextA var_23, prm_151
+		goto *label_37
+		var_25++
+	}
+	if ( var_24 == 3 | var_25 ) {
+		var_25 = 0
+		SetWindowLongA var_23, prm_149, prm_150
+		SetWindowPos var_23, , , , , , 55
+		goto *label_37
+		var_25++
+	}
+	if ( var_24 == 4 | var_25 ) {
+		var_25 = 0
+		SetWindowPos var_23, , , , , , 55
+		goto *label_37
+	}
+*label_37
+	return var_22
+#defcfunc cfuncs int prm_154, str prm_155, int prm_156, int prm_157
+	var_22 = 0
+	if ( prm_156 == 0 ) {
+		var_23 = hwnd
+	}
+	else {
+		var_23 = prm_156
+	}
+	var_24 = prm_154
+	if ( 0 ) {
+		var_25++
+	}
+	if ( var_24 == 4 | var_25 ) {
+		var_25 = 0
+		var_25++
+	}
+	if ( var_24 == 5 | var_25 ) {
+		var_25 = 0
+		var_25++
+	}
+	if ( var_24 == 6 | var_25 ) {
+		var_25 = 0
+		var_25++
+	}
+	if ( var_24 == 7 | var_25 ) {
+		var_25 = 0
+		var_25++
+	}
+	if ( var_24 == 10 | var_25 ) {
+		var_25 = 0
+		var_25++
+	}
+	if ( var_24 == 11 | var_25 ) {
+		var_25 = 0
+		dim var_43, 4
+		GetWindowRect var_23, var_43
+		var_44 = cfuncs(30, "", var_23, -8)
+		if ( var_44 != 0 ) {
+			dim var_45, 4
+			GetWindowRect var_44, var_45
+			var_43(0) = var_43(0) - var_45(0), var_43(1) - var_45(1), var_43(2) - var_45(0), var_43(3) - var_45(1)
+			var_22 = cfuncs(30, "", var_44, -16)
+			if ( not(var_22 & 1073741824) & not(var_22 & (-2147483648)) ) {
+				var_43(1) -= GetSystemMetrics(4)
+				var_43(3) -= GetSystemMetrics(4)
+			}
+			if ( var_22 & 262144 ) {
+				var_43(0) -= GetSystemMetrics(32)
+				var_43(1) -= GetSystemMetrics(33)
+				var_43(2) -= GetSystemMetrics(32)
+				var_43(3) -= GetSystemMetrics(33)
+			}
+			else {
+				if ( not(var_22 & 1073741824) & not(var_22 & (-2147483648)) ) {
+					var_43(0) -= GetSystemMetrics(7)
+					var_43(1) -= GetSystemMetrics(8)
+					var_43(2) -= GetSystemMetrics(7)
+					var_43(3) -= GetSystemMetrics(8)
+				}
+			}
+		}
+		if ( prm_154 == 4 ) {
+			var_22 = var_43(0)
+			goto *label_39
+		}
+		if ( prm_154 == 5 ) {
+			var_22 = var_43(1)
+			goto *label_39
+		}
+		if ( prm_154 == 6 ) {
+			var_22 = var_43(2)
+			goto *label_39
+		}
+		if ( prm_154 == 7 ) {
+			var_22 = var_43(3)
+			goto *label_39
+		}
+		if ( prm_154 == 10 ) {
+			var_22 = var_43(2) - var_43(0)
+			goto *label_39
+		}
+		if ( prm_154 == 11 ) {
+			var_22 = var_43(3) - var_43(1)
+			goto *label_39
+		}
+		var_25++
+	}
+	if ( var_24 == 12 | var_25 ) {
+		var_25 = 0
+		var_25++
+	}
+	if ( var_24 == 13 | var_25 ) {
+		var_25 = 0
+		dim var_43, 4
+		GetClientRect var_23, var_43
+		if ( prm_154 == 12 ) {
+			var_22 = var_43(2) - var_43(0)
+			goto *label_39
+		}
+		if ( prm_154 == 13 ) {
+			var_22 = var_43(3) - var_43(1)
+			goto *label_39
+		}
+		goto *label_39
+		var_25++
+	}
+	if ( var_24 == 28 | var_25 ) {
+		var_25 = 0
+		var_22 = PathIsDirectoryA(prm_155)
+		goto *label_39
+		var_25++
+	}
+	if ( var_24 == 29 | var_25 ) {
+		var_25 = 0
+		var_22 = IsWindow(var_23)
+		goto *label_39
+		var_25++
+	}
+	if ( var_24 == 30 | var_25 ) {
+		var_25 = 0
+		var_22 = GetWindowLongA(var_23, prm_157)
+		goto *label_39
+		var_25++
+	}
+	if ( var_24 == 31 | var_25 ) {
+		var_25 = 0
+		var_25++
+	}
+	if ( var_24 == 32 | var_25 ) {
+		var_25 = 0
+		mref var_46, 67
+		if ( prm_154 == 31 ) {
+			var_22 = var_46(29)
+			goto *label_39
+		}
+		if ( prm_154 == 32 ) {
+			var_22 = var_46(30)
+			goto *label_39
+		}
+		var_25++
+	}
+	if ( var_24 == 33 | var_25 ) {
+		var_25 = 0
+		var_22 = ginfo(10) - ginfo(12)
+		var_22 /= 2
+		goto *label_39
+		var_25++
+	}
+	if ( var_24 == 34 | var_25 ) {
+		var_25 = 0
+		var_22 = ginfo(11) - ginfo(13)
+		var_22 /= 2
+		goto *label_39
+		var_25++
+	}
+	if ( var_24 == 35 | var_25 ) {
+		var_25 = 0
+		sendmsg var_23, 14, 0, 0
+		var_47 = stat + 1
+		void_var var_47
+		sdim var_22, stat
+		sendmsg var_23, 13, stat, varptr(var_22)
+		goto *label_39
+		var_25++
+	}
+	if ( var_24 == 36 | var_25 ) {
+		var_25 = 0
+		mref var_46, 96 + prm_157
+		var_22 = var_46(13)
+		goto *label_39
+	}
+*label_39
+	return var_22
+*label_40
+	screen 0, 300, 300
+	var_48 = 2
+	sdim var_49, 64, var_48
+	var_50 = 0
+	var_51 = 0
+	repeat var_48
+		objsize 25, 20
+		pos 250, 300 / (var_48 + 2) * (cnt + 1)
+		button gosub "...", *label_43
+		pos 25, ginfo(23) - 40
+		if ( cnt ) {
+			mes "起動するファイル"
+		}
+		else {
+			mes "監視するファイル"
+		}
+	loop
+	repeat var_48
+		objmode 2
+		font "ＭＳ ゴシック", 16
+		pos 25, 300 / (var_48 + 2) * (cnt + 1)
+		input_ var_49(cnt), 225, 20, 0, -1
+	loop
+	objsize 250, 20
+	pos 25, 300 / (var_48 + 2) * (var_48 + 1)
+	button gosub "設定", *label_42
+*label_41
+	if ( var_51 ) {
+		if ( cfuncs(29, "", var_52) == 0 ) {
+			var_51 = 0
+		}
+	}
+	else {
+		if ( var_50 ) {
+			dim var_53
+			getvisiblewnd var_53
+			var_54 = -1
+			repeat length(var_53)
+				if ( getpath(var_49(0), 16) == getpath(getexefilename(var_53(cnt)), 16) ) {
+					var_54 = cnt
+					break
+				}
+			loop
+			if ( var_54 != (-1) ) {
+				var_52 = var_53(var_54)
+				repeat var_48 - 1, 1
+					if ( getpath(var_49(cnt), 2) == ".exe" ) {
+						exec var_49(cnt)
+					}
+					else {
+						exec var_49(cnt), 16
+					}
+				loop
+				var_51 = 1
+			}
+		}
+	}
+	wait 1
+	goto *label_41
+*label_42
+	var_54 = -1
+	repeat var_48
+		exist var_49(cnt)
+		if ( strsize == (-1) ) {
+			var_54 = cnt
+			break
+		}
+	loop
+	if ( var_54 != (-1) ) {
+		dialog_ "" + var_54 + "番目を登録していません", 0, "", 2147483647
+		return
+	}
+	var_50 = 1
+	return
+*label_43
+	var_55 = stat
+	if ( var_55 == 0 ) {
+		var_56 = "exe"
+	}
+	else {
+		var_56 = "*.*"
+	}
+	dialog var_56, 16, ""
+	if ( stat == 0 ) {
+		return
+	}
+	var_49(var_55) = refstr
+	objprm var_55 + var_48, var_49(var_55)
+	return
+	goto *label_45
+#deffunc getvisiblewnd array prm_161
+	dim var_57, 1000
+	var_58 = 0
+	repeat GetWindows(varptr(var_57), 1000)
+		if ( IsWindowVisible(var_57(cnt)) != 0 & var_57(cnt) != hwnd ) {
+			prm_161(var_58) = var_57(cnt)
+			var_58++
+		}
+	loop
+	return
+*label_45
+	goto *label_47
+#defcfunc getexefilename int prm_176
+	var_59 = 260 + 1
+	sdim var_60, var_59 + 1
+	var_61 = 0
+	GetWindowThreadProcessId prm_176, varptr(var_61)
+	var_62 = OpenProcess(1024 | 16, 0, var_61)
+	if ( not(var_62) ) {
+		return ""
+	}
+	var_63 = 0
+	var_64 = 0
+	if ( not(EnumProcessModules(var_62, varptr(var_63), 4, varptr(var_64))) ) {
+		return ""
+	}
+	memset var_60, 0, var_59
+	if ( not(GetModuleFileNameExA(var_62, var_63, var_60, var_59)) ) {
+		return ""
+	}
+	CloseHandle var_62
+	return var_60
+*label_47

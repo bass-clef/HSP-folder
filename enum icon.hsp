@@ -1,0 +1,33 @@
+	
+	#uselib "shell32.dll"
+	#cfunc	ExtractIcon		"ExtractIconA"		int, sptr, int
+	#uselib "user32.dll"
+	#func	DestroyIcon		"DestroyIcon"		int
+	#func	DrawIcon		"DrawIcon"			int, int, int, int
+	
+	dllname = "shell32.dll"
+	max = ExtractIcon(hInstance, dllname, -1)
+	index = -1
+	buffer 1, (max/10+1)*32, 320
+	redraw 0
+	if (index < 0) || (max <= index) :lp = max :else :lp = 1
+	
+	repeat lp, index
+		hIcon = ExtractIcon(hInstance, dllname, cnt)
+		if hIcon == NULL :end
+		if lp == 1 {
+			DrawIcon hdc@hsp, 0, 0, hIcon
+		}else {
+			DrawIcon hdc@hsp, cnt/10*32, cnt\10*32, hIcon
+		}
+		DestroyIcon hIcon
+	loop
+	redraw 1
+	if lp == 1 :sImg = 32, 32 :else :sImg = ginfo(12), 320
+	
+	bgscr 0, sImg.0, sImg.1
+	
+	pos 0, 0
+	gcopy 1, 0, 0, sImg.0, sImg.1
+	bmpsave ""+dir_desktop+"\\mouse.bmp"
+	

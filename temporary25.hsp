@@ -1,0 +1,416 @@
+	
+	// 真偽に変換
+	#define global ctype boolean(%1)	(0 != (%1))
+	// ビット取得(数値)
+	#define global ctype gbit(%1, %2)	( boolean( %1 & ( 1<<(%2) ) ) )
+	// ビットセット false
+	#define global sbit_0(%1, %2)		%1 &= 0xFFFFFFFF ^ ( 1<<(%2) )
+	// ビットセット true
+	#define global sbit_1(%1, %2)		%1 |= ( 1<<(%2) )
+	
+	// ビット取得(バイナリ)
+	#define global ctype sgbit(%1, %2)	gbit( peek(%1, (%2)/8), ((%2)\8) )
+	// ビットセット(バイナリ) false
+	#define global ssbit_0(%1, %2)		poke %1, (%2)/8, peek(%1, (%2)/8) & (0xFFFFFFFF ^ (1 << ((%2)\8) ) )
+	// ビットセット(バイナリ) true
+	#define global ssbit_1(%1, %2)		poke %1, (%2)/8, peek(%1, (%2)/8) | (1 << (%2)\8)
+	
+	#enum	global	T_ETC	= 0	// その他
+	#enum	global	T_ID		// 識別子
+	#enum	global	T_WS		// 空白予定
+	#enum	global	T_OPE		// 演算子
+	#enum	global	T_NUM		// 数字
+	#enum	global	T_STR		// 文字リテラル
+	#enum	global	T_FUN		// 関数
+	
+	#module
+	#deffunc PerserLexer str fname_, var buf, array prm, array type
+		fname = fname_
+		bsave fname, buf, strlen(buf)
+		chdir "D:\\Program Files\\HSP 3.31\\"
+		exec "objecter.exe "+fname
+		fname = getpath(fname, 32)+getpath(fname, 9)+".object"
+		
+		exist fname
+		if strsize == -1 :dialog "ファイルがありません。" :return -1
+		size = strsize
+		sdim fbuf, size+1
+		bload fname, fbuf, size
+		
+		// :ファイル構造:
+		// +0	総prm数		.4byte
+		// +4	タイプ		.1byte
+		// +9	バイト数	.4byte
+		// +13	値			.バイト数
+		len = lpeek(fbuf, 0)
+		index = 4
+		dim type, len
+		sdim prm, len
+		repeat len
+			type.cnt = peek(fbuf, index) :index++
+			prm_len = lpeek(fbuf, index) :index += 4
+			memexpand prm.cnt, prm_len+1
+			memcpy prm.cnt, fbuf, prm_len, 0, index
+			poke prm.cnt, prm_len, 0
+			index += prm_len
+			logmes " prm("+cnt+") => ["+prm.cnt+"]"
+		loop
+	return len
+	#global
+	
+	buf = {"
+var => "x |&, |&x |&& ;";	// var hoge(, ...) ;
+var hoge, foo, bar, piyo;
+
+if => "( ? ) {@ |... }@";	// if ( hoge ) { (foo) }
+if ( 0 == 0+1) { hoge = 1; }
+"}
+	/*
+	fname = dir_desktop+"\\like.txt"
+	bsave fname, buf, strlen(buf)
+	chdir "D:\\Program Files\\HSP 3.31\\"
+	exec "objecter.exe "+fname
+	fname = getpath(fname, 32)+getpath(fname, 9)+".object"
+	*/
+	PerserLexer dir_desktop+"\\like.txt", buf, prm, type
+	len = stat
+	if len <= 0 :error = -2
+	/*
+	fname = refstr
+	
+	exist fname
+	if strsize == -1 :dialog "ファイルがありません。" :end
+	size = strsize
+	sdim fbuf, size+1
+	bload fname, fbuf, size
+	
+	// :ファイル構造:
+	// +0	総prm数		.4byte
+	// +4	タイプ		.1byte
+	// +9	バイト数	.4byte
+	// +13	値			.バイト数
+	len = lpeek(fbuf, 0)
+	index = 4
+	dim type, len
+	sdim prm, len
+	repeat len
+		type.cnt = peek(fbuf, index) :index++
+		prm_len = lpeek(fbuf, index) :index += 4
+		memexpand prm.cnt, prm_len+1
+		memcpy prm.cnt, fbuf, prm_len, 0, index
+		poke prm.cnt, prm_len, 0
+		index += prm_len
+		logmes " prm("+cnt+") => ["+prm.cnt+"]"
+	loop
+	logmes ""
+	*/
+	
+	// 受け取る演算子
+	ops = "=>"
+	// 同上の 必要パラメータ数, 収納パラメータ数
+	ops_gpl = 2
+	ops_sgl = 1
+	// 
+	ops_jumps = *kw_def
+	
+	ops_len = length(ops)
+	
+	/*
+	// 構造
+	sdim defdef
+	// 現在のパラメタのみのフラグ(読み取り中に使用)
+	+0	t_or				.1bit		// 不定フラグ		(|で確定)
+	// しばらく続くフラグ(読み取り中に使用)
+	+.1	t_and			.1bit	// &以降回避		(&で確定)
+	+.2	flag			.1bit	// 識別子生存フラグ
+//	+.3	which			.1bit	// どちらかフラグ	(|の個数 ||で確定)
+	+.4	loop			.1bit	// ループ可能数		(&の個数 &&で確定)
+	+.5	addid			.1bit	// 子識別子フラグ	(.で確定)
+	+.6	any				.1bit	// 何かがあるフラグ	(...で確定 後ろの識別子で削除)
+	+.7	true			.1bit	// 空間内走るフラグ (?で確定 )
+	+1	beginlp			.1byte	// ループ開始index
+	+2	endlp			.1byte	// ループ終端index
+	+3	extra			.3byte	// 拡張ビット
+	// 順序文進行バイト
+	+4	at_len			.1byte	// @組の個数
+	+5	index			.1byte	// 定義文の index
+	+6	string_len		.1byte	// 順序文の長さ 255bまで
+	+7	string_flag	.string_len	// 順序文フラグ	DS_列挙
+	+	string		.string_len	// 順序文(記号のみ格納)
+	*/
+	goto *module_
+	#enum	DEF_T_OR	= 0
+	#enum	DEF_T_AND
+	#enum	DEF_FLAG
+	#enum	DEF_WHICH
+	#enum	DEF_LOOP
+	#enum	DEF_ADDID
+	#enum	DEF_ANY
+	#enum	DEF_TRUE
+	#enum	DEF_BEGLP	= 1
+	#enum	DEF_ENDLP
+	#enum	DEF_EXTRA
+	#enum	DS_OR		= 0	//+.0		or			.1bit	// |
+	#enum	DS_AND			//+.1		and			.1bit	// &
+	#enum	DS_WHICH		//+.2		which		.1bit	// ||
+	#enum	DS_LOOP			//+.3		loop		.1bit	// &&
+	#enum	DS_AT			//+.4		at			.1bit	// @
+	#enum	DS_IF			//+.5		if			.1bit	// ?
+	#enum	DS_ID			//+.6		id			.1bit	// x
+	#enum	DS_SIGN			//+.7		sign		.1bit	// 記号
+	#define	DS_ANY		DS_WHICH | DS_LOOP	//+.2&3	any			.2bit	// ...	
+	#define	DS_MYSELF	DS_AT | DS_ID		//+.4&6	myself		.2bit	// 定義子
+	#define	DS_CHILD	DS_ID | DS_SIGN		//+.6&7	child		.2bit	// .
+	#const	DS_BASE 1+3+1+1+1	/*nflag+extra+index+at+prmslen*/
+	// defdef進行
+	#deffunc DefDefCalc str token_
+		// defdefの中身を速度重視に変更したほうがよいかも
+		// ここでは読み取ってからのフラグ処理をします。
+		
+		// name探索
+		i = -1
+		repeat dmax
+			if defname.cnt == token_ :i = cnt :break
+		loop
+		if i != -1 {
+			defindex = peek(defdef.i, 5)
+			if defindex == 0 {
+				logmes "["+defname.i+"] field in"
+				deffind.i = nID
+			}
+		}
+		
+		repeat dmax
+			await
+			if i == cnt :continue
+			if 0 <= deffind.cnt {
+				// インデックス加算
+				defindex = peek(defdef.cnt, 5)
+				deffmax = peek(defdef.cnt, 6)
+				if defindex+1 == deffmax {
+					logmes "["+defname.cnt+"] field out"
+					poke defdef.cnt, 5, 0
+					deffind.cnt = -1
+				}else {
+					logmes "["+defname.cnt+"] next"
+					poke defdef.cnt, 5, defindex+1
+				}
+				// フラグ取得
+				flag = peek(defdef.cnt, 7+defindex)
+				logmes "["+defname.cnt+"] i("+defindex+") : ["+token_+"]"
+				
+				if sgbit(flag, DS_OR)	{logmes " bit or"
+					ssbit_1 defdef.cnt, DEF_T_OR
+				}
+				if sgbit(flag, DS_AND)	{logmes " bit and"
+					ssbit_1 defdef.cnt, DEF_T_AND
+					if peek(defdef.cnt, DEF_BEGLP) == 0 :poke defdef.cnt, DEF_BEGLP, defindex+1
+				}
+//				if sgbit(flag, DS_WHICH)	:logmes "bit which"
+				if sgbit(flag, DS_AT)		:logmes "bit at"
+				if sgbit(flag, DS_IF)		:logmes "bit if"
+				if sgbit(flag, DS_ID)		{
+					if type.nID == T_ID {
+						// 識別子作成
+						logmes " bit id ["+token_+"]"
+						varname.vmax = token_
+						i = 0	// ダミー
+						ssbit_1 defdef.cnt, DEF_FLAG
+					}else {
+						// されない
+						logmes " bit id not added"
+						if sgbit(defdef.cnt, DEF_T_OR) == 0 :defindex = -1
+					}
+				}
+				if sgbit(flag, DS_SIGN)		{
+					// 記号判定
+					sign = peek(defdef.cnt, DS_BASE +deffmax +defindex)
+					logmes " bit sign ["+token_+"] == ["+spestr(sign)+"]"
+					if token_ != spestr(sign) {
+						if sgbit(defdef.cnt, DEF_T_OR) == 0 :defindex = -1
+					}else {
+						ssbit_1 defdef.cnt, DEF_FLAG
+					}
+				}
+				if sgbit(flag, DS_LOOP)		{
+					poke defdef.cnt, DEF_ENDLP, defindex
+					if sgbit(defdef.cnt, DEF_T_OR) {
+						// ループしないかもしれない
+						logmes " bit loop in"
+						beglp = peek(defdef.cnt, DEF_BEGLP)
+						if beglp {
+							ssbit_0 defdef.cnt, DEF_FLAG
+							poke defdef.cnt, 5, beglp-1
+							continue cnt
+						}
+					}else {
+						logmes " bit endless loop in"
+						//defindex = -1
+						// while とか for とか
+					}
+				}
+				
+				
+				if defindex == -1 {
+					// 構文エラー
+					poke defdef.cnt, 5, 0 :deffind.cnt = -1
+					poke defdef.cnt, 0, 0
+				}else {
+					// 一時フラグ初期化
+					endlp = peek(defdef.cnt, DEF_ENDLP)
+					if endlp {
+						// 中身の無いループの場合
+						if sgbit(defdef.cnt, DEF_FLAG) == 0 {
+							logmes " bit loop out"
+							poke defdef.cnt, DEF_ENDLP, 0
+							poke defdef.cnt, DEF_BEGLP, 0
+							poke defdef.cnt, 5, endlp+1
+							ssbit_0 defdef.cnt, DEF_T_OR
+							ssbit_0 defdef.cnt, DEF_FLAG
+							continue cnt
+						}
+					}
+					ssbit_0 defdef.cnt, DEF_T_OR
+					ssbit_0 defdef.cnt, DEF_FLAG
+				}
+			}
+		loop
+	return i
+	*module_
+	
+	sdim defdef :dmax = 0
+	dim stack :smax = 0
+	sdim varname :vmax = 0
+	error = 0
+	for nID, 0, len, 1
+		DefDefCalc prm.nID
+		if stat == -1 && (type.nID == T_ID || type.nID == T_NUM || type.nID == T_STR) {
+			// 識別子, 数字, 文字列リテラル スタック
+			logmes " stack++ ["+prm.nID+"]"
+			stack.smax = nID
+			smax++
+		}else {
+			// その他スタック
+			logmes " call ["+prm.nID+"]"
+			n = -1
+			repeat ops_len
+				if prm.nID == ops.cnt :n = cnt :break
+			loop
+			if n != -1 :gosub *ops_jump
+		}
+		if error :_break
+	next
+	if error == -1 :mes "構文がおかしいです。("+prm.nID+")"
+	
+	stop
+	
+*kw_def
+	logmes "  ["+prm.p(1)+"] => ["+prm.p(0)+"]"
+	DefDefCompile prm.p(0), prm.p(1)
+	return
+	
+*ops_jump
+	// スタックから要求された数を下ろす
+	if ops_gpl.n <= smax {
+		dim p
+		repeat ops_gpl.n
+			p.cnt = stack(smax-1)
+			smax--
+		loop
+	}else :error = -1 :return
+	
+	// 演算
+	gosub ops_jumps.n
+	
+	// 結果を収納
+	repeat ops_spl.n
+		logmes " stack++ ["+prm(p.cnt)+"]"
+		stack.smax = p.cnt
+		smax++
+	loop
+	return
+	
+	// defstrを解析
+	#deffunc DefDefCompile var defstr_, var name_
+		tstr = strtrim(defstr_, 0, '\"')
+		//split tstr, " ", tprm
+		PerserLexer dir_desktop+"\\like.txt", buf, tprm, ttype
+		
+		StringToDefDef tprm
+		defname.dmax = name_
+		deffind.dmax = -1
+		dmax++
+	return
+	
+	// defdefに登録
+	#deffunc StringToDefDef array tprm_
+		// 順序文をフラグに変換
+		tprms_len = length(tprm_)
+		sdim tdefdef, tprms_len+1 :index = 0
+		sdim sign, tprms_len+1
+		at_len = 0
+		for i, 0, tprms_len, 1
+			tprm_len = strlen(tprm_.i)
+			repeat tprm_len
+				token = peek(tprm_.i, cnt)
+				if token == '|' {
+					if cnt+1 < tprm_len :if peek(tprm_.i, cnt+1) == '|' {
+						ssbit_1 tdefdef, DS_WHICH +i*8
+						continue cnt+2
+					}
+					ssbit_1 tdefdef, DS_OR +i*8
+					continue
+				}
+				if token == '&' {
+					if cnt+1 < tprm_len :if peek(tprm_.i, cnt+1) == '&' {
+						ssbit_1 tdefdef, DS_LOOP +i*8
+						continue cnt+2
+					}
+					ssbit_1 tdefdef, DS_AND +i*8
+					continue
+				}
+				if token == '.' {
+					if cnt+1 < tprm_len :if peek(tprm_.i, cnt+1) == '.' {
+						ssbit_1 tdefdef, DS_ANY +i*8
+						continue cnt+2
+					}
+					ssbit_1 tdefdef, DS_CHILD +i*8
+					continue
+				}
+				if ('a'<=token && token<='z') || ('A'<=token && token<='Z') {
+					j = cnt
+					repeat
+						if tprm_len <= j :break
+						t = peek(tprm_.i, j)
+						if ('a'<=t && t<='z') || ('A'<=t && t<='Z') || ('0'<=t && t<='9') {
+							j++
+						}else :break
+					loop
+					ssbit_1 tdefdef, DS_ID +i*8
+					continue j
+				}
+				if token == '@' {
+					ssbit_1 tdefdef, DS_AT +i*8
+					at_len++
+					continue
+				}
+				if token == '?' :ssbit_1 tdefdef, DS_IF +i*8	:continue
+				
+				// その他の記号
+				ssbit_1 tdefdef, DS_SIGN +i*8
+				poke sign, i, token
+			loop
+			logmes "defprmflags["+tprm_.i+"]"+strf("%X", peek(tdefdef, i))
+		next
+		
+		// 本体defdefにコピー
+		allsize = DS_BASE +tprms_len*2
+		memexpand defdef.dmax, allsize+1/*null*/
+		memset defdef.dmax, 0, allsize, 0
+		/*1 +3 +1*/
+		poke defdef.dmax, 4, at_len
+		poke defdef.dmax, 6, tprms_len
+		memcpy defdef.dmax, tdefdef, tprms_len, DS_BASE, 0
+		memcpy defdef.dmax, sign, tprms_len, DS_BASE +tprms_len, 0
+	return
+	

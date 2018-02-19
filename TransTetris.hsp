@@ -1,0 +1,2236 @@
+	
+	
+	// 透過テトリス
+	/*
+	：消える条件：
+	・透過度が0になる
+	・横一列
+	
+//	・全部のブロックがスピンできる
+
+//	・アルファベットモード(A to Z)
+	・エディタモード(自由に面を作成できる [透過,色]を自由に設定できる(絵を描こう))
+//	・ダンジョンモード(少ない隙間を潜り抜けて指定ラインを消す)
+	・でこぼこモード(落下途中で突然壁が現れる)
+	・落下中のブロックが複数あるモード(選択はブロックタップ(クリック)で)
+	・マルチ協力モード(TCP/IPで操作)
+	
+	
+	設定
+	・重力 (無[一列削除しても落ちない]-中[普通のやつ]-強[隙間は全部埋まる])
+	・アイテムの可否
+	・効果音/BGM
+	*/
+	
+	// 回転の軸をずらせるように (x-spin, 壁際での回転)
+	// 壁際
+	// ・通常回転後の埋まっている位置で移動
+	
+	// spin 
+	// ・右回転の時は１つ左３マス 左回転の時は１つ右３マス を軸判定
+	// ・入れるには回転後のブロックが１つ左の縦３マスに当てはまればok
+	// ・条件として判定するのは最後
+	// ・(普通の回転 -> 左右上下が壁の場合の移動回転 -> spin)
+	
+	// //・stage txt の meta タグの stage化
+	// //・hyper回転の挙動がまだおかしい,分解する
+	// ・gameover時,クリア時の挙動変更
+	// ・点数計算の改善(X-spin, AllBlank, Hyper-spin)
+	// ・識別子操作に変更
+	
+	// bug
+	// ・まれにホールド開放時にブロック生成
+	// ・gameover時に無操作でデッドロック発生
+	// //・hyperspinにまだある	// おそらく直った
+	// ?・addpointが無限にできるブロックがある
+	// 予定
+	// ・pause画面作成 [再開,最初から,select画面へ,終了]
+	// ・trans変数,tet変数 に分離
+	
+	/*
+	calcSelObj groupid, mx, my
+	// makeSelObj gid, GRT_MSG, subid, v_ptr, val
+	
+	// ゲーム用
+	calcSelObj GRID_SELECT, mousex, mousey
+	if stat :drawf = D_FRAME
+
+		cpausef = 1
+		sdim menustr
+		menustr = "最初から", "セレクト画面へ", "終了"
+		menuenum = MN_RESTART, MN_TOSELECT, MN_QUIT
+		makePauseMenu
+	*/
+
+	
+//	#uselib "user32.dll"
+//	#func	SetTimer			"SetTimer"			int, int, int, int
+//	#include "hsp3dish.as"
+	
+	#packopt hide 0
+	#packopt name "tetle"
+	
+	// キーフラグ
+	#define		K_L				1
+	#define		K_U				2
+	#define		K_R				4
+	#define		K_D				8
+	#define		K_RL			16
+	#define		K_RR			32
+	#define		K_HOLD			64
+	#define		K_PAUSE			128
+	
+	// 描画する種類
+	#define		D_FRAME		1
+	#define		D_BLOCKS	2
+	#define		D_ALL		D_FRAME | D_BLOCKS
+	
+	// ゲーム終了時の操作
+	#enum	GO_EXIT		= 1
+	#enum	GO_SELECT
+	#enum	GO_CHANGE
+	
+	// クリア条件
+	#enum	CLR_ENDLESS		= 0
+	#enum	CLR_NONBLOCK
+	#enum	CLR_LEVEL
+	
+	// 重力
+	#enum	GV_NON		= 0		/* 通常の速度で落下/横一列で削除・落下 */
+	#enum	GV_NORMAL			/* 自由落下なし/横一列で削除・落下なし */
+	#enum	GV_HEAVY			/* 強い自由落下/横一列で削除・空白全部落下 */
+	
+	// ブロックの大まかな種類
+	#define		BLK_BLANK		0
+	#define		BLK_CHANGE_BEG	227
+	#define 	BLK_CHANGE_END	253
+	#define		BLK_WALL		255
+	
+	// [tettable]と[tetsize]の情報
+	#enum		MODE_NORMAL		= 0
+	#enum		MODE_ALPHABET
+	#enum		MODE_TETLE
+	#enum		MODE_BOX
+	#enum		MODE_ROUGHNESS
+	#enum		ALPHABET
+	#enum		MODE_USER
+	
+	// 変数[tet]の情報
+	#enum		TET_FLAG	= 0
+	#enum		TET_TRANS
+	#enum		TET_ID
+	
+	// 選択メニュー
+	#enum		MN_RESUME	= 0
+	#enum		MN_RESTART
+	#enum		MN_TOSELECT
+	#enum		MN_QUIT
+	
+	// グループIDのタイプ
+	#enum	global	GRID_SELECT = 0
+	// グループの内容のタイプ
+	#enum	global	GRT_MSG	= 1
+	
+	#define H_PI M_PI/2.0
+	
+	#define setNewTetrimino(%1=-1)	setNewTetrimino__ %1
+	#define makeMsgWnd(%1="", %2, %3, %4=128, %5=-1, %6=-1, %7=-1)		makeMsgWnd__ %1, %2, %3, %4, %5, %6, %7
+	
+	// 数字かどうか
+	#define ctype isnumber(%1)	('0' <= %1 && %1 <= '9')
+	// アルファベットかどうか
+	#define ctype isalphabet(%1)	(('A' <= %1 && %1 <= 'Z') || ('a' <= %1 && %1 <= 'z'))
+	// Shift-JIS かどうか
+	#define ctype isshiftjis(%1)	(((0x80 <= %1) && (%1 <= 0x9F)) || ((0xE0 <= %1) && (%1 <= 0xFE)))
+	
+	// 大きさ
+	xmar = 2
+	ymar = 4
+	xmax = 10
+	ymax = 20
+	xsize = 16
+	ysize = 16
+	
+	// 座標
+	initxsel = 3+xmar
+	initysel = ymar
+	wndxpos = 100
+	wndypos = 300
+	
+	// 固定までの時間
+	initfixtime = 60
+	filtime = 0
+	inifixanimetime = 10	// 固定アニメーション
+	inidelanimetime = 27	// 削除アニメーション
+	initstaranimetime = 15	// キラキラアニメーション
+	
+	// 落下関連
+	startfalltime = 70
+	initfalltime = startfalltime
+	falltime = 0
+	
+	// ゲーム用変数初期化
+	initGameVariable
+	
+	// 色テーブル
+	clrdiv = 3
+	clrlen = 3
+	clrbuf = ""
+	clrbuf = "022220020200002210202001010011012021100101102110111112120121122201211212221222000"
+	
+	// ブロック情報
+	sizetable = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	sizevalue = "33333333433333233333334333"
+	tettable.MODE_NORMAL	= "IOSZJLT"
+	tettable.MODE_ALPHABET	= "IOSZJLTABCDEFGHKMNPQRUVWXY"
+	tettable.MODE_TETLE		= "TETLE"
+	tettable.MODE_BOX		= "IOER"
+	tettable.MODE_ROUGHNESS	= "CFGTVX"
+	tettable.ALPHABET		= "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	tetsize.MODE_NORMAL		= "4233333"
+	tetsize.MODE_ALPHABET	= "42333333333333333333333433"
+	tetsize.MODE_TETLE		= "333343"
+	tetsize.MODE_BOX		= "4233"
+	tetsize.MODE_ROUGHNESS	= "333333"
+	tetsize.ALPHABET		= "33333333433333233333334333"
+	repeat length(tetsize)
+		tetlen.cnt = strlen(tettable.cnt)
+		intstrtobinary tetsize.cnt, '0'
+		intstrtobinary tettable.cnt, 'A'
+	loop
+	
+	// ゲームモード
+	tetmode = MODE_NORMAL
+	level = 0		// レベル
+	cheat = 1		// チートを許可
+	initcheat = 0	// 初期チート
+	toof = -1		// 同様の連続
+	titlename = "TETLE"
+	autofall = 1		// 自由落下
+	gravity = GV_NORMAL	// 重力
+	fill = xmax			// 1 Line判定
+	
+	// ステージ情報
+	sdim initgoals
+	sdim names
+	sdim blocksdata
+	sdim cheats
+	sdim clrbufs
+	dim clrdivs
+	dim clrlens
+	dim stageclr
+	dim blocksfataf
+	dim starfs
+	dim initgoalmax
+	dim xmaxs
+	dim ymaxs
+	dim xmars
+	dim ymars
+	dim xsizes
+	dim ysizes
+	dim initxsels
+	dim initysels
+	dim toofs
+	dim fills
+	dim autofalls
+	dim gravitys
+	dim cleartypes
+	
+	stage = 0
+	stagemax = 1
+	selstage = 0//-1
+	clrmax = 0
+	modemax = 0
+	menuf = 0
+	
+	// FPS
+	fps = 60
+	
+	// キーテーブル
+	initkeytime = 8
+	key = 37, 38, 39, 40, 'Z', 'X', 'S', 27
+	keytype = K_L, K_U, K_R, K_D, K_RL, K_RR, K_HOLD, K_PAUSE
+	keymax = length(key)
+	dim keytime, keymax
+	
+	// ゲーム用メッセージBOX
+	dim mespos		// 座標
+	dim messize		// 大きさ
+	dim mesflag		// 表示時間/フラグ
+	sdim mestext	// 表示内容
+	
+	// 面データ読み込み
+	loadResource
+	// メッセージBOX初期化
+	initMsgWnd 100
+	
+	logmes "----------------------------------------"
+	
+	makeBuffer
+	startInit
+	
+*gamemain
+	
+	calcMain
+	drawAll
+	
+	await 1000/fps
+	goto *gamemain
+	
+	// バッファの初期化
+#deffunc makeBuffer
+	// 黒画面
+	blackid = 4
+	buffer blackid, ginfo(20), ginfo(21)
+	color :boxf
+	
+	// アルファベット
+	tetbufid = 3
+	buffer tetbufid
+	picload "Tetrimino.bmp"
+	imgwdh = ginfo(12)
+	imghgt = ginfo(13)
+	dim tetres, imgwdh*imghgt
+	repeat imgwdh*imghgt
+		pget@hsp cnt\imgwdh, cnt/imgwdh
+		tetres.cnt = (ginfo_r == 0)
+	loop
+	setResourceInfo imgwdh, imghgt, 4, 4
+	
+	// ブロック生成
+	MAX_COLOR = strlen(clrbuf)/clrlen
+	lens = clrlen/3
+	tetid = 2
+	logmes "make blocks "+stageclr+" ("+MAX_COLOR+")"
+	buffer tetid, MAX_COLOR*xsize+1, ysize*2, 0, 100, 100
+	boxf
+	repeat MAX_COLOR
+		inf = strmid(clrbuf, cnt*clrlen, clrlen)
+//		intstrtobinary inf, '0'
+//		tetclr.cnt = RGB(255/(clrdiv-1)*peek(inf, 0), 255/(clrdiv-1)*peek(inf, 1), 255/(clrdiv-1)*peek(inf, 2))
+		clr_r = int(strmid(inf, 0, lens))
+		clr_g = int(strmid(inf, 1*lens, lens))
+		clr_b = int(strmid(inf, 2*lens, lens))
+		tetclr.cnt = RGB(255/(clrdiv-1)*clr_r, 255/(clrdiv-1)*clr_g, 255/(clrdiv-1)*clr_b)
+		logmes "make color ["+clr_r+","+clr_g+","+clr_b+"]"
+	loop
+	repeat MAX_COLOR
+		makeTetImage cnt*xsize+1, 1, xsize-2, ysize-2, tetclr.cnt
+	loop
+	repeat MAX_COLOR
+		makeTetImage cnt*xsize, ysize, xsize, ysize, tetclr.cnt
+	loop
+	
+	// メモリ用
+	bufid = 1
+	buffer bufid, xmaxsize, ymaxsize
+	font msgothic, 10
+	
+	// 本体
+	drawf = 0
+	mainid = 0
+	if fps {
+		gsel mainid
+		width xbufmar*2+xmaxsize, ybufmar*2+ymaxsize//, wndxpos, wndypos
+	}else {
+		screen mainid, ginfo(20), ginfo(21), 0, wndxpos, wndypos, xbufmar*2+xmaxsize, ybufmar*2+ymaxsize
+	}
+	// タイトル
+	if 0 <= selstage && selstage < stagemax {
+		title titlename+" - "+names.selstage
+	}else {
+		title titlename
+	}
+	
+	font msgothic, ysize-2
+	return
+	
+#deffunc initGameVariable
+	// 大きさ(計算)
+	xmarsize = -xmar*xsize
+	ymarsize = -ymar*ysize
+	xmaxsize = xmax*xsize
+	ymaxsize = ymax*ysize
+	xallmax = xmax+xmar*2
+	yallmax = ymax+ymar*2
+	xallmaxsize = xallmax*xsize
+	yallmaxsize = yallmax*ysize
+	xyallmax = xallmax*yallmax
+	
+	// ホールド画面
+	selhold = -1
+	holdf = 0
+	xhold = 5
+	yhold = 5
+	wdhhold = 4*xsize
+	hgthold = 4*ysize
+	
+	// ゲーム画面
+	xbufmar = 5+wdhhold+xhold
+	ybufmar = 5
+	
+	// ゴール画面・レベル画面
+	wdhgoal = xsize*4
+	hgtgoal = ysize/2*3
+	wdhlevel = wdhgoal
+	hgtlevel = 4*ysize
+	
+	xgoal = 5
+	ygoal = ybufmar+ymaxsize-hgtgoal-hgtlevel-5
+	xlevel = xgoal
+	ylevel = ygoal +hgtgoal +5
+	
+	// next画面
+	xnext = 5+xbufmar+xmaxsize
+	ynext = 5
+	wdhnext = wdhhold
+	hgtnext = hgthold
+	
+	// nextnext画面
+	minixsize = 0.75*xsize
+	miniysize = 0.75*ysize
+	xnext2 = xnext
+	ynext2 = ynext+hgtnext+5
+	wdhnext2 = minixsize*4	//3*xsize
+	hgtnext2 = miniysize*4
+	
+	// 初期選択・ホールド
+	sel = -1
+	selhold = -1
+	dim hold
+	
+	// ブロックフィールド
+	tetmax = tetlen.tetmode
+	dim tet, xyallmax
+	
+	// 落下関連
+	initfalltime = startfalltime	// 速度
+	dim row, yallmax	// 固定済み
+	
+	// レベル
+	level = 0
+	dline = 0
+	dlinemax = 0
+	gameover = 0
+	
+	return
+	
+	// ステージ開始前
+#deffunc startInit
+
+	// ステージ情報読み込み
+	loadStage
+	
+	// ブロックID機構初期化
+	initTetriminoId
+	
+	// ゲーム中の変数初期化
+	initGameVariable
+	
+	// ゲーム画面初期化
+	makeBuffer
+	
+	// tetmax*2先まで事前に確保
+	dim tetnext, tetmax*2
+	nextf = tetmax
+	if toof != -1 {
+		// ずっと同じ
+		repeat tetmax*2
+			tetnext.cnt = toof
+		loop
+	}else {
+		// 規則的乱数
+		for i, 0, 2, 1
+			repeat tetmax
+				tetnext(cnt+i*tetmax) = cnt
+			loop
+			repeat tetmax
+				to = rnd(tetmax)+i*tetmax
+				n = tetnext(cnt+i*tetmax)
+				tetnext(cnt+i*tetmax) = tetnext.to
+				tetnext.to = n
+			loop
+		next
+	}
+	
+	// 壁設置
+	for i, 0, ymar, 1
+		repeat xallmax
+			tet((ymax+ymar+i)*xallmax+cnt) = BLK_WALL
+		loop
+	next
+	if ymar {
+		repeat xallmax
+			tet.cnt = BLK_WALL
+		loop
+	}
+	for i, 0, xmar, 1
+		repeat yallmax
+			tet(cnt*xallmax+i) = BLK_WALL
+			tet(cnt*xallmax+xmar+xmax+i) = BLK_WALL
+		loop
+	next
+	
+	if 0 <= selstage && selstage < stagemax {
+		// その他のブロック設置
+		if blocksfataf.selstage {
+			xlen = xmar
+			ylen = ymar
+			for i, 0, xmax*ymax, 1
+				token = peek(blocksdata.selstage, i)
+				if token == BLK_WALL {
+					tet(ylen*xallmax+xlen) = (tetmax*2+1) || (255 << 8) :xlen++
+				}else :if token == BLK_BLANK {
+					tet(ylen*xallmax+xlen) = 0 :xlen++
+				}else {
+					tet(ylen*xallmax+xlen) = token || (255 << 8) :xlen++
+				}
+				if xlen == xmax+xmar :ylen++ :xlen = xmar
+			next
+		}
+	}
+	
+	// 新しいブロック
+	setNewTetrimino
+	drawf = D_ALL
+	return
+	
+#deffunc loadStage
+	// ステージ情報読み込み
+	
+	if 0 <= selstage && selstage < stagemax {
+		// クリアライン設定
+		dim initgoal
+		goal = wpeek(initgoals.selstage, 0)
+		repeat initgoalmax.selstage
+			initgoal.cnt = wpeek(initgoals.selstage, cnt*2)
+		loop
+		
+		// タイトル
+		title titlename+" - "+names.selstage
+		
+		// ステージブロック情報
+		xmax	= xmaxs.selstage
+		ymax	= ymaxs.selstage
+		xmar	= xmars.selstage
+		ymar	= ymars.selstage
+		xsize	= xsizes.selstage
+		ysize	= ysizes.selstage
+		toof	= toofs.selstage
+		cheat	= cheats.selstage
+		tetmode		= tetmodes.selstage
+		gravity		= gravitys.selstage
+		autofall	= autofalls.selstage
+		initxsel	= initxsels.selstage
+		initysel	= initysels.selstage
+		cleartype	= cleartypes.selstage
+		if xmar <= 0 :xmar = 1
+		if ymar <= 0 :ymar = 1
+		if fills.stage == -1 :fill = xmax :else :fill = fills.selstage
+		if starfs.stage :staranimetime = initstaranimetime
+		
+		// 色情報
+		stageclr	= stageclrs.selstage
+		clrbuf = clrbufs.stageclr
+		clrdiv = clrdivs.stageclr
+		clrlen = clrlens.stageclr
+	}
+	// クリアライン設定
+	if tetmode < MODE_USER {
+		repeat tetlen.ALPHABET
+			initgoal.cnt = int( (sin( -H_PI + M_PI/tetlen.ALPHABET * (cnt+1) )+1.0) * 500 )
+		loop
+		goal = initgoal
+		minusfalltime = startfalltime/tetlen.ALPHABET+1
+		repeat level+1
+			initfalltime -= minusfalltime
+			if initfalltime < 0 :initfalltime = 0
+		loop
+	}
+	return
+	
+#deffunc loadResource
+	// 面データ読み込み
+	exist "Tfield.txt"
+	if 0 <= strsize {
+		size = strsize
+		sdim buf, size+1
+		bload "Tfield.txt", buf, size
+		
+		begin_tag = -1
+		begin_prm = -1
+		end_tag = -1
+		endf = 0
+		prmf = 0
+		eqf = 0
+		stringf = 0 :stringedf = 0
+		len = strlen(buf)
+		for i, 0, len, 1
+			token = peek(buf, i)
+			if token == '<' {
+//				logmes "backets begin"
+				begin_tag = i
+				sdim tag
+				prmf = 0
+				endf = 0
+			}
+			// 文字列
+			if stringedf :stringf = 0 :stringedf = 0
+			if stringf {
+				if stringf == token :stringedf = 1
+			}else {
+				if token == '\"' || token == '\'' /*'*/ :stringf = token
+			}
+			// タグ
+			if begin_tag != -1 {
+				if isalphabet(token) || isnumber(token) || (token == '_') || (0 < stringf) {
+					memexpand tag, i-begin_tag-1+1
+					poke tag, i-begin_tag-1, token
+				}else {
+					memexpand tag, i-begin_tag+2
+					poke tag, i-begin_tag+1, 0
+					
+					if endf {
+						if strlen(tag) {
+//							logmes "end ["+tag+"]"
+							tagsInput
+						}
+					}else {
+						if strlen(tag) {
+							if eqf {//		logmes "data ["+tag+"]"
+								eqf = 0
+							}else :if prmf {
+//								logmes "prm ["+tag+"]"
+							}else {
+//								logmes "tag ["+tag+"]"
+							}
+							
+							tagsInput
+							prmf++
+						}
+						if token == '/' :endf = 1
+						if token == '=' :eqf = 1
+					}
+					sdim tag
+					begin_tag = i
+				}
+				if token == '>' {
+//					logmes "backets end\n"
+					begin_tag = -1
+					end_tag = i
+				}
+			}
+		next
+	}
+	return
+	
+#deffunc tagsInput
+	if dataf {
+		dataf = 0
+		logmes ""+tagname+" => "+tag
+		dupptr clone, v_ptr, 4, 4
+		clone = int(tag)
+		if tagname == "xpos" :clone += xmar-1
+		if tagname == "ypos" :clone += ymar
+	}
+	if modef {
+		modef = 0
+		if tag == "ALL" {
+			// アルファベット全部
+			mode_allf = 1
+			tetmodes.stage = ALPHABET
+			basetable = sizetable
+			logmes "mode => alphabet"
+		}else :if tag == "NORMAL" {
+			// 普通
+			tetmodes.stage = MODE_NORMAL
+			basetable = sizetable
+			logmes "mode => normal"
+		}else {
+			// ユーザー定義
+			
+			// 既存使用判定
+			tag = strtrim(tag, 0, '\"')
+			t_tettable = tag
+			t_tetlen = strlen(tag)
+			intstrtobinary t_tettable, 'A'
+			
+			for n, 0, MODE_USER+modemax, 1
+				if tetlen.n != t_tetlen :nif = -1 :_continue
+				nif = n
+				repeat t_tetlen
+					if peek(t_tettable, cnt) != peek(tettable.n, cnt) :nif = -1 :break
+				loop
+				if nif != -1 :_break
+			next
+			if nif != -1 {
+				// 既存
+				basetable = sizetable
+				tetmodes.stage = nif
+				logmes "mode => ["+tag+"]"
+			}else {
+				// 新規
+				basetable = tag
+				selmode = MODE_USER+modemax
+				tetmodes.stage = selmode
+				
+				memexpand tetsize.selmode, t_tetlen+1
+				memexpand tettable.selmode, t_tetlen+1
+				tetlen.selmode = t_tetlen
+				memcpy tettable.selmode, t_tettable, t_tetlen
+				repeat t_tetlen
+					nif = -1
+					for n, 0, strlen(sizetable), 1	// tetサイズ参照
+						if peek(sizetable, n) == peek(tag, cnt) {
+							poke tetsize.selmode, cnt, peek(sizevalue, n)
+							nif = n
+							_break
+						}
+					next
+					if nif == -1 :selmode = -1 :break
+				loop
+				if selmode != -1 :intstrtobinary tetsize.selmode, '0'
+				if selmode == MODE_USER+modemax :modemax++
+			}
+		}
+	}
+	if fallsf {
+		// next操作
+		fallsf = 0
+		tag = strtrim(tag, 0, '\"')
+		token = peek(tag, 0)
+		nif = -1
+		repeat strlen(basetable)
+			if peek(basetable, cnt) == peek(tag, 0) :nif = cnt
+		loop
+		toofs.stage = nif
+	}
+	if goalf {
+		goalf = 0
+		// クリアライン操作
+		split tag, ",", sprm
+		initgoalmax.stage = length(sprm)
+		memexpand initgoals.stage, initgoalmax.stage*2+1
+		repeat initgoalmax.stage
+			wpoke initgoals.stage, cnt*2, int(sprm.cnt)
+		loop
+	}
+	if stagef {
+		// stage切り替え
+		stagef = 0
+		stage = int(tag)
+		if stagemax <= stage :stagemax = stage+1
+		logmes "\nstage("+stagemax+") => "+stage
+		
+		// ステージ情報初期化
+		toofs.stage = -1
+		tetmodes.stage = MODE_NORMAL
+		starfs.stage = 0
+		initgoals.stage = ""
+		initgoalmax.stage = 0
+		blocksfataf.stage = 0
+		
+		// タグ単純代入用
+		#define inittag_p				dim v_ptrs :sdim v_tags :tagdatamax = 0
+		#define regtag_p(%1, %2, %3)	%1(stage) = %2 :v_ptrs.tagdatamax = varptr(%1(stage)) :v_tags.tagdatamax = %3 :tagdatamax++
+		inittag_p
+		regtag_p xmaxs,		10,		"width"
+		regtag_p ymaxs,		20,		"height"
+		regtag_p xmars,		2,		"xmar"
+		regtag_p ymars,		4,		"ymar"
+		regtag_p xsizes,	16,		"xsize"
+		regtag_p ysizes,	16,		"ysize"
+		regtag_p autofalls,	1,		"autofall"
+		regtag_p initxsels,	-1,		"xpos"
+		regtag_p initysels,	ymar,	"ypos"
+		regtag_p fills,		-1,		"fill"
+		regtag_p stageclrs,	0,		"clr"
+		regtag_p cheats,	initcheat,	"cheat"
+		regtag_p gravitys,		GV_NORMAL,	"gravity"
+		regtag_p cleartypes,	CLR_LEVEL,	"cleartype"
+	}
+	if namef {
+		// stage名
+		namef = 0
+		names.stage = strtrim(tag, 0, '\"')
+		strrep names.stage, "_", " "
+		logmes "stagename => ["+names.stage+"]"
+	}
+	if clrsf {
+		// colorテーブル切り替え
+		clrsf = 0
+		clrs = int(tag)
+		if clrmax <= clrs :clrmax = clrs+1
+		clrdivs.clrs = 3
+		clrlens.clrs = 3
+		clrbufs.clrs = ""
+		logmes "\ncolor("+clrmax+") => "+clrs
+	}else :if clrdivf {
+		// color分割数
+		clrdivf = 0
+		clrdivs.clrs = int(tag)
+		logmes "clrdiv => "+clrdivs.clrs
+	}else :if clrlenf {
+		// color文字分割取得数
+		clrlenf = 0
+		clrlens.clrs = int(tag)
+		logmes "clrlen => "+clrlens.clrs
+	}
+	
+	tagname = tag
+	if tag == "colors" {
+		if endf == 0 :return
+		// 色情報読み取り
+		clrlen = clrlens.clrs
+		clrdiv = clrdivs.clrs
+		mx = strf("% "+(clrlen-1)+"d", clrdiv-1)
+		h = strf("% "+(clrlen-1)+"d", (clrdiv-1)/2)
+		hb = strf("% "+(clrlen-1)+"d", (clrdiv-1)/3)
+		ht = strf("% "+(clrlen-1)+"d", (clrdiv-1)/3*2)
+		z = ""
+		repeat clrlen/3 :z += "0" :loop
+		
+		// 色テーブル読み取り保存
+		memexpand clrbufs.clrs
+		clrbufs.clrs = strmid(buf, end_tag+3, begin_tag-end_tag-5)
+		clrenums = "lightblue", "yellow", "green", "red", "blue", "orange", "purple", "white", "black", "pink", "brown", "dgreen"
+		clrreps = z+mx+mx, mx+mx+z, z+mx+z, mx+z+z, z+z+mx, mx+h+z, ht+z+ht, mx+mx+mx, z+z+z, mx+hb+ht, ht+h+hb, z+h+z
+		repeat length(clrenums)
+			strrep clrbufs.clrs, clrenums.cnt, clrreps.cnt
+		loop
+		
+		// その他の文字置換
+		strrep clrbufs.clrs, "\n", ""
+		strrep clrbufs.clrs, " ", ""
+		strrep clrbufs.clrs, "\t", ""
+		logmes "colortable => ["+clrbufs.clrs+"]"
+	}else :if tag == "blocks" {
+		if endf == 0 :return
+		memexpand blocksdata.stage, xmaxs(stage)*ymaxs(stage)+1
+		blocksdata.stage = strmid(buf, end_tag+3, begin_tag-end_tag-5)
+		blocksfataf.stage = 1
+		// ステージ情報変換
+		logmes "stage convert"
+		index = 0
+		repeat strlen(blocksdata.stage)
+			tt = peek(blocksdata.stage, cnt)
+			if tt == '#' {
+				poke blocksdata.stage, index, BLK_WALL
+				index++
+			}else :if tt == ' ' {
+				poke blocksdata.stage, index, BLK_BLANK
+				index++
+			}else :if 'a' <= tt && tt <= 'z' {
+				poke blocksdata.stage, index, BLK_CHANGE_END-(tt-'a')
+				starfs.stage = 1
+				index++
+			}else {
+				nif = -1
+				repeat strlen(basetable)
+					if peek(basetable, cnt) == tt :nif = cnt :break
+				loop
+				if nif != -1 {
+					poke blocksdata.stage, index, nif+1+tetlen.tetmodes(stage)
+					index++
+				}
+			}
+		loop
+	}else :if tag == "stage" {
+		stagef = 1
+	}else :if tag == "name" {
+		namef = 1
+	}else :if tag == "goal" {
+		goalf = 1
+	}else :if tag == "mode" {
+		modef = 1
+	}else :if tag == "fall" {
+		fallsf = 1
+	}else :if tag == "clrs" {
+		clrsf = 1
+	}else :if tag == "clrdiv" {
+		clrdivf = 1
+	}else :if tag == "clrlen" {
+		clrlenf = 1
+	}else {
+		repeat tagdatamax
+			if tag == v_tags.cnt {
+				dataf = 1
+				v_ptr = v_ptrs.cnt
+				break
+			}
+		loop
+	}
+	
+	
+	return
+	
+#deffunc calcMain
+	// キー監視
+	calcRegKey
+	
+	if gameover == 0 {
+		// 一時停止キー監視
+		if kf & K_PAUSE :if pausef {
+			cpausef = -1
+			title titlename+" - "+names.selstage
+			logmes "resume"
+		}else {
+			logmes "pause"
+			menustr = "再開", "最初から", "初期画面へ", "終了"
+			menuenum = MN_RESUME, MN_RESTART, MN_TOSELECT, MN_QUIT
+			cpausef = 1
+			title titlename+" - pause"
+		}
+		
+		// ゲーム使用キー監視
+		if pausef == 0 :gameKey
+		
+		// ゲーム計算
+		if pausef == 0 :calcTet
+	}
+	
+	// pause menu監視
+	if pausef :if getkey(1) & 0x8000 {
+		calcSelObj GRID_SELECT, mousex, mousey
+		if stat :cpausef = -1
+	}
+	
+	// 一時停止監視
+	if cpausef :calcPauseMenu
+	
+	// ゲーム用メッセージBOX
+	calcAllMsgWnd
+	if stat :drawf = D_FRAME
+	
+	// 編集モード監視
+	checkEditMode
+	
+	// ゲーム終了監視
+	if gameover {
+		if gameover == GO_SELECT :gameover = 0 :selstage = 0 :startInit// 選択メニューへ
+		if gameover == GO_CHANGE :gameover = 0 :startInit		// 強制転移
+	}
+	
+	return
+	
+#deffunc calcRegKey
+	kf = 0
+	repeat keymax
+		lo = loword(keytime.cnt)
+		hi = hiword(keytime.cnt)
+		if getkey(key.cnt) & 0x8000 {
+			// キー押下
+			if lo == 0 :if not(kf & keytype.cnt) {
+				// タイムが0で既に同じタイプが押されていない場合
+				kf |= keytype.cnt
+				lo = initkeytime
+				if hi :lo /= 4
+			}
+		}else {
+			// [タイム] と [以前押されていた] を初期化
+			lo = 0 :hi = 0
+		}
+		if lo {
+			// タイムがある場合解除直前に押下で [以前押されていた] を建てる
+			if lo == 1 :if getkey(key.cnt) & 0x8000 :hi = 1 :else :hi = 0
+			// タイム--
+			lo--
+		}
+		keytime.cnt = makelong(lo, hi)
+	loop
+	return
+	
+#deffunc calcPauseMenu
+	// 一時停止監視
+	if cpausef == 0 :return
+	if cpausef == 1 :pausef = 1 :else :pausef = 0
+	cpausef = 0
+	
+	if pausef {
+		// pause menu 作成
+		makePauseMenu
+	}else {
+		// pause menu 削除
+		delSelObj GRID_SELECT
+		
+		logmes ""+menuf
+		if menuf == MN_RESTART {
+			gameover = GO_CHANGE
+		}else :if menuf == MN_TOSELECT {
+			gameover = GO_SELECT
+		}else :if menuf == MN_QUIT {
+			end :end
+		}
+	}
+	
+	if cheat :editmode = 1//(editmode+1)\2
+	if editmode :title gtext(hwnd)+" - editmode"
+	drawf = D_ALL
+	return
+	
+#deffunc makePauseMenu
+	menulen = length(menustr)
+	setMsgTime -1 :oldtime = stat
+	menuf = -1
+	repeat menulen
+		x = xbufmar+xmaxsize/2
+		y = ybufmar+(ymaxsize - menulen/2*(ysize+5))/2+cnt*(ysize+5)
+		pos x, y
+		makeMsgWnd menustr.cnt, ysize, blackid, 0, cnt-1
+		makeSelObj GRID_SELECT, GRT_MSG, stat-1, varptr(menuf), menuenum.cnt
+	loop
+	setMsgTime oldtime
+	return
+	
+	// ゲーム中のキー監視
+#deffunc gameKey
+	if autofall {
+		if kf & K_U {
+			// 一番下まで降下
+			keytime = initkeytime
+			repeat
+				falltime = 0
+				calcTet
+				drawAll
+				if fix :break
+			loop
+			fixtime = 5
+			calcTet
+			drawf = D_ALL
+		}
+	}else {
+		if kf & K_U {
+			// 移動
+			moveUDTetrimino 1
+		}
+	}
+	
+	if kf & K_D {
+		// 強制落下
+		falltime = 0
+		keytime = initkeytime
+		if 3 < fixtime :fixtime--	// 固定速度上昇
+		calcTet
+		drawf = D_ALL
+	}
+	
+	if (kf & K_L) || (kf & K_R) {
+		// 左右移動
+		moveLRTetrimino (kf & K_L)
+		if fix :fixtime = initfixtime
+	}
+	
+	if (kf & K_RL) || (kf & K_RR) {
+		// 回転
+		keytime = initkeytime
+		s = peek(tetsize.tetmode, sel)
+		t = kf & K_RR
+		
+		// normal回転 判定
+		rotaTetrimino tet, dst, xsel, ysel, s, s, xallmax, yallmax, t, sel+1
+		if stat == 0 {
+			// normal回転
+			logmes "rotate "+t
+		}else {
+			// 壁蹴り回転 判定
+			wallRota t
+			if stat == 0 {
+				// 壁蹴り
+				logmes "kick rotate "+t
+			}else {
+				// 変則的回転 判定
+				hyperRota t
+				if stat == 0 {
+					// 変則回転
+					logmes "hyper rotate "+t
+				}
+			}
+		}
+		if stat == 0 {
+			// 回転後の処理
+			if fix :fixtime = initfixtime
+			if t :rotate = (rotate+1)\4 :else :rotate = (rotate+3)\4
+			drawf = D_ALL
+					
+					// x-spin判定
+					corner = 0
+					for i, 0, 2, s-1
+						for j, 0, 2, s-1
+							if tet((ysel+i)*xallmax+xsel+j) {
+								corner++
+							}
+						next
+					next
+					if 3 <= corner {
+						spinf = 1
+						addpoint += corner
+						fixanimetime = inifixanimetime
+						title "addpoint "+addpoint
+					}
+		}
+	}
+	
+	if kf & K_HOLD :if holdf = 0 {
+		// ホールド
+		logmes "hold"
+		holdf = 1	// 連続hold禁止
+		
+		// 現在ブロック退避
+		nbksized = nbksize
+		dim holded, nbksize*nbksize
+		for i, 0, nbksize, 1
+			repeat nbksize
+				n = (i+ysel)*xallmax+cnt+xsel
+				if peek(tet.n, 0) == sel+1 :holded(i*nbksize+cnt) = tet.n
+			loop
+		next
+		
+		seled = sel
+		delTetrimino seled+1
+		setNewTetrimino selhold
+		selhold = seled
+		
+		// 代入
+		dim hold, nbksized*nbksized
+		repeat nbksized*nbksized
+			hold.cnt = holded.cnt
+		loop
+	}
+	return
+	
+	// 編集モードに変更
+#deffunc checkEditMode
+	if editkeytime {
+		editkeytime--
+	}else {
+		if editmode {
+			if getkey(1) & 0x8000 :editTetrimino mousex, mousey, 0 :editkeytime = 3
+			if getkey(2) & 0x8000 :editTetrimino mousex, mousey, 1 :editkeytime = 3
+			if getkey(4) & 0x8000 {
+				autofall = (autofall+1)\2
+				title titlename
+				if autofall :title gtext(hwnd)+" - autofall" :else :title gtext(hwnd)+" - free cursor"
+				editkeytime = 10
+			}
+		}
+	}
+	if editmode {
+		if edittime {
+			edittime--
+		}else {
+			mw = mousew
+			if mw < 0 {
+				editsel = (editsel+(tetmax*2))\(tetmax*2+1)
+			}else :if 0 < mw {
+				editsel = (editsel+1)\(tetmax*2+1)
+			}
+			if mw != 0 :edittime = 4 :title strf("%X", editsel+1)
+		}
+	}
+	return
+	
+	// ゲーム中の計算
+#deffunc calcTet
+	fix = 0		// 固定監視
+	fallf = 0
+	delf = 0
+	for i, limit(ymar-1, 0, yallmax), ymar+ymax, 1
+		repeat xallmax
+			j = i*xallmax+cnt
+			flag = peek(tet.j, 0)
+			if flag :if (flag-1)/tetmax {
+				// 固定済み
+				if fixedf == 1 :if flag < tetmax*2+1 :row.i++
+			}else :if flag == sel+1 {
+				fallf = 1
+				// 固定監視
+				if ymax-1+ymar <= i {
+					// 底に
+					fix++
+				}else :if tetmax <= peek(tet(j+xallmax), 0)-1 && (peek(tet(j+xallmax), 0)-1 < tetmax*2+1) {
+					// ブロックに
+					fix++
+				}
+			}
+		loop
+		if fill == row.i :delf = 1
+	next
+	
+	if fix {
+		// 固定監視
+		if fixtime {
+			if (fixtime == 1) && (fixedf == 0) {
+				// 固定
+				logmes "fixed"
+				fixedTetrimino
+				fixedf = 1
+				fixanimetime = inifixanimetime
+				holdf = 0	// ホールド許可
+			}
+			fixtime--
+		}else {
+			// 仮固定
+			logmes "fix"
+			fixtime = initfixtime
+		}
+	}else :if fallf {
+		if 0 < falltime {
+			if autofall :falltime--
+		}else {
+			// 落下
+			logmes "fall"
+			fallTetrimino
+			fixedf = 0
+			fixtime = 0
+		}
+	}
+	if fixedf {
+		if fixedf == 1 {
+			// 削除する行の計算
+			if calcrowsf {
+				calcrowsf = 0
+			}else {
+				calcrowsf = 1
+				fixedf--
+			}
+		}else :if fixedf == 2 {
+			// 固定アニメーション
+			if fixanimetime {
+				fixanimetime--
+				if fixanimetime {
+					fixedf--
+				}else {
+					if delf :delanimetime = inidelanimetime
+				}
+				drawf = D_ALL
+			}
+		}else :if fixedf == 3 {
+			// 削除アニメーション
+			if delanimetime {
+				delanimetime--
+				if delanimetime {
+					fixedf--
+				}else {
+					// 削除判定
+					lineDelete
+				}
+				drawf = D_ALL
+			}
+		}else :if fixedf == 4 {
+			// 重力判定
+			downBlocks
+			if stat == 0 {
+				// 再度削除判定へ
+				logmes "refix"
+				fixedf = 0
+				calcrowsf = 1
+				fixanimetime = inifixanimetime
+			}
+			dim row, yallmax
+			drawf = D_ALL
+		}else :if fixedf == 5 {
+			setNewTetrimino	// 新しいブロック発行
+			fixedf = -1
+		}
+		fixedf++
+	}
+	// キラキラアニメーション
+	if staranimetime {
+		staranimetime--
+	}else {
+		drawf = D_ALL
+		staranimetime = initstaranimetime
+	}
+	
+	// 透過監視
+	
+	// ワープタイトル監視
+	x = (mousex-xbufmar)/xsize
+	y = (mousey-ybufmar)/ysize
+	if 0 <= x && x < xmax && 0 <= y && y < ymax {
+		flag = peek(tet((y+ymar)*xallmax+x+xmar), 0)
+		if (BLK_CHANGE_BEG <= flag) && (flag <= BLK_CHANGE_END) {
+			id = BLK_CHANGE_END-flag+1
+			if 0 <= id && id < stagemax {
+				pos xbufmar+x*xsize, ybufmar+y*ysize
+				makeMsgWnd names.id, ysize, blackid, 128, makelong(x, y)
+				if stat :drawf = D_FRAME// :logmes "make msgwnd "+stat
+			}
+		}
+	}
+	return
+	
+#deffunc drawAll
+	if drawf == 0 :return
+	if drawf & D_BLOCKS :drawTet
+	drawf = 0
+	
+	redraw 0
+	// 背景
+	colorwhite :boxf :color
+	
+	// GOAL
+	color
+	boxf xgoal, ygoal, xgoal+wdhgoal, ygoal+hgtgoal
+	colorwhite
+	if goal == 65535 :str_ = "∞" :else :str_ = str(goal-dline)
+	pos xgoal+(wdhgoal-strlen(str_)*ysize/2)/2, ygoal+ysize/4 :mes str_
+	
+	// レベル
+	bksize = peek(tetsize.ALPHABET, level)
+	id = peek(tettable.ALPHABET, level)
+	color
+	boxf xlevel, ylevel, xlevel+wdhlevel, ylevel+hgtlevel
+	pos xlevel+(4-bksize)*xsize/2, ylevel+(4-bksize)*ysize/2
+	drawTetrimino tetid, tetres, id, level, bksize, xsize, ysize, xsize, ysize, ysize
+	
+	// ゲーム画面
+	if gameover == GO_EXIT {
+		color :boxf xbufmar, ybufmar, xbufmar+xmaxsize, ybufmar+ymaxsize
+		gmode 3,,, 255/3
+	}
+	pos xbufmar, ybufmar :gcopy bufid, 0, 0, xmaxsize, ymaxsize
+	
+	// メニュー画面
+	if pausef {
+		// フィルタ
+		gmode 3,,, 127
+		pos xbufmar, ybufmar
+		gcopy blackid, 0, 0, xmaxsize, ymaxsize
+	}
+	
+	// ホールド画面
+	color
+	boxf xhold, yhold, xhold+wdhhold, yhold+hgthold
+	if selhold != -1 {
+		s = peek(tetsize.tetmode, selhold)
+		id = peek(tettable.tetmode, selhold)
+		cx = xhold+(4-s)*xsize/2
+		cy = yhold+(4-s)*ysize/2
+		// 回転情報も含んでいるため drawTetrimino は使えない
+		for i, 0, s, 1
+			repeat s
+				j = i*s + cnt
+				flag = peek(hold.j, 0)
+				if flag {
+					flag = (flag-1)\tetmax
+					trans = peek(hold.j, 1)
+					pos cx+xsize*cnt, cy+ysize*i
+					gmode 3, xsize, ysize, trans
+					gcopy tetid, (flag\MAX_COLOR)*xsize, 0, xsize, ysize
+				}
+			loop
+		next
+	}
+	
+	// next画面
+	color
+	boxf xnext, ynext, xnext+wdhnext, ynext+hgtnext
+	bksize = peek(tetsize.tetmode, tetnext.0)
+	id = peek(tettable.tetmode, tetnext.0)
+	pos xnext+(4-bksize)*xsize/2, ynext+(4-bksize)*ysize/2
+	drawTetrimino tetid, tetres, id, tetnext.0, bksize, xsize, ysize, xsize, ysize, ysize
+	// mini next画面 *2
+	if 2 < tetmax {
+		repeat 2
+			x = xnext2
+			y = ynext2 +(hgtnext2+5)*cnt
+			boxf x, y, x+wdhnext2, y+hgtnext2
+			bksize = peek(tetsize.tetmode, tetnext(cnt+1))
+			id = peek(tettable.tetmode, tetnext(cnt+1))
+			
+			pos x+(4-bksize)*minixsize/2, y+(4-bksize)*miniysize/2
+			drawTetrimino tetid, tetres, id, tetnext(cnt+1), bksize, xsize, ysize, minixsize, miniysize, ysize
+		loop
+	}
+	
+	// 削除アニメーション
+	if delanimetime {
+		for i, 0, yallmax, 1
+			if fill == row.i {
+				repeat xallmax
+					n = i*xallmax+cnt
+					id = lobyte(tet.n)
+					trans = peek(tet.n, 1)
+					tet.n = makelong(id | int(double(trans)/inidelanimetime*delanimetime) << 8, hiword(tet.n))
+				loop
+			}
+		next
+	}
+	
+	// ゲーム用メッセージBOX
+	drawAllMsgWnd
+	gmode 0
+	
+	/* debug deleted rows*
+	color 128, 128, 128
+	repeat ymax, ymar
+		pos xbufmar+5, ybufmar+3+(cnt-ymar)*ysize :mes row.cnt
+	loop
+	/**/
+	
+	// 編集モード時
+	if editmode {
+		color 255
+		x = (xsel-xmar)*xsize+xbufmar
+		y = (ysel-ymar)*ysize+ybufmar
+		boxf x, y, x+xsize, y+ysize, 0
+	}
+	
+	redraw 1
+	return
+	
+#deffunc drawTet
+	// ブロック描画
+	// ・落下中のブロックは別描画で
+	gsel bufid
+	redraw 0
+	gradf xmarsize+xsize*xmar, ymarsize+ysize*ymar, xmaxsize, ymaxsize, 1, 0xFFFFFF, 0
+	
+	for i, 0, yallmax, 1
+		repeat xallmax
+			j = i*xallmax + cnt
+			flag = peek(tet.j, 0)
+			x = xmarsize+xsize*cnt
+			y = ymarsize+ysize*i
+			pos x, y
+			if flag == BLK_BLANK {
+				// 何もない場所
+				color
+				gmode 3, xsize, ysize, 50
+//				gcopy tetid, (MAX_COLOR-2)*xsize, 0, xsize, ysize
+				boxf x+1, y+1, x+xsize-1, y+ysize-1
+			}else :if (tetmax < flag) && (flag < tetmax*2+1) {
+				// 固定ブロック
+				flag = (flag-1)\tetmax
+				trans = peek(tet.j, 1)
+				color
+				gmode 4, xsize, ysize, trans
+				gcopy tetid, (flag\MAX_COLOR)*xsize, ysize, xsize, ysize
+			}else :if (0 < flag) && (flag < tetmax+1) {
+				// ブロック
+				flag = (flag-1)\tetmax
+				trans = peek(tet.j, 1)
+				color
+				gmode 4, xsize, ysize, trans
+				gcopy tetid, (flag\MAX_COLOR)*xsize, 0, xsize, ysize
+				if (0 < fixanimetime) && (peek(tet.j, 0) == seled+1) {
+					// 固定時光る
+					gmode 5, xsize, ysize, double(trans)/inifixanimetime*fixanimetime
+					gcopy tetid, (flag\MAX_COLOR)*xsize, 0, xsize, ysize
+				}
+//				logmes "draw : ("+cnt+","+i+") "+x+","+y+" => "+flag+":"+trans
+			}else :if (BLK_CHANGE_BEG <= flag) && (flag <= BLK_CHANGE_END) {
+				// 特殊ブロック
+				gmode 3, xsize, ysize, 255
+				gcopy tetid, rnd(MAX_COLOR)*xsize, 0, xsize, ysize
+			}else :if flag == tetmax*2+1 {
+				// 壁
+				gmode 3, xsize, ysize, 255
+				gcopy tetid, (MAX_COLOR-1)*xsize, 0, xsize, ysize
+			}else :if (tetmax*2 < flag) && (flag < tetmax*3+1) {
+				// ミラーブロック
+				
+			}
+			
+			
+			if editmode {
+				pget ginfo_cx+xsize/2, ginfo_cy+ysize/2
+				if (ginfo_r+ginfo_g+ginfo_b)/3 < 85 :colorwhite :else :color
+				pos ginfo_cx+5, ginfo_cy+3
+				mes ""+strf("%X", peek(tet.j, 0))
+			}
+		loop
+	next
+	redraw 1
+	gsel mainid
+	return
+	
+#deffunc lineDelete
+	// 一列削除監視
+	downmax = 0
+	for i, yallmax-1, 0, -1
+		if fill == row.i {
+			logmes "line "+i+" delete"
+			repeat xmax
+				tet(i*xallmax+cnt+xmar) = 0
+			loop
+			downmax++
+		}
+	next
+	
+	if downmax {
+		// 点数
+		if downmax == 4 {
+			downmax += level + downmaxed
+			if downmaxed < level :downmaxed++
+		}else :downmaxed = 0
+		dline += downmax + addpoint
+		addpoint = 0
+		repeat
+			if dline < goal :break
+			dline -= goal
+			level++
+			if selstage != -1 :if length(initgoal) <= level :selstage = (selstage)\stagemax :break
+			goal = initgoal.level
+			initfalltime -= minusfalltime
+		loop
+		if selstage == stagemax :gameover = GO_SELECT
+	}
+	return
+	
+#deffunc downBlocks
+	// 重力による落下
+	if gravity == GV_NON :return 1
+	downblockmax = 0
+	downrowmax = 0
+	
+	if gravity == GV_NORMAL || gravity == GV_HEAVY {
+	// 行単位落下
+	for i, yallmax-1, 0, -1
+		if fill == row.i {
+			downrowmax++
+			downblockmax += xmax
+			logmes "line "+i+" blank"
+		}else :if downrowmax {
+			repeat xmax
+				n = i*xallmax+cnt+xmar
+				tet((i+downrowmax)*xallmax+cnt+xmar) = tet.n
+				tet.n = 0
+			loop
+		}
+	next
+	}
+	
+	if gravity == GV_HEAVY {
+		// ブロック単位落下
+		repeat xmax
+			downrow = 0
+			for i, yallmax-1, 0, -1
+				n = i*xallmax+cnt+xmar
+				id = peek(tet.n, 0)
+				if id == 0 || id == sel+1 || ((tetmax*2+1 < id) && (id != BLK_WALL)) {
+					downrow++
+				}else :if downrow {
+					downblockmax++
+					tet((i+downrow)*xallmax+cnt+xmar) = tet.n
+					tet.n = 0
+				}
+			next
+		loop
+	}
+	
+	if gravity == GV_NORMAL :if downrowmax   == 0 :return 1
+	if gravity == GV_HEAVY  :if downblockmax == 0 :return 1
+	
+	return 0
+	
+#deffunc wallRota int left
+	// 壁蹴り判定
+	dim rc, 4
+	dim dstrc, 4
+	for i, 0, s, 1
+		repeat s
+			if dst(i*s+cnt) < 0 {
+				// 壁で移動できない
+				if cnt == s-1 {		rc.2++
+				}else :if cnt == 0 :rc.0++
+				if i == s-1 {		rc.3++
+				}else :if i == 0 :	rc.1++
+			}
+		loop
+	next
+	
+	// 移動する
+	i = -1
+	repeat 4
+		if 1 < rc.cnt :i = cnt :break
+	loop
+	if i != -1 {
+		repeat 4
+			if cnt == i :continue
+			rc.cnt = 0
+		loop
+	}
+	
+	rst = 1
+	if rst == 1 :if (0 < rc.0) && (rc.2 == 0) {// 右へ
+		moveLRTetrimino 0 :rst = stat
+		if stat == 0 :dstrc.2 = 1
+	}
+	if rst == 1 :if (0 < rc.2) && (rc.0 == 0) {// 左へ
+		moveLRTetrimino 1 :rst = stat
+		if stat == 0 :dstrc.0 = 1
+	}
+	if rst == 1 :if (0 < rc.1) && (rc.3 == 0) {// 下へ
+		moveUDTetrimino 0 :rst = stat
+		if stat == 0 :dstrc.3 = 1
+	}
+	if rst == 1 :if (0 < rc.3) && (rc.1 == 0) {// 上へ
+		moveUDTetrimino 1 :rst = stat
+		if stat == 0 :dstrc.1 = 1
+	}
+	
+	if rst == 0 {
+		// 移動後の回転
+		rotaTetrimino tet, dst, xsel, ysel, s, s, xallmax, yallmax, left, sel+1
+		rst = stat
+		if rst {
+			logmes "roll back ("+xsel+","+ysel+") ["+dstrc.0+","+dstrc.1+","+dstrc.2+","+dstrc.3+"]"
+			// 移動した物を元に戻す
+			if dstrc.2 :moveLRTetrimino 1	// 左へ
+			if dstrc.0 :moveLRTetrimino 0	// 右へ
+			if dstrc.3 :moveUDTetrimino 1	// 上へ
+			if dstrc.1 :moveUDTetrimino 0	// 下へ
+		}else {
+			logmes "wallRota ("+xsel+","+ysel+") ["+rc.0+","+rc.1+","+rc.2+","+rc.3+"]"
+		}
+	}
+	return rst
+	
+#deffunc hyperRota int left
+	// 変則的な回転,移動
+	dmax = 0
+	dim del
+	for i, 0, s, 1
+		repeat s
+			n = (i+ysel)*xallmax+(cnt+xsel)
+			if peek(tet.n, 0) == sel+1 :del.dmax = n :else :del.dmax = -1
+			dmax++
+		loop
+	next
+	
+	// 回転後の配列を取得 [dst]
+	dim dst, s*s
+	rotaTetrimino tet, dst, xsel, ysel, s, s, xallmax, yallmax, left, sel+1
+	repeat s*s
+		if dst.cnt < 0 :dst.cnt = -dst.cnt
+	loop
+	
+	hyperf = 0
+	*reHyperRota
+	if hyperf {	if left :x = -1 :else :x = 1
+	}else :		x = 0
+	y = 0
+	repeat yallmax-ysel-ymar-s+2
+		dim move
+		allmove = 0
+		movemax = 0
+		movecnt = 0
+		if yallmax < ysel+y :break
+		
+		// 代入確認
+		for i, 0, s, 1
+			repeat s
+				if dst(i*s+cnt) {
+					// 代入対象
+					m = (i+ysel+y)*xallmax+cnt+xsel+x
+					allmove++
+					id = peek(tet.m, 0)
+					if id == 0 || id == sel+1 || ((tetmax*2+1 < id) && (id != BLK_WALL)) {
+						move.movecnt = m
+						movemax++
+					}else :move.movecnt = -1
+				}else :move.movecnt = -1
+				movecnt++
+			loop
+		next
+		
+		if allmove :if allmove == movemax {
+			// 移動前の削除,保存
+			for i, 0, s, 1
+				repeat s
+					n = i*s+cnt
+					if del.n != -1 {
+						r = tet.del(n)
+						tet.del(n) = tetmax*3+1
+						del.n = r
+					}else :del.n = 0
+				loop
+			next
+			// 移動前の回転
+			rotaTetrimino del, range, 0, 0, s, s, s, s, left, sel+1
+			
+			// ステージの移動監視
+			moveStage move
+			
+			// 移動
+			for i, 0, s, 1
+				repeat s
+					if move(i*s+cnt) != -1 :tet.move(i*s+cnt) = range(i*s+cnt)
+				loop
+			next
+			
+			xsel += x
+			ysel += y
+			hyperf = 1
+			break
+		}
+		y++
+	loop
+	if hyperf == 0 :hyperf = -1 :await :goto *reHyperRota
+	if hyperf == -1 :return 1
+	
+	return 0
+	
+#deffunc setNewTetrimino__ int newtype
+	// ブロックセット
+	// ・ブロックテーブルから呼び出し
+	// 新しくブロックテーブルに設定
+	falltime = initfalltime
+	
+	// ブロック情報
+	if newtype != -1 :sel = newtype :else :sel = tetnext.0
+	id = peek(tettable.tetmode, sel)
+	nbksize = peek(tetsize.tetmode, sel)
+	if initxsel == -1 :xsel = xmar+(xmax-nbksize)/2 :else :xsel = initxsel
+	ysel = initysel
+	rotate = 0
+	if nbksize < 3 :xsel++
+	
+	dim tetvalue, nbksize*nbksize
+	if newtype == -1 {
+		// 新規作成
+		repeat nbksize*nbksize :tetvalue.cnt = (1+sel) || (255 << 8) :loop
+		setTetrimino tet, tetres, xsel, ysel, xallmax, yallmax, nbksize, id, tetvalue
+	}else {
+		// hold参照
+		void 0
+		for i, 0, nbksize, 1
+			repeat nbksize
+				n = i*nbksize +cnt
+				if peek(hold.n, 0) {
+					m = (i+ysel)*xallmax+cnt+xsel
+					id = peek(tet.m, 0)
+					if id == 0 || id == sel+1 || ((tetmax*2+1 < id) && (id != BLK_WALL)) {
+						tet.m = hold.n
+					}else :void 1 :break
+				}
+			loop
+			if stat :_break
+		next
+	}
+	if stat {
+		title "game over"
+		gameover = GO_EXIT
+		
+		cpausef = 1
+		sdim menustr
+		menustr = "最初から", "初期画面へ", "終了"
+		menuenum = MN_RESTART, MN_TOSELECT, MN_QUIT
+		return
+	}
+	logmes "set new block : ("+xsel+","+ysel+") ["+id+" : "+trans+"]"
+	
+	// 新しくブロック発行
+	if newtype == -1 {
+		// nextブロックの選定
+		if nextf {
+			nextf--
+			repeat tetmax+nextf
+				tetnext.cnt = tetnext(cnt+1)
+			loop
+		}
+		if nextf == 0 {
+			nextf = tetmax
+			if toof != -1 {
+				// ずっと同じ
+				repeat tetmax*2
+					tetnext.cnt = toof
+				loop
+			}else {
+				// 規則的乱数
+				repeat tetmax
+					tetnext(cnt+tetmax) = cnt
+				loop
+				repeat tetmax
+					to = rnd(tetmax)+tetmax
+					i = tetnext(cnt+tetmax)
+					tetnext(cnt+tetmax) = tetnext.to
+					tetnext.to = i
+				loop
+			}
+		}
+	}
+	
+	drawf = D_ALL
+	return
+	
+	// ブロックの破片設置
+#deffunc editTetrimino int edx_, int edy_, int delmode_
+	x = edx_-xbufmar
+	y = edy_-ybufmar
+	x /= xsize
+	y /= ysize
+	if x < 0 || xmax <= x || y < 0 || ymax <= y :return
+	
+	if delmode_ {
+		tet((y+ymar)*xallmax+x+xmar) = 0
+	}else {
+		tet((y+ymar)*xallmax+x+xmar) = 1+editsel || (200 << 8)
+	}
+	drawf = D_ALL
+	return
+	
+#deffunc fixedTetrimino
+	// ブロック固定
+	repeat xyallmax
+		flag = peek(tet.cnt, 0)
+		if flag :if (flag-1)/tetmax == 0 {
+//			logmes "("+(cnt/xallmax)+","+(cnt\xallmax)+")"+flag+" => "+(flag+tetmax)
+			poke tet.cnt, 0, flag+tetmax
+		}
+	loop
+	return
+	
+#deffunc fallTetrimino
+	// ブロック落下
+	falltime = initfalltime
+	moveUDTetrimino 0
+	return
+	
+#deffunc moveLRTetrimino int left
+	// ブロック移動
+	s = peek(tetsize.tetmode, sel)
+	dim move, s*s
+	dim del, s*s
+	movecnt = 0
+	allmove = 0
+	
+	if left {
+		lp = 0, xallmax-1, 1
+	}else {
+		lp = xallmax-1, 0, -1
+	}
+	
+	// 移動可能か (壁, 他のブロック)
+	for i, yallmax-1, -1, -1
+		for j, lp.0, lp.1, lp.2
+			n = i*xallmax+j
+			m = i*xallmax+j +lp.2
+			if peek(tet.m, 0) == sel+1 {
+				allmove++
+				if peek(tet.n, 0) == 0 || peek(tet.n, 0) == sel+1 || ((tetmax*2+1 < peek(tet.n, 0)) && (peek(tet.n, 0) != BLK_WALL)) {
+					move.movecnt = n
+					del.movecnt = m
+					movecnt++
+				}
+			}
+		next
+	next
+	
+	if movecnt != 0 :if movecnt == allmove {
+		// 移動するブロックが全て移動可能の場合
+		moveStage move
+		repeat allmove
+			tet.move(cnt) = tet.del(cnt)
+			tet.del(cnt) = 0
+		loop
+		xsel += -lp.2
+		drawf = D_ALL
+		return 0
+	}
+	return 1
+	
+#deffunc moveUDTetrimino int up
+	s = peek(tetsize.tetmode, sel)
+	dim move, s*s
+	dim del, s*s
+	movecnt = 0
+	allmove = 0
+	
+	if up {
+		lp = 0, yallmax-2, 1
+	}else {
+		lp = yallmax-1, 0, -1
+	}
+	
+	// 移動可能か (壁, 他のブロック)
+	for i, lp.0, lp.1, lp.2
+		for j, 0, xallmax-1, 1
+			n = i*xallmax+j
+			m = (i+lp.2)*xallmax+j
+			if peek(tet.m, 0) == sel+1 {
+				allmove++
+				if peek(tet.n, 0) == 0 || peek(tet.n, 0) == sel+1 || ((tetmax*2+1 < peek(tet.n, 0)) && (peek(tet.n, 0) != BLK_WALL)) {
+					move.movecnt = n
+					del.movecnt = m
+					movecnt++
+				}
+			}
+		next
+	next
+	
+	if movecnt != 0 :if movecnt == allmove {
+		// 移動するブロックが全て移動可能の場合
+		moveStage move
+		repeat allmove
+			tet.move(cnt) = tet.del(cnt)
+			tet.del(cnt) = 0
+		loop
+		fixtime = initfixtime
+		ysel += -lp.2
+		drawf = D_ALL
+		return 0
+	}
+	return 1
+	
+#deffunc delTetrimino int delprm
+	repeat xyallmax
+		if peek(tet.cnt, 0) == delprm :tet.cnt = 0
+	loop
+	return
+	
+	// ステージ移動
+#deffunc moveStage array checks_data
+	repeat length(checks_data)
+		if checks_data.cnt == -1 :continue
+		token = peek(tet.checks_data(cnt), 0)
+		if (BLK_CHANGE_BEG <= token) && (token <= BLK_CHANGE_END) {
+			selstage = 1+(BLK_CHANGE_END-token)
+			gameover = GO_CHANGE
+		}
+	loop
+	return
+	
+	#module
+	#deffunc InitTetriminoId
+		blankmax = 0
+		tetidmax = 0
+		dim blank
+	return
+	
+	#defcfunc RegTetriminoId
+		// 使用していないブロックIDを取得
+		if blankmax {
+			id = blank(blankmax-1)
+			blankmax--
+		}else {
+			id = tetidmax
+			tetidmax--
+		}
+	return id
+	
+	#deffunc UnRegTetriminoId int tetid
+		// 使用中を破棄
+		blank.blankmax = tetid
+		blankmax++
+	return
+	#global
+	
+	// 選択オブジェクト
+	// ,表示type
+	// ,subID
+	// ,var ptr
+	// ,set value
+	#module
+	#deffunc delSelObj int groupid
+		repeat groupmax.groupid
+			i = selsubid.cnt
+			msgflag.i = 0
+			blank.blankmax = i
+			blankmax++
+		loop
+		groupmax.groupid = 0
+	return
+	
+	// makeSelObj gid, GR_MSG, subid, v_ptr, val
+	#deffunc makeSelObj int groupid, int type, int subid, int v_ptr, int value
+		// group用
+		selmax = groupmax.groupid
+		
+		seltype.selmax = type
+		selsubid.selmax = subid
+		selv_ptr.selmax = v_ptr
+		selvalue.selmax = value
+		
+		groupmax.groupid++
+	return
+	
+	#deffunc calcSelObj int groupid, int mx, int my
+		// カーソル監視
+		if groupmax.groupid == 0 :return
+		ret = 0
+		repeat groupmax.groupid
+			if seltype.cnt == GRT_MSG {
+				if msgflag.selsubid(cnt) == 0 :continue
+				p = msgpos.selsubid(cnt)
+				s = msgsize.selsubid(cnt)
+				x = loword(p)
+				y = hiword(p)
+				w = loword(s)
+				h = hiword(s)
+				if x <= mx && mx <= x+w && y <= my && my <= y+h {
+					// 判定内は特定数値を代入
+					dupptr clone, selv_ptr.cnt, 4, 4
+					clone = selvalue.cnt
+					ret = 1
+				}
+			}
+		loop
+	return ret
+	
+	// ゲーム用メッセージBOX初期化
+	#deffunc initMsgWnd int totime
+		times = totime
+		blankmax = 0
+		msgmax = 0
+		dim msgalias
+		dim msgpos
+		dim msgsize
+		dim msgmar
+		dim msgtext
+		dim msgback
+		dim msgtrans
+		dim msgflag
+		dim blank
+	return
+	
+	// 表示フレーム設定
+	#deffunc setMsgTime int totime
+		i = times
+		times = totime
+	return i
+	
+	// ゲーム用メッセージBOX
+	#deffunc makeMsgWnd__ str text, int fonthgt, int wndid, int trans, int alias, int wdh, int hgt
+		i = 0
+		repeat msgmax
+			if msgflag.cnt :if msgalias.cnt == alias :i = -1 :break
+		loop
+		if i :return 0
+		
+		len = strlen(text)
+		if wdh < 0 :wdh_ = len*fonthgt/2	:else :wdh_ = wdh
+		if hgt < 0 :hgt_ = fonthgt			:else :hgt_ = hgt
+		
+		if blankmax {
+			blankmax--
+			id = blank.blankmax
+		}else {
+			id = msgmax
+		}
+	
+		msgalias.id = alias
+		msgpos.id = makelong(ginfo_cx-wdh_/2, ginfo_cy)
+		msgsize.id = makelong(wdh_, hgt_)
+		msgmar.id = makelong(4, 4)
+		msgtext.id = text
+		msgback.id = wndid
+		msgtrans.id = trans
+		msgflag.id = times
+		
+		if id == msgmax :msgmax++
+	return id+1
+	// 削除
+	#deffunc delMsgWnd int alias
+		i = -1
+		repeat msgmax
+			if msgalias.cnt == alias :i = cnt :break
+		loop
+		if i == -1 :return 0
+		msgflag.i = 0
+		blank.blankmax = i
+		blankmax++
+	return 1
+	// ゲーム用メッセージBOX監視
+	#deffunc calcAllMsgWnd
+		redrawf = 0
+		repeat msgmax
+			if 0 < msgflag.cnt {
+				msgflag.cnt--
+				if msgflag.cnt == 0 {
+					blank.blankmax = cnt
+					blankmax++
+					redrawf = 1
+				}
+			}
+		loop
+	return redrawf
+	// ゲーム用メッセージBOX描画
+	#deffunc drawAllMsgWnd
+		repeat msgmax
+			if msgflag.cnt {
+				gmode 3, 0, 0, msgtrans.cnt
+				pos loword(msgpos.cnt), hiword(msgpos.cnt)
+				gcopy msgback.cnt, 0, 0, loword(msgsize.cnt)+loword(msgmar.cnt), hiword(msgsize.cnt)+hiword(msgmar.cnt)
+				colorwhite
+				pos loword(msgpos.cnt)+loword(msgmar.cnt)/2, hiword(msgpos.cnt)+hiword(msgmar.cnt)/2
+				mes msgtext.cnt
+			}
+		loop
+	return
+	#global
+	
+	
+	#module
+	// ブロックの画像作成
+	#deffunc makeTetImage int x, int y, int wdh, int hgt, int clr
+		baser = double(RR(clr))
+		baseg = double(GG(clr))
+		baseb = double(BB(clr))
+	
+		// topleft
+		color limit(baser*2, 0, 255), limit(baseg*2, 0, 255), limit(baseb*2, 0, 255)
+		color limit(baser+(255.0-baser)*0.70, 0, 255), limit(baseg+(255.0-baseg)*0.70, 0, 255), limit(baseb+(255.0-baseb)*0.70, 0, 255)
+		boxf@hsp x+2, y+2, x+wdh-3, y+hgt-3
+		
+		// center
+		color baser*0.97, baseg*0.97, baseb*0.97
+		boxf@hsp x+3, y+3, x+wdh-3, y+hgt-3
+		
+		// top
+		color limit(baser+(255.0-baser)*0.70, 0, 255), limit(baseg+(255.0-baseg)*0.70, 0, 255), limit(baseb+(255.0-baseb)*0.70, 0, 255)
+		line x-1, y, x+wdh-2, y
+		line x, y+1, x+wdh-3, y+1
+		
+		// right & left
+		color baser*0.86, baseg*0.86, baseb*0.86
+		line x, y, x, y+hgt-1
+		line x+1, y+1, x+1, y+hgt-2
+		line x+wdh-1, y-1, x+wdh-1, y+hgt-2
+		line x+wdh-2, y, x+wdh-2, y+hgt-3
+		
+		// bottom
+		color baser*0.64, baseg*0.64, baseb*0.64
+		line x+1, y+hgt-2, x+wdh-2, y+hgt-2
+		line x, y+hgt-1, x+wdh-1, y+hgt-1
+	return
+	#global
+	
+	#module
+	// 回転 配列, 結果配列, 抜取開始x, y, wdh, hgt, 画面wdh, hgt, 回転角度(0:90 1:-90), 抜き取る値
+	#deffunc rotaTetrimino array ary, array dst, int x, int y, int wdh, int hgt, int alwdh, int alhgt, int type, int prm
+		// 1.抜き取り & 回転
+		// 2.確認(移動)
+		// 3.当てはめ
+		mwdh = wdh-1
+		mhgt = hgt-1
+		
+		dim dst, wdh*hgt
+		dim del :dmax = 0
+		nif = 0
+		result = 0
+		
+		// 1.抜き取り & 回転
+		for i, 0, hgt, 1
+			repeat wdh
+				del.dmax = (i+y)*alwdh + cnt+x
+				if peek(ary.del(dmax), 0) != prm :continue
+				
+				xfrom = cnt
+				yfrom = i
+				if type {
+					// 左
+					x_ = mhgt - yfrom
+					y_ = xfrom
+				}else {
+					// 右
+					x_ = yfrom
+					y_ = mwdh - xfrom
+				}
+				
+				
+				// 2.確認	//(移動)
+				id = (y_+y)*alwdh + x_+x
+				nif = peek(ary.id, 0)
+//				logmes ""+cnt+"x"+i+" => "+x_+"x"+y_+" "+del.dmax+" => "+id+"  "+nif+" == "+prm
+				if (nif != 0) && (nif != prm) {
+					result = 1
+					dst(y_*wdh + x_) = -ary(del.dmax)
+				}else {
+					dst(y_*wdh + x_) = ary(del.dmax)
+				}
+				dmax++
+			loop
+		next
+		
+		// 3.当てはめ
+		if result == 0 {
+			// 削除
+			repeat dmax
+				ary.del(cnt) = 0
+			loop
+			
+			xmar = alwdh-wdh
+			ymar = alhgt-hgt
+			for i, 0, hgt, 1
+				repeat wdh
+					if dst(i*wdh + cnt) == 0 :continue
+					ary((y+i)*alwdh + x+cnt) = dst(i*wdh + cnt)
+				loop
+			next
+		}
+	return result
+	#global
+	
+	#module
+	// ブロックリソースを設定
+	#deffunc setResourceInfo int wdh, int hgt, int onewdh, int onehgt
+		reswdh = wdh
+		reshgt = hgt
+		resonewdh = onewdh
+		resonehgt = onehgt
+	return
+	
+	// ブロックを描画
+	// tetbufid, tet配列, tetタイプ, color, tetサイズ, tet1wdh, hgt
+	#deffunc drawTetrimino int tetid, array res, int type, int prm, int bksize, int wdh, int hgt, int towdh, int tohgt, int yindex
+		cx = ginfo_cx :cy = ginfo_cy
+		if towdh :towdh_ = towdh :else :towdh_ = wdh
+		if tohgt :tohgt_ = tohgt :else :tohgt_ = hgt
+		
+		for i, 0, bksize, 1
+			repeat bksize
+				n = i*reswdh +type*resonewdh +cnt
+				if res(n) {
+					pos cx+towdh_*cnt, cy+tohgt_*i
+					gzoom towdh_, tohgt_, tetid, (prm\MAX_COLOR@)*wdh, yindex, wdh, hgt, 1
+				}
+			loop
+		next
+	return
+	
+	// ブロックを配列に代入
+	// 配列, リソースID, 代入位置x, y, 画面wdh, hgt, 代入タイプ, 代入値
+	#deffunc setTetrimino array ary, array res, int x, int y, int wdh, int hgt, int bksize, int type, array prm
+		// 画像から
+		// 1.代入する場所が空か確認(上に移動)
+		// 3.1,2を壁まで繰り返す
+		// 4.壁だとgameover
+		// 5.当てはめ
+		
+		nif = 0
+		
+		// 1.代入する場所が空か確認
+		for i, 0, resonehgt, 1
+			repeat resonewdh
+				if res(reswdh*i + type*resonewdh + cnt) {
+					nif = peek(ary((y+i)*wdh + x+cnt), 0)
+					if nif :break
+				}
+			loop
+		next
+		if nif :return nif
+		
+		// 代入
+		for i, 0, bksize, 1
+			repeat bksize
+				if res(reswdh*i + type*resonewdh + cnt) {
+					ary((y+i)*wdh + x+cnt) = prm(i*bksize+cnt)
+				}
+			loop
+		next
+	return nif
+	#global
+	
+	#module
+	// 文字列[v]を[sub]を基準に減算 v[i]=v[i]-sub
+	#deffunc intstrtobinary var v, int sub
+		len = strlen(v)
+		repeat len
+			poke v, cnt, peek(v, cnt)-sub
+		loop
+	return
+	#global
+	

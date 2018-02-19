@@ -1,0 +1,55 @@
+	
+	#module
+	#define global between(%1, %2=ginfo_winx, %3=ginfo_winy) between__ %1, %2, %3
+	#deffunc between__ int mar, int wdh, int hgt
+		mref vram, 66
+		dot2 = (wdh*3)>>1
+		dot1 = wdh*3
+		x = 1 :y = 1
+		for i, hgt-1, -1, -1
+			repeat wdh
+				if x == 0 {
+					x = 1
+				}else :if ((1 < cnt && cnt < wdh-2) && (1 < i && i < hgt-2)) {
+					// ‰E‚Æ”äŠr
+					nowid = (i*wdh+cnt)*3
+					r1 = peek(vram, nowid +2)	// Ž©
+					g1 = peek(vram, nowid +1)
+					b1 = peek(vram, nowid +0)
+					
+					nowid += 6
+					r2 = peek(vram, nowid +2)	// “ñ‚Â‰E
+					g2 = peek(vram, nowid +1)
+					b2 = peek(vram, nowid +0)
+					
+					nowid -= 3
+					if (mar < (abs(r1-r2))) :poke vram, nowid +2, (r1+r2)>>1 :x = 0
+					if (mar < (abs(g1-g2))) :poke vram, nowid +1, (g1+g2)>>1 :x = 0
+					if (mar < (abs(b1-b2))) :poke vram, nowid +0, (b1+b2)>>1 :x = 0
+				}
+			loop
+		next
+	return
+	#global
+	
+	
+	bgscr 0, 200, 200
+	onclick *exit
+	boxf
+	pos rnd(200), rnd(200)
+	repeat 100
+		color rnd(255), rnd(255), rnd(255)
+		line rnd(200), rnd(200)
+	loop
+	
+	between 10
+	redraw 1
+	
+	font msgothic, 10
+	colorwhite
+	pos 0, 0 :mes "Quit"
+	
+	stop
+*exit
+	end
+	

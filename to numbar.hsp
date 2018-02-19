@@ -1,0 +1,143 @@
+	
+	title "file encript"
+	screen 0, 160, 100, 8, (ginfo(20)-160)/2, (ginfo(21)-40)/2
+	gsel 0, 2
+	
+	objsize 160, 20
+	button gosub "画像ファイル -> 数値配列as", *write :writeID = stat
+	button gosub "ファイル -> バイナリ数値配列as", *write2 :write2ID = stat
+	button "終了", *quit
+	
+	stop
+*quit
+	end
+	end
+	
+*write2
+	dialog "*.*", 16, ""
+	if stat == 0 :return
+	fname = refstr
+	
+	gsel 0
+	objenable write2ID, 0
+	script2 = ":await"
+	vname2 = "d"
+	
+	objsize 300, 100
+	dialog "1", 64, "オプション"
+	gsel 1, 2
+	objmode 2 :font msgothic, 16
+	pos  0,  0 :mes "行端に埋め込むスクリプト"
+	pos  0, 18 :input script2, 300, 18, 0
+	pos  0, 40 :mes "変数名"
+	pos 48, 40 :input vname2, 252, 18, 0
+	dlgfor
+		wait 1
+	loop
+	
+	exist fname
+	if strsize == -1 :objenable write2ID, 1 :return
+	size2 = strsize
+	if size2\4 :size2 += (4-size2\4)
+	sdim file, size2+1
+	bload fname, file, strsize
+	script_len2 = strlen(script2)
+	vname_len2 = strlen(vname2)
+	
+	gsel 0
+	font msgothic, 10
+	i2 = size2*10
+	varsize2 = i2 + i2/20*( 5+vname_len2+script_len2+strlen(str(i2/20)) ) +2+1
+	sdim buf2, varsize2
+	
+	i2 = 0 :j2 = 1
+	poke buf2, i2, ""+vname2+"(0)=" :i2+=4+vname_len2
+	lpmax2 = size2/4
+	repeat lpmax2
+		poke buf2, i2, strf("$%08X", lpeek(file, cnt*4)) :i2+=9
+		if lpmax2-1 == cnt :poke buf2, i2, ""+script2+"\n" :i+=2+script_len2 :break
+		if cnt\20 == 19 {
+			poke buf2, i2, ""+script2+"\n"+vname2+"("+(j2*20)+")="
+			i2+=5+vname_len2+script_len2+strlen(str(j2*20)) :j2++
+		}else {
+			poke buf2, i2, ',' :i2++
+		}
+		
+		await
+	loop
+	dialog "完了しました。"
+	void ""+getpath(fname, 1)+".as"
+	dialog "*.as", 17, ""
+	if stat == 0 :objenable write2ID, 1 :return
+	bsave refstr, buf2, i2
+	
+	objenable write2ID, 1
+	
+	return
+
+*write
+	dialog "jpg;*.bmp;*.gif;*.png;", 16, ""
+	if stat == 0 :return
+	fname = refstr
+	
+	gsel 0
+	objenable writeID, 0
+	script = ":await"
+	vname = "d"
+	
+	objsize 300, 100
+	dialog "1", 64, "オプション"
+	gsel 1, 2
+	objmode 2 :font msgothic, 16
+	pos  0,  0 :mes "行端に埋め込むスクリプト"
+	pos  0, 18 :input script, 300, 18, 0
+	pos  0, 40 :mes "変数名"
+	pos 48, 40 :input vname, 252, 18, 0
+	dlgfor
+		wait 1
+	loop
+	
+	
+	buffer 1
+	picload fname
+	imgw = ginfo(12)
+	imgh = ginfo(13)
+	size = imgw*imgh
+	script_len = strlen(script)
+	vname_len = strlen(vname)
+	mref vram, 66
+	
+	gsel 0
+	font msgothic, 10
+	i = size*3*10
+	varsize = i + i/20*( 5+vname_len+script_len+strlen(str(i/20)) ) +2+1
+	sdim buf, varsize
+	
+	i = 0 :j = 1
+	poke buf, i, ""+vname+"(0)=" :i+=4+vname_len
+	lpmax = size*3/4
+	repeat lpmax
+		poke buf, i, strf("$%08X", lpeek(vram, cnt*4)) :i+=9
+		if cnt\20 == 19 {
+			if lpmax-1 == cnt :poke buf, i, ""+script+"\n" :i+=2+script_len :break
+			poke buf, i, ""+script+"\n"+vname+"("+(j*20)+")="
+			i+=5+vname_len+script_len+strlen(str(j*20)) :j++
+		}else {
+			poke buf, i, ',' :i++
+		}
+		
+		await
+	loop
+	if size*3\4 {
+		dialog "不完了"
+	}else {
+		dialog "完了しました。"
+		void ""+getpath(fname, 1)+".as"
+		dialog "as", 17, ""
+		if stat == 0 :objenable writeID, 1 :return
+		bsave refstr, buf, i
+	}
+	
+	objenable writeID, 1
+	
+	return

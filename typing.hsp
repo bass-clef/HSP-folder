@@ -1,0 +1,368 @@
+	
+	
+	// 音素材
+	// BGM：フリー音楽素材 Senses Circuit
+	// リンク「http://www.senses-circuit.com/ 」
+	
+	
+	// コンパイルオプション
+	#packopt name "Typing Pazzle"
+	#packopt hide 1
+	
+	// 定義
+	#define	xDW		ginfo(20)
+	#define	yDW		ginfo(21)
+	#define	xCon	6
+	#define	yCon	6
+	#define	xSize	50
+	#define	ySize	50
+	#define rgbcolor(%1) color RR(%1), GG(%1), BB(%1)
+	#const	aCon	xCon * yCon
+	
+	// 外部ファイル読み込み
+	mci "open memory.mp3 alias bgm"
+	mci "open pui.wav alias key type mpegvideo"
+	mci "open jump_2.mp3 alias ok"
+	
+	mci "setaudio bgm volume to 100"
+	mci "setaudio key volume to 100"
+	mci "setaudio ok volume to 100"
+	
+	// 初期化
+	randomize
+	sdim put
+	sdim aStr, 2, aCon	// 文字
+	dim aClr, aCon	// 文字背景色
+	Clr = RGB(255, 85, 85), RGB(255, 170, 85), RGB(255, 255, 85), RGB(85, 255, 85), RGB(85, 255, 255), RGB(85, 85, 255), RGB(255, 85, 255)
+	
+	repeat aCon// 文字背景色決定
+		charset aStr.cnt, aStr	// 重複しないように文字代入
+		
+		// 上下左右の重複防止
+		a = 0, 1, 2, 3, 4, 5, 6
+		xx = cnt\xCon
+		yy = cnt/xCon
+		if xx > 0 {
+			a(aClr(cnt-1)) = -1// 左あり
+		}
+		if yy > 0 :a(aClr(cnt-xCon)) = -1// 上あり
+		
+		dimbreak a, 7, -1	// 指定した禁止数字、文字を抜く
+		aClr.cnt = a.rnd(stat)	// 擬似乱数作成
+	loop
+	
+	xSizeh = xSize / 2
+	ySizeh = ySize / 2
+	FontSize = 30
+	hfs = FontSize / 2
+	wx = xCon*xSize
+	wy = xCon*ySize
+	
+	// ウィンドウ作成
+	screen 0, wx, wy, 0, (xDW-300)/2, (yDW-300)/2
+	slong hwnd(), -16, glong(hwnd(), -16) - WS_MINIMIZEBOX
+	title "typing pazzle"
+	oncmd gosub *char, WM_CHAR
+	onexit *exit
+	
+	font msgothic, FontSize
+	Draw
+	
+	// メインループ
+//	mci "play bgm"
+	stop
+	
+	*char
+		if wparam == 8 {// BS
+			if strlen(put) > 0 {
+				if strlen(put) > 1 {
+					poke put, strlen(put)-2, 0
+				}else {
+					poke put, strlen(put)-1, 0
+				}
+			}
+		}elseif wparam == 13 {// 決定
+			if strlen(put) > 0 :if strlen(put)\2 == 0 {
+				mci "play key from 0"
+				*recalc
+				Calc
+				if stat :Draw
+				DelInput
+				if strlen(put) > 0 :goto *recalc
+				Calc2
+			}
+		}else {// 挿入
+			put += cnv2(put, wparam)
+		}
+		title ""+put
+		Draw
+	return
+	
+	*exit
+	mci "close bgm"
+	mci "close key"
+	mci "close ok"
+	end
+	
+	// 計算
+	#deffunc Calc
+		if strlen(put) >= 4 {
+			if strlen(put) \ 4 != 0 :return 0
+			sdim str0 :clr0 = 0
+			str1 = strmid(put, 0, 2)	// １文字目
+			str2 = strmid(put, 2, 2)	// ２文字目
+			n = -1
+			for i, 0, yCon, 1// １文字目の場所検索
+				repeat xCon
+					j = i * xCon + cnt
+					if aStr.j == str1 :n = j :xx = cnt :yy = i :break
+				loop
+			next
+			if n == -1 :return 0// 打った文字がない
+	
+			
+			// 文字入れ替え 上下左右を検索
+			i = 0
+			repeat 1
+				if xx > 0		:if aStr(n-1) == str2 {// 左に
+					str0 = aStr(n-1)		:clr0 = aClr(n-1)
+					aStr(n-1) = aStr.n		:aClr(n-1) = aClr.n
+					aStr.n = str0			:aClr.n = clr0
+					i = 1 :break
+				}
+				if xx < xCon-1	:if aStr(n+1) == str2 {// 右に
+					str0 = aStr(n+1)		:clr0 = aClr(n+1)
+					aStr(n+1) = aStr.n		:aClr(n+1) = aClr.n
+					aStr.n = str0			:aClr.n = clr0
+					i = 2 :break
+				}
+				if yy > 0		:if aStr(n-xCon) == str2 {// 上に
+					str0 = aStr(n-xCon)		:clr0 = aClr(n-xCon)
+					aStr(n-xCon) = aStr.n	:aClr(n-xCon) = aClr.n
+					aStr.n = str0			:aClr.n = clr0
+					i = 3 :break
+				}
+				if yy < yCon-1	:if aStr(n+xCon) == str2 {// 下に
+					str0 = aStr(n+xCon)		:clr0 = aClr(n+xCon)
+					aStr(n+xCon) = aStr.n	:aClr(n+xCon) = aClr.n
+					aStr.n = str0			:aClr.n = clr0
+					i = 4 :break
+				}
+			loop
+			
+			if i == 0 :return 0
+		}else :return 0
+	return 1
+	
+	// 下に落とす計算
+	#deffunc Calc2
+		e = 0
+		for i, 0, yCon, 1 :repeat xCon
+			j = i * xCon + cnt
+			xx = cnt
+			yy = i
+	
+			if aClr(j) != -1 {
+				n = aClr(j)
+				if xx > 0      {// 左に
+					a = 0
+					repeat xCon-1, 1
+						if xx-cnt < 0 :break
+						if aClr(j - cnt) == n :a++ :else :break
+					loop
+					
+					if a > 1 {// 三つ以上で削除
+						title ""+j
+						e = 1
+						repeat a+1
+							aClr(j-cnt) = -1
+						loop
+					}
+				}
+				
+				if xx < xCon-1 {
+					if aClr(j+1) = n :// 右に
+					
+				}
+				
+				if yy > 0      {
+					a = 0
+					repeat xCon-1, 1
+						if yy-xCon*cnt < 0 :break
+						if aClr(j - xCon*cnt) == n :a++ :else :break
+					loop
+					
+					if a > 1 {
+						e = 1
+						repeat a+1
+							aClr(j-xCon*cnt) = -1
+						loop
+					}
+				}
+				
+				if yy < yCon-1 {
+					if aClr(j+xCon) = n	:// 下に
+					
+				}
+			}
+		loop :next
+		if e :Draw
+	return e
+	
+	// 描画
+	#deffunc Draw
+		redraw 0
+		colorwhite :boxf
+		for i, 0, yCon, 1 :repeat xCon
+			j = i * xCon + cnt
+			xx = cnt * xSize
+			yy = i * ySize
+			if aClr.j != -1 {
+				n = instr(put, 0, aStr.j)
+				if n != -1 :color :boxf xx-1, yy-1, xx+xSize+1, yy+ySize+1
+				rgbcolor Clr(aClr.j)
+				boxf xx+2, yy+2, xx+xSize-2, yy+ySize-2
+				color
+				pos xx+xSizeh - hfs, yy+ySizeh - hfs :mes aStr.j
+				
+			}
+		loop :next
+		redraw 1
+	return
+	
+	// inputの内容削除
+	#deffunc DelInput
+		put = strmid(put, 4, strlen(put))
+	return
+	
+	#module
+	// 指定した禁止数字、文字を抜く
+	#deffunc dimbreak array a, int dimmax, int nbreak
+		i = 0
+		dim b
+		repeat dimmax// 特定の文字列じゃないのを計算
+			if a.cnt != nbreak :b.i = a.cnt :i ++
+		loop
+	
+		dim a
+		repeat i
+			a.cnt = b.cnt
+		loop
+	return i
+	
+	// 重複なしの全角文字作成
+	#deffunc charset var v, array model
+		poke v, 0, 130
+		
+		dim r, 81 :i = 0
+		repeat 81
+			j = cnt+160
+			if nor(j, 238, 239) {
+				n = 0
+				repeat length(model)
+					if j == peek(model.cnt, 1) :n = 1 :break
+				loop
+				if n == 0 {
+					r.i = j
+					i ++
+				}
+			}
+		loop
+		
+		poke v, 1, r.rnd(i)
+	return
+
+	// 日本語へ変換
+	#defcfunc cnv2 var dat1, int dat2
+		// dat1	: 既に入力されている文字列の変数
+		// dat2	: 今入力されたキーコード
+		kc = dat2
+	
+		// f1	: 変換前のキーコード１ (二文字変換用)
+		// f2	: 返還前のキーコード２ (三文字変換の場合のみ)
+		f1 = 0 :f2 = 0 :ret = ""
+		if strlen(dat1) > 0 :f1 = peek(dat1, strlen(dat1)-1)
+		if strlen(dat1) > 1 :f2 = peek(dat1, strlen(dat1)-2)
+		
+		// 子音挿入
+		if not(or(kc, 'a', 'i', 'u', 'e', 'o')) :poke ret, 0, kc :poke ret, 1, 0
+		
+		// 前のキーコードが変換後だったら無いものとする
+		if f1 > 'z' :f1 = 0
+		
+		if (f1 == 0) {
+			// その他
+			if kc == '?' {ret = "？" }elseif kc == '!' {ret = "！" }
+			
+			// 日本語
+			if kc == 'a' {ret = "あ" }elseif kc == 'i' {ret = "い" }elseif kc == 'u' {ret = "う" }elseif kc == 'e' {ret = "え" }elseif kc == 'o' {ret = "お" }
+		}elseif (f2 != 0) {
+			// 三文字変換
+			if (f1 == 'y') {
+				if (f2 == 'k') {if kc == 'a' {ret = "きゃ" }elseif kc == 'i' {ret = "きぃ" }elseif kc == 'u' {ret = "きゅ" }elseif kc == 'e' {ret = "きぇ" }elseif kc == 'o' {ret = "きょ" }
+				}elseif (f2 == 's') {if kc == 'a' {ret = "しゃ" }elseif kc == 'i' {ret = "しぃ" }elseif kc == 'u' {ret = "しゅ" }elseif kc == 'e' {ret = "しぇ" }elseif kc == 'o' {ret = "しょ" }
+				}elseif (f2 == 't') {if kc == 'a' {ret = "ちゃ" }elseif kc == 'i' {ret = "ちぃ" }elseif kc == 'u' {ret = "ちゅ" }elseif kc == 'e' {ret = "ちぇ" }elseif kc == 'o' {ret = "ちょ" }
+				}elseif (f2 == 'n') {if kc == 'a' {ret = "にゃ" }elseif kc == 'i' {ret = "にぃ" }elseif kc == 'u' {ret = "にゅ" }elseif kc == 'e' {ret = "にぇ" }elseif kc == 'o' {ret = "にょ" }
+				}elseif (f2 == 'h') {if kc == 'a' {ret = "ひゃ" }elseif kc == 'i' {ret = "ひぃ" }elseif kc == 'u' {ret = "ひゅ" }elseif kc == 'e' {ret = "ひぇ" }elseif kc == 'o' {ret = "ひょ" }
+				}elseif (f2 == 'm') {if kc == 'a' {ret = "みゃ" }elseif kc == 'i' {ret = "みぃ" }elseif kc == 'u' {ret = "みゅ" }elseif kc == 'e' {ret = "みぇ" }elseif kc == 'o' {ret = "みょ" }
+				}elseif (f2 == 'y') {if kc == 'a' {ret = "っや" }elseif kc == 'i' {ret = "っい" }elseif kc == 'u' {ret = "っゆ" }elseif kc == 'e' {ret = "っいぇ" }elseif kc == 'o' {ret = "っよ" }
+				}elseif (f2 == 'r') {if kc == 'a' {ret = "りゃ" }elseif kc == 'i' {ret = "りぃ" }elseif kc == 'u' {ret = "りゅ" }elseif kc == 'e' {ret = "りぇ" }elseif kc == 'o' {ret = "りょ" }
+				}elseif (f2 == 'g') {if kc == 'a' {ret = "ぎゃ" }elseif kc == 'i' {ret = "ぎぃ" }elseif kc == 'u' {ret = "ぎゅ" }elseif kc == 'e' {ret = "ぎぇ" }elseif kc == 'o' {ret = "ぎょ" }
+				}elseif (f2 == 'z') {if kc == 'a' {ret = "じゃ" }elseif kc == 'i' {ret = "じぃ" }elseif kc == 'u' {ret = "じゅ" }elseif kc == 'e' {ret = "じぇ" }elseif kc == 'o' {ret = "じょ" }
+				}elseif (f2 == 'd') {if kc == 'a' {ret = "ぢゃ" }elseif kc == 'i' {ret = "ぢぃ" }elseif kc == 'u' {ret = "ぢゅ" }elseif kc == 'e' {ret = "ぢぇ" }elseif kc == 'o' {ret = "ぢょ" }
+				}elseif (f2 == 'b') {if kc == 'a' {ret = "びゃ" }elseif kc == 'i' {ret = "びぃ" }elseif kc == 'u' {ret = "びゅ" }elseif kc == 'e' {ret = "びぇ" }elseif kc == 'o' {ret = "びょ" }
+				}elseif (f2 == 'p') {if kc == 'a' {ret = "ぴゃ" }elseif kc == 'i' {ret = "ぴぃ" }elseif kc == 'u' {ret = "ぴゅ" }elseif kc == 'e' {ret = "ぴぇ" }elseif kc == 'o' {ret = "ぴょ" }
+				}elseif (f2 == 'v') {if kc == 'a' {ret = "ヴゃ" }elseif kc == 'i' {ret = "ヴぃ" }elseif kc == 'u' {ret = "ヴゅ" }elseif kc == 'e' {ret = "ヴぇ" }elseif kc == 'o' {ret = "ヴょ" }
+				}elseif (f2 == 'q') {if kc == 'a' {ret = "くゃ" }elseif kc == 'i' {ret = "くぃ" }elseif kc == 'u' {ret = "くゅ" }elseif kc == 'e' {ret = "くぇ" }elseif kc == 'o' {ret = "くょ" }
+				}elseif (f2 == 'j') {if kc == 'a' {ret = "じゃ" }elseif kc == 'i' {ret = "じぃ" }elseif kc == 'u' {ret = "じゅ" }elseif kc == 'e' {ret = "じぇ" }elseif kc == 'o' {ret = "じょ" }
+				}elseif (f2 == 'f') {if kc == 'a' {ret = "ふゃ" }elseif kc == 'i' {ret = "ふぃ" }elseif kc == 'u' {ret = "ふゅ" }elseif kc == 'e' {ret = "ふぇ" }elseif kc == 'o' {ret = "ふょ" }
+				}elseif (f2 == 'x') {if kc == 'a' {ret = "ゃ" }elseif kc == 'i' {ret = "ぃ" }elseif kc == 'u' {ret = "ゅ" }elseif kc == 'e' {ret = "ぇ" }elseif kc == 'o' {ret = "ょ" }
+				}elseif (f2 == 'l') {if kc == 'a' {ret = "ゃ" }elseif kc == 'i' {ret = "ぃ" }elseif kc == 'u' {ret = "ゅ" }elseif kc == 'e' {ret = "ぇ" }elseif kc == 'o' {ret = "ょ" }
+				}
+			}elseif (f1 == 'w') {
+				if (f2 == 'k') {if kc == 'a' {ret = "くぁ" }
+				}elseif (f2 == 's') {if kc == 'a' {ret = "すぁ" }elseif kc == 'i' {ret = "すぃ" }elseif kc == 'u' {ret = "すぅ" }elseif kc == 'e' {ret = "すぇ" }elseif kc == 'o' {ret = "すぉ" }
+				}elseif (f2 == 't') {if kc == 'a' {ret = "とぁ" }elseif kc == 'i' {ret = "とぃ" }elseif kc == 'u' {ret = "とぅ" }elseif kc == 'e' {ret = "とぇ" }elseif kc == 'o' {ret = "とぉ" }
+				}elseif (f2 == 'g') {if kc == 'a' {ret = "ぐぁ" }elseif kc == 'i' {ret = "ぐぃ" }elseif kc == 'u' {ret = "ぐぅ" }elseif kc == 'e' {ret = "ぐぇ" }elseif kc == 'o' {ret = "ぐぉ" }
+				}elseif (f2 == 'd') {if kc == 'a' {ret = "どぁ" }elseif kc == 'i' {ret = "どぃ" }elseif kc == 'u' {ret = "どぅ" }elseif kc == 'e' {ret = "どぇ" }elseif kc == 'o' {ret = "どぉ" }
+				}elseif (f2 == 'q') {if kc == 'a' {ret = "くぁ" }elseif kc == 'i' {ret = "くぃ" }elseif kc == 'u' {ret = "くぅ" }elseif kc == 'e' {ret = "くぇ" }elseif kc == 'o' {ret = "くぉ" }
+				}elseif (f2 == 'x') {if kc == 'a' {ret = "ゎ" }
+				}elseif (f2 == 'l') {if kc == 'a' {ret = "ゎ" }
+				}elseif (f2 == 'f') {if kc == 'a' {ret = "ふぁ" }elseif kc == 'i' {ret = "ふぃ" }elseif kc == 'u' {ret = "ふぅ" }elseif kc == 'e' {ret = "ふぇ" }elseif kc == 'o' {ret = "ふぉ" }
+				}
+			}
+		}elseif (f1 == 'k') {if kc == 'a' {ret = "か" }elseif kc == 'i' {ret = "き" }elseif kc == 'u' {ret = "く" }elseif kc == 'e' {ret = "け" }elseif kc == 'o' {ret = "こ" }
+		}elseif (f1 == 's') {if kc == 'a' {ret = "さ" }elseif kc == 'i' {ret = "し" }elseif kc == 'u' {ret = "す" }elseif kc == 'e' {ret = "せ" }elseif kc == 'o' {ret = "そ" }
+		}elseif (f1 == 't') {if kc == 'a' {ret = "た" }elseif kc == 'i' {ret = "ち" }elseif kc == 'u' {ret = "つ" }elseif kc == 'e' {ret = "て" }elseif kc == 'o' {ret = "と" }
+		}elseif (f1 == 'n') {if kc == 'a' {ret = "な" }elseif kc == 'i' {ret = "に" }elseif kc == 'u' {ret = "ぬ" }elseif kc == 'e' {ret = "ね" }elseif kc == 'o' {ret = "の" }elseif kc == 'n' {ret = "ん"}
+		}elseif (f1 == 'h') {if kc == 'a' {ret = "は" }elseif kc == 'i' {ret = "ひ" }elseif kc == 'u' {ret = "ふ" }elseif kc == 'e' {ret = "へ" }elseif kc == 'o' {ret = "ほ" }
+		}elseif (f1 == 'm') {if kc == 'a' {ret = "ま" }elseif kc == 'i' {ret = "み" }elseif kc == 'u' {ret = "む" }elseif kc == 'e' {ret = "め" }elseif kc == 'o' {ret = "も" }
+		}elseif (f1 == 'y') {if kc == 'a' {ret = "や" }elseif kc == 'i' {ret = "い" }elseif kc == 'u' {ret = "ゆ" }elseif kc == 'e' {ret = "いぇ" }elseif kc == 'o' {ret = "よ" }
+		}elseif (f1 == 'r') {if kc == 'a' {ret = "ら" }elseif kc == 'i' {ret = "り" }elseif kc == 'u' {ret = "る" }elseif kc == 'e' {ret = "れ" }elseif kc == 'o' {ret = "ろ" }
+		}elseif (f1 == 'w') {if kc == 'a' {ret = "わ" }elseif kc == 'i' {ret = "うぃ" }elseif kc == 'u' {ret = "う" }elseif kc == 'e' {ret = "うぇ" }elseif kc == 'o' {ret = "を" }
+		}elseif (f1 == 'g') {if kc == 'a' {ret = "が" }elseif kc == 'i' {ret = "ぎ" }elseif kc == 'u' {ret = "ぐ" }elseif kc == 'e' {ret = "げ" }elseif kc == 'o' {ret = "ご" }
+		}elseif (f1 == 'z') {if kc == 'a' {ret = "ざ" }elseif kc == 'i' {ret = "じ" }elseif kc == 'u' {ret = "ず" }elseif kc == 'e' {ret = "ぜ" }elseif kc == 'o' {ret = "ぞ" }
+		}elseif (f1 == 'd') {if kc == 'a' {ret = "だ" }elseif kc == 'i' {ret = "ぢ" }elseif kc == 'u' {ret = "づ" }elseif kc == 'e' {ret = "で" }elseif kc == 'o' {ret = "ど" }
+		}elseif (f1 == 'b') {if kc == 'a' {ret = "ば" }elseif kc == 'i' {ret = "び" }elseif kc == 'u' {ret = "ぶ" }elseif kc == 'e' {ret = "べ" }elseif kc == 'o' {ret = "ぼ" }
+		}elseif (f1 == 'p') {if kc == 'a' {ret = "ぱ" }elseif kc == 'i' {ret = "ぴ" }elseif kc == 'u' {ret = "ぷ" }elseif kc == 'e' {ret = "ぺ" }elseif kc == 'o' {ret = "ぽ" }
+		}elseif (f1 == 'v') {if kc == 'a' {ret = "ヴぁ" }elseif kc == 'i' {ret = "ヴぃ" }elseif kc == 'u' {ret = "ヴ" }elseif kc == 'e' {ret = "ヴぇ" }elseif kc == 'o' {ret = "ヴぉ" }
+		}elseif (f1 == 'q') {if kc == 'a' {ret = "くぁ" }elseif kc == 'i' {ret = "くぃ" }elseif kc == 'u' {ret = "く" }elseif kc == 'e' {ret = "くぇ" }elseif kc == 'o' {ret = "くぉ" }
+		}elseif (f1 == 'j') {if kc == 'a' {ret = "じゃ" }elseif kc == 'i' {ret = "じ" }elseif kc == 'u' {ret = "じゅ" }elseif kc == 'e' {ret = "じぇ" }elseif kc == 'o' {ret = "じょ" }
+		}elseif (f1 == 'f') {if kc == 'a' {ret = "ふぁ" }elseif kc == 'i' {ret = "ふぃ" }elseif kc == 'u' {ret = "ふ" }elseif kc == 'e' {ret = "ふぇ" }elseif kc == 'o' {ret = "ふぉ" }
+		}elseif (f1 == 'x') {if kc == 'a' {ret = "ぁ" }elseif kc == 'i' {ret = "ぃ" }elseif kc == 'u' {ret = "ぅ" }elseif kc == 'e' {ret = "ぇ" }elseif kc == 'o' {ret = "ぉ" }
+		}elseif (f1 == 'l') {if kc == 'a' {ret = "ぁ" }elseif kc == 'i' {ret = "ぃ" }elseif kc == 'u' {ret = "ぅ" }elseif kc == 'e' {ret = "ぇ" }elseif kc == 'o' {ret = "ぉ" }
+		}
+	
+		// 文字が変換されてそれが子音なら前のキーコード削除
+		if strlen(ret) == 2 && f1 != 0 :if strlen(dat1) > 0 :poke dat1, strlen(dat1)-1, 0
+	
+		// 三文字変換なら前のキーコードを削除
+		
+		// 子同文字を三回連続で入力できない
+		if and(kc == f1) && (kc == f2) :ret = ""
+		
+		// 文字が入力されたらフラグおｎ
+		if strlen(ret) > 0 :void 1 :else :void 0
+	return ret
+	#global
+	

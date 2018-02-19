@@ -1,0 +1,98 @@
+	
+/*
+mixerOpen()Å®mixerGetControlDetailsÅ®mixerSetControlDetails(âπó Çç≈ëÂÇ…)Å®PlaySoundÅ®mixerSetControlDetails(âπó Çç≈è¨Ç…ÅjÅ®mixerClose
+*/
+
+	#packopt name "minimizer"
+	#packopt hide 0
+	
+	#uselib "user32.dll"
+	#cfunc	WindowFromPoint	"WindowFromPoint"	int, int
+	#func	GetWindowRect	"GetWindowRect"		int, var
+	#func	ShowWindow		"ShowWindow"		int, int
+	#func	SetLayered		"SetLayeredWindowAttributes"	int, int, int, int
+	#define LWA_COLORKEY	0x0001
+	#define LWA_ALPHA		0x0002
+	
+	bgscr 0, 200, 20, 0, ginfo(20)-200, ginfo(21)-20
+	oncmd gosub *lclick, WM_LBUTTONDOWN
+	oncmd gosub *rclick, WM_RBUTTONDOWN
+	hMWnd = hwnd@hsp
+	slong hMWnd, GWL_EXSTYLE, WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_WINDOWEDGE
+	gsel 0, 2
+	SetLayered hMWnd, RGB(254, 254, 254), 175, LWA_COLORKEY | LWA_ALPHA
+	
+	font msgothic, 10
+	objsize ginfo(12), 10
+	pos 0, 10 :button gosub "lockÇ∑ÇÈ", *jump
+	title "minimizer"
+	
+*main
+	if clickf {
+		dim rc, 4
+		GetWindowRect htarget, rc
+		if ginfo(0) < rc.0 || rc.2 < ginfo(0) || ginfo(1) < rc.1 || rc.3 < ginfo(1) {
+			if outsidef {
+				if outsidetime {
+					outsidetime--
+					gosub *draw
+				}else {
+					outsidef = 0
+					clickf = 0
+					ShowWindow htarget, 6
+					gosub *draw
+				}
+			}else {
+				outsidetime = 5
+				outsidef = 1
+			}
+		}else :if outsidef {
+			outsidef = 0
+			gosub *draw
+		}
+	}else {
+		if flag :if getkey(1) & 0x8000 :gosub *click :gosub *draw
+		htarget = WindowFromPoint(ginfo(0), ginfo(1))
+		if htarget != htargeted {
+			htargeted = htarget
+			gosub *draw
+		}
+	}
+	
+	wait 5
+	goto *main
+	
+*draw
+	
+	redraw 0
+	colorwhite :boxf@hsp :color
+	pos 2, 0
+	if clickf {
+		if outsidef {
+			mes "lock out["+outsidetime+"]:"+gtext(htarget)
+		}else {
+			mes "lock:"+gtext(htarget)
+		}
+	}else {
+		mes gtext(htarget)
+	}
+	redraw 1
+	return
+	
+*click
+	if ginfo_act != -1 :return
+	clickf = 1
+	flag = 0
+	return
+	
+*jump
+	flag = (flag+1)\2
+	return
+	
+*lclick
+	sendmsg hwnd, WM_NCLBUTTONDOWN, 2
+	return
+	
+*rclick
+	wait 50
+	end :end

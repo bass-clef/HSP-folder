@@ -1,0 +1,244 @@
+	
+	#uselib "gdi32.dll"
+	#func	BitBlt	"BitBlt"	int, int, int, int, int,  int, int, int, int
+	#uselib "user32.dll"
+	#func	ReleaseDC			"ReleaseDC"				int, int
+	#func	mouse_event			"mouse_event"			int, int, int, int, int
+	#func	keybd_event			"keybd_event"			int, int, int, int
+	#func	SetForeground	"SetForegroundWindow"	int
+	#cfunc	GetDC				"GetDC"					int
+	#cfunc	FindWindow			"FindWindowA"			sptr, sptr
+	#cfunc	GetForeground		"GetForegroundWindow"
+	
+	#define MOUSEEVENTF_LEFTDOWN    0x0002
+	#define MOUSEEVENTF_LEFTUP      0x0004
+	#define MOUSEEVENTF_RIGHTDOWN	0x0008
+	#define MOUSEEVENTF_RIGHTUP		0x0010
+	#define	KEYEVENTF_KEYUP			0x2
+	
+	#packopt name "fishing"
+	#packopt hide 0
+	
+	sdim log
+	
+	lp = 4
+	wt = 0
+	
+	hTar = FindWindow("SunAwtFrame", "Minecraft")
+	if hTar == null :dialog "Minecraftが起動していません。", 0, "Warning!!" :end
+	
+	wdhMC = winfo(12, hTar)
+	hgtMC = winfo(13, hTar)
+	xmar = (winfo(10, hTar) - wdhMC)/2
+	ymar = winfo(11, hTar) - hgtMC - xmar
+	xMC = winfo(4, hTar) +xmar
+	yMC = winfo(5, hTar) +ymar+xmar
+	
+	wdh = 100//wdhMC / 9
+	hgt = hgtMC
+	x = xMC + wdhMC/2 - wdh/2
+	y = yMC
+	
+	fishingf = 0
+	lookf = 0
+	
+	hPrevWnd = NULL
+	
+	saykey = "191", "83", "65", "89", "32", "71", "79", "84", "32", "70", "73", "83", "72"
+	
+	buffer 1, wdh, hgt
+	font msgothic, 10
+	
+	screen 0, limit(wdh, 100, INT_MAX), hgt, 8,,, 100, 100
+	font msgothic, 10
+	gsel 0, 2
+	title "auto fishing"
+	
+*main
+	if 5 < sublev :return
+	gosub *calcdraw
+	if lookf {
+		wait 5
+	}else {
+		wait 50
+	}
+	goto *main
+	
+	return
+	
+*close
+	oncmd 0
+	return
+
+*calcdraw
+	if lookf {
+		twdh = lwdh
+		thgt = lhgt
+		tmpx = x+lx
+		tmpy = y+ly
+	}else {
+		tmpx = x
+		tmpy = y
+		twdh = wdh
+		thgt = hgt
+	}
+	gsel 1
+	redraw 0
+	htdc = GetDC(NULL)
+	BitBlt hdc, 0, 0, twdh, thgt, htdc, tmpx+10, tmpy, SRCCOPY
+	ReleaseDC NULL, htdc
+	redraw 1
+	
+	// b -> w -> r -> w -> b
+	tsx = -1
+	tsy = -1
+	tex = -1
+	tey = -1
+	ty = 0
+	repeat twdh
+		flag = 0
+		oline = 0
+		for i, 0, thgt, 1
+			await
+			/**
+			pget cnt, i
+			clr_r = ginfo_r :clr_g = ginfo_g :clr_b = ginfo_b
+			/**/
+			
+			/**/
+			clr = vpget(cnt, i, wdh, hgt)
+			clr_r = RR(clr)
+			clr_g = GG(clr)
+			clr_b = BB(clr)
+			/**/
+			
+			if flag == 0 {
+				// 青検知
+				if (clr_r+80 < clr_b) && (clr_g+80 < clr_b) :flag = 1
+			}else :if flag == 1 {
+				// 白検知
+				if (clr_r-60 <= clr_b) && (clr_b <= clr_r+60) && (clr_g-60 <= clr_b) && (clr_g <= clr_r+60) {
+					flag = 2
+					ty = i
+				}else :if not((clr_r+80 < clr_b) && (clr_g+80 < clr_b)) {
+					flag = -1
+				}
+			}else :if flag == 2 {
+				// 赤検知
+				if (clr_g + clr_b) < clr_r {
+					flag = 3
+				}else :if not((clr_r-60 <= clr_b) && (clr_b <= clr_r+60) && (clr_g-60 <= clr_b) && (clr_g <= clr_r+60)) {
+					flag = -1
+				}
+			}else :if flag == 3 {
+				// 白検知
+				if (clr_r-60 <= clr_b) && (clr_b <= clr_r+60) && (clr_g-60 <= clr_b) && (clr_g <= clr_r+60) {
+					flag = 4
+				}else :if not((clr_g + clr_b) < clr_r) {
+					flag = -1
+				}
+			}else :if flag == 4 {
+				// 青検知
+				if (clr_r+80 < clr_b) && (clr_g+80 < clr_b) {
+					flag == 5
+				}else :if not((clr_r-60 <= clr_b) && (clr_b <= clr_r+60) && (clr_g-60 <= clr_b) && (clr_g <= clr_r+60)) {
+					flag = -1
+				}
+			}
+			if flag == -1 :ty = -1
+			if flag == 5 {
+				if oline == 0 {
+					oline = 1
+					if tsx == -1 :tsx = cnt
+					tex = cnt
+					
+					if ty != -1 {
+						if tsy == -1 :tsy = ty
+						tey = i
+					}
+				}
+				_break
+			}
+		next
+	loop
+	
+	redraw 0
+	color 255
+	boxf tsx-1, tsy, tex+1, tey, 0
+	redraw 1
+	
+	if tsx != -1 && tsy != -1 && tex != -1 && tey != -1 {
+		fishingf = 1
+		if lookf == 0 {
+			lookf = 1
+			lx = tsx-15
+			ly = tsy-10
+			lwdh = 30//tex-tsx+30
+			lhgt = 30//tey-tsy+20
+		}
+	}else :if fishingf {
+		fishingf = 0
+		count++
+		lookf = 0
+		if 1 {
+			// クリック & クリック
+			if GetForeground() == hTar {
+				wait 5
+				gosub *rclick
+				wait 100
+				gosub *rclick
+			}else :if 1 {
+				gosub *activate
+				gosub *rclick
+				wait 100
+				gosub *rclick
+				gosub *backgroundate
+			}
+		}
+	}
+	
+	gsel 0
+	if fishingf {
+		if lookf :colorwhite :boxf
+		pos 0, 0 :gcopy 1, 0, 0, twdh, thgt
+		
+		color
+		if lookf {
+			pos 0, lhgt
+		}else {
+			pos 0, 10
+		}
+		mes "合計 (" + count + ")"
+	}else {
+		colorwhite :boxf :color
+		pos 0, 0 :gcopy 1, 0, 0, twdh, thgt
+		pos 0, 0 :mes "未検出"
+	}
+	
+	return
+
+*rclick
+	mouse_event MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, NULL
+	await
+	mouse_event MOUSEEVENTF_RIGHTUP, 0, 0, 0, NULL
+	return
+	
+*activate
+	hPrevWnd = GetForeground()
+	SetForeground hTar
+//	g_mx = ginfo(0) :g_my = ginfo(1)
+	
+//	mouse xMC+wdhMC/2, yMC+hgtMC/2
+//	mouse_event MOUSEEVENTF_LEFTDOWN, 0, 0, 0, NULL
+//	mouse_event MOUSEEVENTF_LEFTUP, 0, 0, 0, NULL
+	
+	wait 1
+	return
+	
+*backgroundate
+//	mouse g_mx, g_my
+//	keybd_event 191, 0, 0, 0
+//	await
+//	keybd_event 191, 0, KEYEVENTF_KEYUP, 0
+//	SetForeground hPrevWnd
+	return

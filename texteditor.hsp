@@ -1,0 +1,565 @@
+	
+/*
+b_row
+//・改行挿入時 // ++
+//・改行削除時 // --
+{"ab
+cdef"} のc前で削除すると
+abcdef	// 改行を削除したことで結合
+				// 削除をした・された行
+//・カーソル移動時 // ++ or --
+//	・行移動に半角から全角への移動 shiftjis 判定
+・クリック時 // find
+*/
+	
+	
+	#uselib "user32.dll"
+	#func	SetTimer			"SetTimer"			int, int, int, int
+	#cfunc	GetCaretBlinkTime	"GetCaretBlinkTime"
+	#uselib "imm32.dll"
+	#func	ImmSetCompositionWindow	"ImmSetCompositionWindow"	int, int, int
+	#func	ImmSetCompositionFont	"ImmSetCompositionFontA"	int, int
+	#func	ImmGetCompositionWindow	"ImmGetCompositionWindow"	int, int
+	#cfunc	ImmGetContext			"ImmGetContext"				int
+	#include "hspext.as"
+	
+	// Shift-JIS かどうか
+	#define ctype isshiftjis(%1)	(((0x80 <= %1) && (%1 <= 0x9F)) || ((0xE0 <= %1) && (%1 <= 0xFE)))
+	// 数字かどうか
+	#define ctype isnumber(%1)	('0' <= %1 && %1 <= '9')
+	// アルファベットかどうか
+	#define ctype isalphabet(%1)	(('A' <= %1 && %1 <= 'Z') || ('a' <= %1 && %1 <= 'z'))
+	
+	
+	// font
+	fsize = 14
+	hfsize = fsize/2
+	
+	// row heading
+	rowheadings = 4
+	rowh_text = hfsize
+	xbeg = hfsize*rowheadings + rowh_text
+	
+	// ruler
+	rulerhgt = 7
+	ruler_text = 2
+	ybeg = rulerhgt + ruler_text
+	
+	// caret
+	init_carettime = GetCaretBlinkTime()/16	// キャレット点滅時間
+	rc_caret = xbeg, ybeg, xbeg+1, ybeg+fsize+1
+	
+	// buf
+	size = 64				// 現在書き込みができるサイズ
+	b_c_CRLF = 0x0D, 0x0A	// 改行コード
+	b_c_CRLF_len = length(b_c_CRLF)
+	b_len = 0				// バッファの最大文字数
+	b_index = 0				// 次に書き込むインデックス (絶対距離)
+	b_row = 0				// 次に書き込む行
+	b_rowmax = 1			// 改行数
+	tabsize = 4				// タブサイズ
+	sdim buf, size+1
+	dim row_len, 2			// 行毎の長さ
+	
+	// window
+	wdh = 400 :hgt = 250
+	drawf = 1				// 再描画フラグ
+	caretactf = makelong(1, 0)	// lo:非表示フラグ hi:非アクティブ時にアクティブ
+	
+	// 文字色
+	txclr = RGB(255, 255, 255)		// 通常時
+	tx_2_clr = txclr				// 2byte文字
+	tx_n_clr = txclr				// 数字
+	tx_A_clr = txclr				// 英字
+	tx___clr = RGB(200, 200, 255)	// その他
+	bkclr = RGB(0, 0, 0)			// 通常時の背景色
+	cbkclr = RGB(25, 25, 25)		// キャレットがある行の背景色
+	ctxclr = txclr					// キャレットの色
+	stxclr = bkclr					// 選択時
+	sbkclr = txclr					// 選択時の背景色
+	ruclr = txclr					// ルーラー
+	rfclr = cbkclr					// 行番号とテキストエリアの境界線
+	rhclr = txclr					// 行番号
+	kwclr = RGB(50, 50, 255)		// キーワード
+	kwclr.1 = RGB(255, 128, 0)		// 文字列
+	kwclr.2 = RGB(128, 255, 255)	// タグ
+	
+	bufid = 0
+	buffer bufid, wdh, hgt
+	font msgothic, fsize
+	
+	mainid = 1
+	screen mainid, ginfo(20), ginfo(21), 0,,, wdh, hgt
+	oncmd gosub *main, WM_TIMER
+	oncmd gosub *close, WM_CLOSE
+	oncmd gosub *char, WM_CHAR
+	oncmd gosub *keydown, WM_KEYDOWN
+	oncmd gosub *activate, WM_ACTIVATE
+	font msgothic, fsize
+	title "Text Editor"
+	
+	// IMEハンドル取得
+	hIMC = ImmGetContext(hwnd)
+	ImmSetFont hIMC, msgothic, fsize
+	
+	// 初期
+	ReDraw_Prev
+//	SetTimer hwnd, 1000, 10, 0
+//	stop
+	
+*main
+	// 10ms毎
+	Caret
+	
+	if drawf {
+		drawf = 0
+		Draw
+	}
+//	return
+	wait 1
+	goto *main
+	
+*close
+	// [x]ボタン押下
+	oncmd 0
+	return
+	
+*char
+	// 文字追加
+	if getkey(17) & 0x8000 {
+		if wparam == 'A'-'A'+1 :// Ctrl+A	// 全て選択
+		if wparam == 'X'-'A'+1 :// Cirl+X	// 切り取り
+		if wparam == 'C'-'A'+1 :// Cirl+C	// コピー
+		if wparam == 'V'-'A'+1 {
+			// Cirl+V	// 貼り付け
+			sdim tbuf, 1024+1
+			clipget tbuf, 1024
+			repeat strlen(tbuf)
+				InsertBuf peek(tbuf, cnt)
+			loop
+		}
+	}else {
+		InsertBuf wparam
+	}
+	ReDraw_Prev
+	return
+	
+	// キーボード押下
+*keydown
+	// 書き込みインデックスleft移動 (0x20以下は無視)
+	if wparam == 37 :MoveBufIndex -1		// index--
+	if wparam == 38 :	// row--
+	
+	// 書き込みインデックスright移動 (0x20以下は無視)
+	if wparam == 39 :MoveBufIndex 1	// index++
+	if wparam == 40 :	// row++
+	
+	if 37 <= wparam && wparam <= 40 :ReDraw_Prev
+	return
+	
+*activate
+	if hiword(caretactf) :return
+	if loword(wparam) {
+		// to active
+		caretactf = makelong(1, 0)
+		carettime = 0
+		caretf = 0
+	}else {
+		// from active
+		caretactf = makelong(0, 0)
+	}
+	return
+	
+#deffunc ReDraw_Prev
+	// キャレット移動
+	i = b_index
+	repeat limit(b_rowmax-1, 0, INT_MAX)
+		if i-row_len.cnt < 0 :break
+		i -= row_len.cnt
+	loop
+	rc_caret.0 = xbeg + i*hfsize
+	rc_caret.2 = rc_caret.0+1
+	rc_caret.1 = ybeg + b_row*fsize
+	rc_caret.3 = rc_caret.1 + fsize
+	title "行index :"+b_row
+	
+	// IME移動
+	dim cf, 28
+	ImmGetCompositionWindow hIMC, varptr(cf)
+	cf = 0x02, rc_caret.0, rc_caret.1
+	ImmSetCompositionWindow hIMC, varptr(cf)
+	
+	// 再描画
+	FindKeyWordIndex
+	DrawTextToBuf
+	carettime = 0
+	caretf = 0
+	drawf = 1
+	return
+	
+#deffunc draw
+	redraw 0
+	// バッファ描画
+	DrawBuf
+	// キャレット
+	Caret 1
+	// 列番号
+	RowHeading
+	
+	redraw 1
+	return
+	
+	// キャレット
+#deffunc Caret int mode
+	if mode {
+		// 描画
+		if caretf && loword(caretactf) {
+			color RR(ctxclr), GG(ctxclr), BB(ctxclr)
+			boxf@hsp rc_caret.0, rc_caret.1, rc_caret.2, rc_caret.3
+		}
+	}else {
+		// 計算
+		if carettime {
+			carettime--
+		}else {
+			carettime = init_carettime
+			caretf = (caretf+1)\2
+			drawf = 1
+		}
+	}
+	return
+	
+	// 行番号
+#deffunc RowHeading
+	color RR(bkclr), GG(bkclr), BB(bkclr)
+	boxf@hsp 0, 0, xbeg-1, hgt
+	
+	color RR(rhclr), GG(rhclr), BB(rhclr)
+	
+	/* 行内文字数 */
+	repeat b_rowmax
+		pos 0, ybeg+fsize*cnt :mes strf("%"+rowheadings+"d", row_len.cnt)
+	loop
+	/* バイナリ */
+	x = (wdh-xbeg)/hfsize
+	i = 0
+	repeat b_rowmax
+		sdim tstr
+		repeat row_len.cnt
+			tstr += strf("%2X", peek(buf, i+cnt))
+		loop
+		i += row_len.cnt
+		pos xbeg, ybeg+fsize*cnt :mes strf("%"+x+"s", tstr)
+	loop
+	/**/
+	
+	// 境界線
+	x = xbeg-rowh_text/2
+	color RR(rfclr), GG(rfclr), BB(rfclr)
+	line x, 0, x, hgt
+	
+	return
+	
+	// ウィンドウへバッファ描画
+#deffunc DrawBuf
+	color RR(bkclr), GG(bkclr), BB(bkclr)
+	pos xbeg, ybeg :gcopy bufid, 0, 0, wdh-xbeg, hgt-ybeg
+	return
+	
+	// キーワード探索
+#deffunc FindKeyWordIndex
+	dim kwpt	// キーワード出現位置
+	dim kwtp	// キーワードタイプ
+	kwmax = 0
+	kw = "if", "for", "while"		// キーワード
+	kws_len = 2, 3, 5
+	bkw = "\"\"", "''", "<>"		// 文字列キーワード
+	nws = "AZ", "az", "09", "__"	// キーワードの前後にあるとキーワードとして認識されない
+	nws_len = length(nws)
+	kw_len = length(kw)
+	bkw_len = length(bkw)
+	dim kwf, kw_len
+	
+	// キーワードの位置列挙
+	for i, ibeg, b_len, 1
+		token = peek(buf, i)
+		if i < b_len-1 :nexttoken = peek(buf, i+1) :else :nexttoken = -1
+		if token == 0xD {
+			dim kwf, kw_len
+			i++
+		}else {
+			// キーワード探索
+			repeat kw_len
+				if token == peek(kw.cnt, kwf.cnt) :kwf.cnt++ :else :kwf.cnt = 0
+				if kws_len.cnt <= kwf.cnt {
+					m = 0
+					if 0 <= i-kws_len.cnt {
+						prevtoken = peek(buf, i-kws_len.cnt)
+					}else :prevtoken = -1
+					repeat nws_len
+						// 次の文字監視
+						if nexttoken != -1 :if peek(nws.cnt, 0) <= nexttoken && nexttoken <= peek(nws.cnt, 1) {
+							m = 1
+							break
+						}
+						// 前の文字監視
+						if prevtoken != -1 :if peek(nws.cnt, 0) <= prevtoken && prevtoken <= peek(nws.cnt, 1) {
+							m = 2
+							break
+						}
+					loop
+					if m :continue
+					
+					// 登録
+					kwpt.kwmax = i-kws_len.cnt+1
+					kwtp.kwmax = cnt
+					kwmax++
+					// 
+					kwf.cnt = 0
+					break
+				}
+			loop
+		}
+	next
+	return
+	
+	// バッファ描画
+#deffunc DrawTextToBuf
+	mesx = 0
+	mesy = 0
+	wordlen = 0
+	t_nkwcnt = 0 :t_clrtype = -1
+	
+	maxrow = hgt-ybeg
+	
+	gsel bufid
+	redraw 0
+	
+	color RR(bkclr), GG(bkclr), BB(bkclr)
+	boxf@hsp mesx, mesy, wdh, hgt
+	
+	for i, ibeg, b_len, 1
+		token = peek(buf, i)
+		if pBeg != pEnd && pBeg <= i && i < pEnd {
+			// 選択領域
+			color RR(sbkclr), GG(sbkclr), BB(sbkclr)
+			boxf@hsp mesx, mesy, mesx+hfsize, mesy+fsize
+			color RR(stxclr), GG(stxclr), BB(stxclr)
+		}else {
+			// 通常文字
+			color RR(txclr), GG(txclr), BB(txclr)
+		}
+		
+		// キーワード文字色
+		n = -1
+		if n == -1 :if t_nkwcnt == 0 {
+			// 記号キーワード開始
+			if token == peek(bkw.0, 0) :n = 1
+			if token == peek(bkw.1, 0) :n = 1
+			if token == peek(bkw.2, 0) :n = 2
+			if n != -1 :t_nkwcnt = -1
+		}
+		if n == -1 :if t_nkwcnt == 0 {
+			// 文字列キーワード探索
+			n = 0
+			repeat kwmax
+				if kwpt.cnt == i {
+					t_nkwcnt = kws_len.kwtp(cnt)
+					break
+				}
+			loop
+		}
+		if n != -1 :t_clrtype = n
+		if t_nkwcnt {
+			color RR(kwclr.t_clrtype), GG(kwclr.t_clrtype), BB(kwclr.t_clrtype)
+			if 0 < t_nkwcnt :t_nkwcnt--
+			if t_nkwcnt == -2 {
+				// 記号キーワード終了
+				repeat bkw_len
+					if token == peek(bkw.cnt, 1) :t_nkwcnt = 0
+				loop
+			}else :if t_nkwcnt == -1 :t_nkwcnt = -2
+		}
+		
+		pos mesx, mesy
+		if token == b_c_CRLF.0 {
+			// 改行
+			n = 1
+			repeat limit(b_c_CRLF_len-1, 0, INT_MAX), 1
+				if peek(buf, i+cnt) == b_c_CRLF.cnt :n++
+			loop
+			if n == b_c_CRLF_len {
+//				mes "↓"
+				color RR(tx___clr), GG(tx___clr), BB(tx___clr)
+				mesx = 0
+				mesy += fsize
+				wordlen = 0
+				i++
+				if maxrow <= mesy :_break
+				_continue
+			}
+		}
+		if token == '\t' {
+			// タブ展開
+//			mes ">"
+			color RR(tx___clr), GG(tx___clr), BB(tx___clr)
+			mesx += hfsize*tabsize - hfsize*wordlen
+			wordlen = 0
+		}else :if isshiftjis(token) {
+			// 2バイト文字
+			mes strmid(buf, i, 2)
+			mesx += fsize
+			wordlen += 2
+			i++
+		}else {
+			// 1バイト文字
+			mes spestr(token)
+			mesx += hfsize
+			wordlen++
+		}
+	next
+	redraw 1
+	gsel mainid
+	
+	return
+	
+	// 文字インデックス移動
+#deffunc MoveBufIndex int addindex, int addrow
+	if addindex {
+		if 0 < addindex {
+			// ++
+			f = 1
+			if b_index < b_len :token = peek(buf, b_index)
+			if isshiftjis(token) :f = 2
+			if b_index+b_c_CRLF_len <= b_len :if token == b_c_CRLF.0 {
+				// 改行コード
+				nif = 1
+				repeat b_c_CRLF_len-1, 1
+					if b_c_CRLF.cnt == peek(buf, b_index+cnt) :nif++
+				loop
+				if nif == b_c_CRLF_len :f = 2 :b_row++
+			}
+			if b_index+f <= b_len :b_index += f
+		}else {
+			// --
+			f = 1
+			if 0 <= b_index-2 :if isshiftjis(peek(buf, b_index-2)) :f = 2
+			if 0 <= b_index-b_c_CRLF_len :if peek(buf, b_index-1) == b_c_CRLF(b_c_CRLF_len-1) {
+				nif = 1
+				for i, b_c_CRLF_len-2, -1, -1
+					if b_c_CRLF.i == peek(buf, b_index-b_c_CRLF_len+i) :nif++
+				next
+				if nif == b_c_CRLF_len :f = 2 :b_row--
+			}
+			if 0 <= b_index-f :b_index -= f
+		}
+	}else {
+		if 0 < addrow {
+			
+		}else {
+			
+		}
+	}
+	return
+	
+	// 文字挿入
+#deffunc InsertBuf int bytecode, int delf, int special
+	if delf {
+		// 削除
+		if b_len == 0 || b_index == 0 :return
+		if InsertBuf_lp == 0 {
+			i = 0
+			repeat b_c_CRLF_len
+				if 0 <= b_len-b_c_CRLF_len+cnt :if peek(buf, b_len-b_c_CRLF_len+cnt) == b_c_CRLF.cnt :i++
+			loop
+			if i == b_c_CRLF_len {
+				// 改行
+				InsertBuf_lp = 1
+				// 途中で改行
+				if b_index < b_len {
+					row_len(b_row-1) += row_len.b_row
+					repeat b_rowmax-b_row-1, b_row
+						row_len(cnt) = row_len(cnt+1)
+					loop
+				}
+				
+				repeat b_c_CRLF_len
+					InsertBuf 0, 1
+				loop
+				InsertBuf_lp = 0
+				b_rowmax--
+				b_row--
+				row_len.b_row -= b_c_CRLF_len
+				return
+			}
+		}
+		i = 1
+		if 0 <= b_len-2 :if isshiftjis(peek(buf, b_len-2)) :i = 2
+		if b_index < b_len {
+			// 途中で削除の場合,切り詰め
+			repeat b_len-b_index-1, b_index
+				poke buf, cnt, peek(buf, cnt+1)
+			loop
+		}
+		row_len.b_row -= i
+		b_index -= i
+		b_len -= i
+	}else {
+		// 挿入
+		if bytecode == 0xD && InsertBuf_lp == 0 {
+			// 改行コード
+			InsertBuf_lp = 1
+			// 途中で改行
+			if b_index < b_len {
+				// 行内文字数再調整
+				for i_, b_rowmax, b_rowmax-b_row-1, -1
+					row_len.i_ = row_len(i_-1)
+				next
+				
+				// 分割
+				i_ = b_index
+				repeat limit(b_rowmax-1, 0, INT_MAX)
+					if i_-row_len.cnt < 0 :break
+					i_ -= row_len.cnt
+				loop
+				row_len(b_row+1) = row_len.b_row-i_
+				row_len.b_row = i_
+			}
+			repeat b_c_CRLF_len
+				InsertBuf b_c_CRLF.cnt, 0, 1
+			loop
+			InsertBuf_lp = 0
+			b_row++
+			b_rowmax++
+			if b_index == b_len :row_len.b_row = 0
+		}else :if bytecode == 8 && special == 0 {
+			// 削除
+			InsertBuf 0, 1
+		}else :if (0x20 <= bytecode && special == 0) || (special == 1) {
+			// 挿入
+			if size <= b_len {
+				size += 64
+				memexpand buf, size+1
+			}
+			if b_index < b_len {
+				for i_, b_len, b_index, -1
+					poke buf, i_, peek(buf, i_-1)
+				next
+			}
+			poke buf, b_index, bytecode
+			b_index++
+			b_len++
+			row_len.b_row++
+		}
+	}
+	return
+	
+	// IMEのフォント設定
+#deffunc ImmSetFont int hIMC_, str font_name, int font_size
+	dim logfont, 20
+	lfFaceName = font_name
+	logfont.0 = font_size
+	poke logfont, 23, 1
+	memcpy logfont, lfFaceName, strlen(lfFaceName), 28, 0
+	ImmSetCompositionFont hIMC_, varptr(logfont)
+	return

@@ -1,0 +1,396 @@
+	
+	// Moving
+	
+	
+	// 視覚的に変更できるように要改良
+	// [言葉を送信]要更新
+	// ・wp, lp のpt or normal を
+	
+	
+	#packopt name "window.exe"
+	#packopt hide 1
+	
+	#uselib "kernel32.dll"
+	#cfunc	GetLastError	"GetLastError"
+	#uselib "GetLastErrorMessage.dll"
+	#func	ErrorMessageBox		"MessageErrorBox"
+	#uselib "shell32.dll"
+	#cfunc	ShellExecute	"ShellExecuteA"		int, str, str, str, str, int
+	#cfunc	IsUserAnAdmin	"IsUserAnAdmin"
+	#uselib "user32.dll"
+	#cfunc	WindowFromPoint	"WindowFromPoint"	int, int
+	#func	SetActiveWindow	"SetActiveWindow"	int
+	#cfunc	CreateWindowEx	"CreateWindowExA"	int, sptr, sptr, int,  int, int, int, int,  int, int, int, int
+	#cfunc	GetClassInfoEx	"GetClassInfoExA"	int, sptr, int
+	#cfunc	RegisterClassEx	"RegisterClassExA"	int
+	#cfunc	DefWindowProc	"DefWindowProcA"	int, int, int, int
+	
+	#define ADD_BUF17(%1)		poke %1, strlen(%1), 17
+	#define	ES_RIGHT			0x0002
+	#define	ES_READONLY			0x0800
+	#define	LBS_SORT			0x0002
+	#define	LBS_MULTIPLESEL		0x0008
+	#define	LBS_EXTENDEDSEL		0x0800
+	#define LBN_ERRSPACE		(-2)
+	#define LBN_SELCHANGE		1
+	#define LBN_DBLCLK			2
+	#define LBN_SELCANCEL		3
+	#define LBN_SETFOCUS		4
+	#define LBN_KILLFOCUS		5
+	#define	ERROR_ACCESS_DENIED	5
+	
+	#define	TEMP_FILE_NAME		""+dir_desktop+"\\temp"
+	
+	#include "targetfind.as"
+	
+	wx = 400
+	wy = 120
+	ms = "null"
+	wndmes = "WM_NULL\nWM_CREATE\nWM_DESTROY\nWM_MOVE\nWM_SIZE\nWM_ACTIVATE\nWM_SETFOCUS\nWM_KILLFOCUS\nWM_ENABLE\nWM_SETREDRAW\nWM_SETTEXT\nWM_GETTEXT\nWM_GETTEXTLENGTH\nWM_PAINT\nWM_CLOSE\nWM_QUERYENDSESSION\nWM_QUERYOPEN\nWM_ENDSESSION\nWM_QUIT\nWM_ERASEBKGND\nWM_SYSCOLORCHANGE\nWM_SHOWWINDOW\nWM_WININICHANGE\nWM_DEVMODECHANGE\nWM_ACTIVATEAPP\nWM_FONTCHANGE\nWM_TIMECHANGE\nWM_CANCELMODE\nWM_SETCURSOR\nWM_MOUSEACTIVATE\nWM_CHILDACTIVATE\nWM_QUEUESYNC\nWM_GETMINMAXINFO\nWM_PAINTICON\nWM_ICONERASEBKGND\nWM_NEXTDLGCTL\nWM_SPOOLERSTATUS\nWM_DRAWITEM\nWM_MEASUREITEM\nWM_DELETEITEM\nWM_VKEYTOITEM\nWM_CHARTOITEM\nWM_SETFONT\nWM_GETFONT\nWM_SETHOTKEY\nWM_GETHOTKEY\nWM_QUERYDRAGICON\nWM_COMPAREITEM\nWM_GETOBJECT\nWM_COMPACTING\nWM_COMMNOTIFY\nWM_WINDOWPOSCHANGING\nWM_WINDOWPOSCHANGED\nWM_POWER\nWM_COPYDATA\nWM_CANCELJOURNAL\nWM_NOTIFY\nWM_INPUTLANGCHANGEREQUEST\nWM_INPUTLANGCHANGE\nWM_TCARD\nWM_HELP\nWM_USERCHANGED\nWM_NOTIFYFORMAT\nWM_CONTEXTMENU\nWM_STYLECHANGING\nWM_STYLECHANGED\nWM_DISPLAYCHANGE\nWM_GETICON\nWM_SETICON\nWM_NCCREATE\nWM_NCDESTROY\nWM_NCCALCSIZE\nWM_NCHITTEST\nWM_NCPAINT\nWM_NCACTIVATE\nWM_GETDLGCODE\nWM_SYNCPAINT\nWM_NCMOUSEMOVE\nWM_NCLBUTTONDOWN\nWM_NCLBUTTONUP\nWM_NCLBUTTONDBLCLK\nWM_NCRBUTTONDOWN\nWM_NCRBUTTONUP\nWM_NCRBUTTONDBLCLK\nWM_NCMBUTTONDOWN\nWM_NCMBUTTONUP\nWM_NCMBUTTONDBLCLK\nWM_NCXBUTTONDOWN\nWM_NCXBUTTONUP\nWM_NCXBUTTONDBLCLK\nWM_INPUT_DEVICE_CHANGE\nWM_INPUT\nWM_KEYFIRST\nWM_KEYDOWN\nWM_KEYUP\nWM_CHAR\nWM_DEADCHAR\nWM_SYSKEYDOWN\nWM_SYSKEYUP\nWM_SYSCHAR\nWM_SYSDEADCHAR\nWM_UNICHAR\nWM_KEYLAST\nWM_IME_STARTCOMPOSITION\nWM_IME_ENDCOMPOSITION\nWM_IME_COMPOSITION\nWM_IME_KEYLAST\nWM_INITDIALOG\nWM_COMMAND\nWM_SYSCOMMAND\nWM_TIMER\nWM_HSCROLL\nWM_VSCROLL\nWM_INITMENU\nWM_INITMENUPOPUP\nWM_GESTURE\nWM_GESTURENOTIFY\nWM_MENUSELECT\nWM_MENUCHAR\nWM_ENTERIDLE\nWM_MENURBUTTONUP\nWM_MENUDRAG\nWM_MENUGETOBJECT\nWM_UNINITMENUPOPUP\nWM_MENUCOMMAND\nWM_CHANGEUISTATE\nWM_UPDATEUISTATE\nWM_QUERYUISTATE\nWM_CTLCOLORMSGBOX\nWM_CTLCOLOREDIT\nWM_CTLCOLORLISTBOX\nWM_CTLCOLORBTN\nWM_CTLCOLORDLG\nWM_CTLCOLORSCROLLBAR\nWM_CTLCOLORSTATIC\nWM_MOUSEFIRST\nWM_MOUSEMOVE\nWM_LBUTTONDOWN\nWM_LBUTTONUP\nWM_LBUTTONDBLCLK\nWM_RBUTTONDOWN\nWM_RBUTTONUP\nWM_RBUTTONDBLCLK\nWM_MBUTTONDOWN\nWM_MBUTTONUP\nWM_MBUTTONDBLCLK\nWM_MOUSEWHEEL\nWM_XBUTTONDOWN\nWM_XBUTTONUP\nWM_XBUTTONDBLCLK\nWM_MOUSEHWHEEL\nWM_PARENTNOTIFY\nWM_ENTERMENULOOP\nWM_EXITMENULOOP\nWM_NEXTMENU\nWM_SIZING\nWM_CAPTURECHANGED\nWM_MOVING\nWM_POWERBROADCAST\nWM_DEVICECHANGE\nWM_MDICREATE\nWM_MDIDESTROY\nWM_MDIACTIVATE\nWM_MDIRESTORE\nWM_MDINEXT\nWM_MDIMAXIMIZE\nWM_MDITILE\nWM_MDICASCADE\nWM_MDIICONARRANGE\nWM_MDIGETACTIVE\nWM_MDISETMENU\nWM_ENTERSIZEMOVE\nWM_EXITSIZEMOVE\nWM_DROPFILES\nWM_MDIREFRESHMENU\nWM_TOUCH\nWM_IME_SETCONTEXT\nWM_IME_NOTIFY\nWM_IME_CONTROL\nWM_IME_COMPOSITIONFULL\nWM_IME_SELECT\nWM_IME_CHAR\nWM_IME_REQUEST\nWM_IME_KEYDOWN\nWM_IME_KEYUP\nWM_MOUSEHOVER\nWM_MOUSELEAVE\nWM_NCMOUSEHOVER\nWM_NCMOUSELEAVE\nWM_WTSSESSION_CHANGE\nWM_TABLET_FIRST\nWM_TABLET_LAST\nWM_CUT\nWM_COPY\nWM_PASTE\nWM_CLEAR\nWM_UNDO\nWM_RENDERFORMAT\nWM_RENDERALLFORMATS\nWM_DESTROYCLIPBOARD\nWM_DRAWCLIPBOARD\nWM_PAINTCLIPBOARD\nWM_VSCROLLCLIPBOARD\nWM_SIZECLIPBOARD\nWM_ASKCBFORMATNAME\nWM_CHANGECBCHAIN\nWM_HSCROLLCLIPBOARD\nWM_QUERYNEWPALETTE\nWM_PALETTEISCHANGING\nWM_PALETTECHANGED\nWM_HOTKEY\nWM_PRINT\nWM_PRINTCLIENT\nWM_APPCOMMAND\nWM_THEMECHANGED\nWM_CLIPBOARDUPDATE\nWM_DWMCOMPOSITIONCHANGED\nWM_DWMNCRENDERINGCHANGED\nWM_DWMCOLORIZATIONCOLORCHANGED\nWM_DWMWINDOWMAXIMIZEDCHANGE\nWM_DWMSENDICONICTHUMBNAIL\nWM_DWMSENDICONICLIVEPREVIEWBITMAP\nWM_GETTITLEBARINFOEX\nWM_HANDHELDFIRST\nWM_HANDHELDLAST\nWM_AFXFIRST\nWM_AFXLAST\nWM_PENWINFIRST\nWM_PENWINLAST\nWM_USER\nWM_APP\n"
+	nwndmes = "0\n1\n2\n3\n5\n6\n7\n8\nA\nB\nC\nD\nE\nF\n10\n11\n13\n16\n12\n14\n15\n18\n1A\n1B\n1C\n1D\n1E\n1F\n20\n21\n22\n23\n24\n26\n27\n28\n2A\n2B\n2C\n2D\n2E\n2F\n30\n31\n32\n33\n37\n39\n3D\n41\n44\n46\n47\n48\n4A\n4B\n4E\n50\n51\n52\n53\n54\n55\n7B\n7C\n7D\n7E\n7F\n80\n81\n82\n83\n84\n85\n86\n87\n88\nA0\nA1\nA2\nA3\nA4\nA5\nA6\nA7\nA8\nA9\nAB\nAC\nAD\nFE\nFF\n100\n100\n101\n102\n103\n104\n105\n106\n107\n109\n108\n10D\n10E\n10F\n10F\n110\n111\n112\n113\n114\n115\n116\n117\n119\n11A\n11F\n120\n121\n122\n123\n124\n125\n126\n127\n128\n129\n132\n133\n134\n135\n136\n137\n138\n200\n200\n201\n202\n203\n204\n205\n206\n207\n208\n209\n20A\n20B\n20C\n20D\n20E\n210\n211\n212\n213\n214\n215\n216\n218\n219\n220\n221\n222\n223\n224\n225\n226\n227\n228\n229\n230\n231\n232\n233\n234\n240\n281\n282\n283\n284\n285\n286\n288\n290\n291\n2A1\n2A3\n2A0\n2A2\n2B1\n2c0\n2df\n300\n301\n302\n303\n304\n305\n306\n307\n308\n309\n30A\n30B\n30C\n30D\n30E\n30F\n310\n311\n312\n317\n318\n319\n31A\n31D\n31E\n31F\n320\n321\n323\n326\n33F\n358\n35F\n360\n37F\n380\n38F\n400\n8000\n"
+	cc = 0	// chenge count			変更回数
+	dim ci	// change information	変更履歴
+	
+	screen 0, ginfo(20), ginfo(21), 0, (ginfo(20)-wx)/2, (ginfo(21)-wy)/2, wx, wy
+	title "Window"
+	hMainWnd = hwnd@hsp
+	font msgothic, 14
+	oncmd gosub *WindowProc, WM_SIZE
+	oncmd gosub *WindowProc, WM_SIZING
+	oncmd gosub *WindowProc, WM_KEYDOWN
+	oncmd gosub *WindowProc, WM_LBUTTONDOWN
+	onkey gosub *key
+	
+	objsize 85, 20
+	pos 210, 83 :button gosub "変更を適用", *change
+	pos 305, 83 :button gosub "言葉を送信", *message
+	objsize 16, 16
+	pos 186, 24 :button gosub "...", *ButtonJump :styleID = stat
+	pos 356, 24 :button gosub "...", *ButtonJump :ExstyleID = stat
+	
+	objsize 40, 16 :objmode 2
+	pos 104,  4 :input ms,,,,0 :hlRect = objinfo(stat, 2) :slong hlRect, -16, glong(hlRect, -16) | ES_RIGHT
+	pos 157,  4 :input ms,,,,0 :htRect = objinfo(stat, 2)
+	pos 274,  4 :input ms,,,,0 :hrRect = objinfo(stat, 2) :slong hrRect, -16, glong(hrRect, -16) | ES_RIGHT
+	pos 327,  4 :input ms,,,,0 :hbRect = objinfo(stat, 2)
+	pos 113, 44 :input ms, wx-119, 16, 0, 0 :htiWnd = objinfo(stat, 2)
+	pos 113, 64 :input ms, wx-119, 16, 0, 0 :hcnWnd = objinfo(stat, 2)
+	pos 113, 84 :input ms, 73, 16, 0, 0 :hwWnd = objinfo(stat, 2)
+	
+	objsize 73, 16
+	pos 113, 25 :input ms,,,,0 :hStyle = objinfo(stat, 2)
+	pos 283, 25 :input ms,,,,0 :hExStyle = objinfo(stat, 2)
+	objmax = stat+1
+	objsel 0
+	
+	if IsUserAnAdmin() :gosub *initread :else :gosub *draw
+	stop
+	
+*key
+	sendmsg hMainWnd, WM_KEYDOWN, wparam ,lparam
+	return
+	
+*ButtonJump
+	if stat == styleID {
+		objsize 500, 344
+		dialog "2", 64, "Select - Window Style"
+		objsize ginfo(12)/2, 20
+		pos 0, ginfo(13)-20 :button gosub "決定", *style_okey
+		pos ginfo(12)/2, ginfo(13)-20 :button gosub "戻る", *style_cancel
+		objsize ginfo(12), 180 :objmode 2 :font msgothic, 14
+		//listbox list, 0, "WS_OVERLAPPED\nWS_POPUP\nWS_CHILD\nWS_MINIMIZE\nWS_VISIBLE\nWS_DISABLED\nWS_CLIPSIBLINGS\nWS_CLIPCHILDREN\nWS_MAXIMIZE\nWS_CAPTION\nWS_BORDER\nWS_DLGFRAME\nWS_VSCROLL\nWS_HSCROLL\nWS_SYSMENU\nWS_THICKFRAME\nWS_GROUP\nWS_TABSTOP\nWS_MINIMIZEBOX\nWS_MAXIMIZEBOX"
+		pos 0,   0 :winobj "listbox", "", 0, 0x50300001 | LBS_EXTENDEDSEL, ginfo(12), 0
+		hList = objinfo(stat, 2)
+		ssize ginfo(12), ginfo(13)-10, hList
+		sendmsg hList, 0x30, GetFontHandle()
+		sendmsg hList, 0x0194, 444*7+10
+		notesel "WS_OVERLAPPED   -0x00000000- キャプションと境界を持ちます。\nWS_POPUP        -0x80000000- ポップアップウィンドウです。WS_CHILDとの併用はできません。\nWS_CHILD        -0x40000000- 子ウィンドウです。WS_POPUPとの併用はできません。\nWS_MINIMIZE     -0x20000000- アイコン化されたウィンドウです。WS_OVERLAPPEDとの併用\nWS_VISIBLE      -0x10000000- 可視できるウィンドウです。\nWS_DISABLED     -0x08000000- 使用禁止のウィンドウです。\nWS_CLIPSIBLINGS -0x04000000- 互いに関連する兄弟ウィンドウをクリップします。WS_CHILDとの併用\nWS_CLIPCHILDREN -0x02000000- 親ウィンドウの内部で描画するときに、子ウィンドウが占める領域を除外します。親ウィンドウを作成するときに使います。\nWS_MAXIMIZE     -0x01000000- 最大表示されたウィンドウです。\nWS_BORDER       -0x00800000- 境界を持つウィンドウを作成します。\nWS_DLGFRAME     -0x00400000- 二重境界を持ち、タイトルを持たないウィンドウを作成します。\nWS_VSCROLL      -0x00200000- 垂直スクロール バーを持つウィンドウです。 \nWS_HSCROLL      -0x00100000- 水平スクロール バーを持つウィンドウです。\nWS_SYSMENU      -0x00080000- タイトルバーにシステムメニューがあります。\nWS_THICKFRAME   -0x00040000- ウィンドウのサイズ変更ができます。\nWS_GROUP        -0x00020000- あるグループに属しています。\nWS_MINIMIZEBOX  -0x00020000- アイコン化ボタンを持つウィンドウです。\nWS_MAXIMIZEBOX  -0x00010000- 最大表示ボタンを持つウィンドウです。\n"
+		repeat notemax :sendmsg hList, 0x0180,, noteget(cnt) :loop
+		wstyle = int("$"+strmid(gtext(hStyle), 2, 8))
+		notesel "0\n80000000\n40000000\n20000000\n10000000\n8000000\n04000000\n02000000\n01000000\n00800000\n00400000\n00200000\n00100000\n00080000\n00040000\n00020000\n00020000\n00010000"
+		repeat notemax :if wstyle & int("$"+noteget(cnt)) {sendmsg hList, 0x0185, 1, cnt} :loop
+		
+		dlgfor :wait 1 :loop
+		goto *style_end
+		
+		*style_okey
+			wstyle = 0
+			notesel "0\n80000000\n40000000\n20000000\n10000000\n8000000\n04000000\n02000000\n01000000\n00800000\n00400000\n00200000\n00100000\n00080000\n00040000\n00020000\n00020000\n00010000"
+			repeat notemax
+				sendmsg hList, 0x0187, cnt
+				if stat :wstyle = wstyle | int("$"+noteget(cnt))
+			loop
+		*style_cancel
+			dlgdel
+			gosub *draw
+		return
+		
+		*style_end
+		
+	}elseif stat == ExstyleID {
+		objsize 500, 344
+		dialog "2", 64, "Select - Window Ex Style"
+		objsize ginfo(12)/2, 20
+		pos 0, ginfo(13)-20 :button gosub "決定", *exstyle_okey
+		pos ginfo(12)/2, ginfo(13)-20 :button gosub "戻る", *exstyle_cancel
+		objsize ginfo(12), 180 :objmode 2 :font msgothic, 14
+		//listbox list, 0, "WS_OVERLAPPED\nWS_POPUP\nWS_CHILD\nWS_MINIMIZE\nWS_VISIBLE\nWS_DISABLED\nWS_CLIPSIBLINGS\nWS_CLIPCHILDREN\nWS_MAXIMIZE\nWS_CAPTION\nWS_BORDER\nWS_DLGFRAME\nWS_VSCROLL\nWS_HSCROLL\nWS_SYSMENU\nWS_THICKFRAME\nWS_GROUP\nWS_TABSTOP\nWS_MINIMIZEBOX\nWS_MAXIMIZEBOX"
+		pos 0,   0 :winobj "listbox", "", 0, 0x50300001 | LBS_EXTENDEDSEL, ginfo(12), 0
+		hList = objinfo(stat, 2)
+		ssize ginfo(12), ginfo(13)-10, hList
+		sendmsg hList, 0x30, GetFontHandle()
+		sendmsg hList, 0x0194, 391*7+10
+		notesel "WS_EX_DLGMODALFRAME     -0x00000001- 二重の境界線を持つウィンドウを作成します。\nWS_EX_NOPARENTNOTIFY    -0x00000004- このスタイルで作成された子ウィンドウが作成されたり破棄されたりするときに、その親ウィンドウに WM_PARENTNOTIFY メッセージを送らないように指定します。\nWS_EX_TOPMOST           -0x00000008- 最前面ウィンドウを作成します。ウィンドウが非アクティブな状態でも、ほかのウィンドウの前面に表示されます。 SetWindowPos 関数を使用すると、非最前面ウィンドウに変更できます。\nWS_EX_ACCEPTFILES       -0x00000010- ドラッグアンドドロップで、ファイルを受け入れます。\nWS_EX_TRANSPARENT       -0x00000020- 透過ウィンドウを作成します。このウィンドウの下にあるどのようなウィンドウも、遮られることなく表示されます。\nWS_EX_MDICHILD          -0x00000040- MDI 子ウィンドウを作成します。\nWS_EX_TOOLWINDOW        -0x00000080- ツールウィンドウを作成します。ツールウィンドウは通常のタイトルバーより小さいタイトルバーを持ちます。タスクバーには表示されません。ユーザーが［Alt］キーと［Tab］キーを同時に押すと現れるダイアログ内にも、表示されません。\nWS_EX_WINDOWEDGE        -0x00000100- ウィンドウが盛り上がった縁の境界線を持つように指定します。\nWS_EX_CLIENTEDGE        -0x00000200- 縁が沈んで見える境界線を持つウィンドウを指定します。\nWS_EX_CONTEXTHELP       -0x00000400- ダイアログボックスのタイトルバーに［?］ボタンを追加します。ユーザーがこのボタンをクリックすると、マウスポインタに疑問符が付きます。その後、ユーザーがダイアログボックス内のコントロールをクリックすると、コントロールは WM_HELP メッセージを受け取ります。コントロールはダイアログの処理にそのメッセージを送ります。\nWS_EX_RIGHT             -0x00001000- 右揃えされたプロパティを持つウィンドウを作成します。ヘブライ語やアラビア語をサポートしているシステムで有効です。他の言語でこのスタイルを指定するとエラーになります。\nWS_EX_LEFT              -0x00000000- 左揃えされたプロパティを持つウィンドウを作成します。（デフォルト）\nWS_EX_RTLREADING        -0x00002000- 右から左への読み取り順序を持つプロパティを持ったウィンドウを作成します。ヘブライ語やアラビア語をサポートしているシステムで有効です。他の言語でこのスタイルを指定するとエラーになります。\nWS_EX_LTRREADING        -0x00000000- 左から右への読み取り順序を持つプロパティを持ったウィンドウを作成します。（デフォルト）\nWS_EX_LEFTSCROLLBAR     -0x00004000- 垂直スクロールバーがクライアント領域の左側に置かれます。ヘブライ語やアラビア語をサポートしているシステムで有効です。他の言語でこのスタイルを指定するとエラーになります。\nWS_EX_RIGHTSCROLLBAR    -0x00000000- 垂直スクロールバーがクライアント領域の右側に置かれます。（デフォルト）\nWS_EX_CONTROLPARENT     -0x00010000- ユーザーが［Tab］キーを使って子ウィンドウ間を移動できるようにします。\nWS_EX_STATICEDGE        -0x00020000- ユーザーの入力を受け付けない項目用の、立体的に見える境界スタイルを持つウィンドウを作成します。\nWS_EX_APPWINDOW         -0x00040000- ウィンドウが最小化されると、トップレベルウィンドウがタスクバー上に置かれます。\nWS_EX_LAYERED           -0x00080000- 透過ウィンドウ\nWS_EX_NOINHERITLAYOUT   -0x00100000- このスタイルで作成されたウィンドウは、そのウィンドウレイアウトを子ウィンドウに渡しません。\nWS_EX_LAYOUTRTL         -0x00400000- 右端が水平方向の原点となるウィンドウを作成します。左に行くにつれ、座標値が大きくなります。\nWS_EX_COMPOSITED        -0x02000000- ウインドウへの描画が自動的にダブルバッファリングされ、ちらつきがなくなる。 \nWS_EX_NOACTIVATE        -0x08000000- このスタイルで作成されたトップレベルウィンドウは、ユーザーがクリックしてもフォアグラウンドウィンドウになりません。ユーザーがフォアグラウンドウィンドウを最小化したり閉じたりしたときにも、システムがこのウィンドウをフォアグラウンドウィンドウにすることはありません。 \n"
+		repeat notemax :sendmsg hList, 0x0180,, noteget(cnt) :loop
+		wstyle = int("$"+strmid(gtext(hStyle), 2, 8))
+		notesel "1\n4\n8\n10\n20\n40\n80\n100\n200\n400\n1000\n00000000\n2000\n00000000\n4000\n00000000\n10000\n20000\n40000\n80000\n100000\n400000\n2000000\n8000000"
+		repeat notemax :if wexstyle & int("$"+noteget(cnt)) {sendmsg hList, 0x0185, 1, cnt} :loop
+		
+		dlgfor :wait 1 :loop
+		goto *exstyle_end
+		
+		*exstyle_okey
+			wexstyle = 0
+			notesel "1\n4\n8\n10\n20\n40\n80\n100\n200\n400\n1000\n00000000\n2000\n00000000\n4000\n00000000\n10000\n20000\n40000\n80000\n100000\n400000\n2000000\n8000000"
+			repeat notemax
+				sendmsg hList, 0x0187, cnt
+				if stat :wexstyle = wexstyle | int("$"+noteget(cnt))
+			loop
+		*exstyle_cancel
+			dlgdel
+			gosub *draw
+		return
+		
+		*exstyle_end
+		
+	}
+	return
+	
+*WindowProc
+	if ginfo_act == 0 {
+		if iparam == WM_KEYDOWN {
+			if wparam == 13 :gosub *gettarget
+		}elseif iparam == WM_SIZE {
+			ssize wx+12, wy+38, hMainWnd
+		}elseif iparam == WM_SIZING {
+			dupptr rc, lparam, 16, 4
+			rc = ginfo(4), ginfo(5), ginfo(6)+12, ginfo(7)+38
+		}elseif iparam == WM_LBUTTONDOWN {
+			if In(wx-(strlen(str_)*7+7), 107, ginfo(12), ginfo(13), mousex, mousey) {
+				
+			}else :objsel 0
+		}
+	}
+	return
+	
+*draw
+	str_ = "変更回数:"+cc
+	redraw 0
+	colorwhite :boxf :color
+	pos  30,   5 :mes "position"	:pos 147,  5 :mes "x"
+	pos 230,   5 :mes "size"		:pos 317,  5 :mes "x"
+	pos  15,  26 :mes "Window Style"
+	pos 235,  26 :mes "Ex"
+	pos  15,  45 :mes "Window Title"
+	pos  15,  65 :mes "Window Class"
+	pos  15,  85 :mes "Window Handle"
+	pos   5, 107 :mes "Enter でウィンドウ変更"
+	pos wx-(strlen(str_)*7+7), 107 :mes str_
+	if htwnd != null {
+		if strlen(wtitle) == 0 :wtitle = "null"
+		title wclass, hcnWnd
+		title wtitle, htiWnd
+		title htwnd, hwWnd
+		title strf("0x%X", wstyle), hStyle
+		title strf("0x%X", wexstyle), hExStyle
+	}
+	redraw 1
+	return
+	
+*initread
+	title "Window (管理者)"
+	repeat
+		exist TEMP_FILE_NAME
+		if strsize != -1 :size = strsize :break
+	loop
+	sdim temp, size+1
+	bload TEMP_FILE_NAME, temp, size
+	htwnd = int("$"+strmid(temp, 0, 8))
+	title int("$"+strmid(temp,  8, 4)), hlRect
+	title int("$"+strmid(temp, 12, 4)), htRect
+	title int("$"+strmid(temp, 16, 4)), hrRect
+	title int("$"+strmid(temp, 20, 4)), hbRect
+	wstyle = int("$"+strmid(temp, 24, 8))
+	wexstyle = int("$"+strmid(temp, 32, 8))
+	size = int("$"+strmid(temp, 40, 2))
+	wtitle = strmid(temp, 42, size)
+	wclass = gclass(htwnd)
+	
+//	delete TEMP_FILE_NAME
+	wait 10
+	gosub *draw
+	gosub *change
+	
+	wait 10
+	SetActiveWindow hMainWnd
+	return
+	
+*gettarget
+	//htwnd = WindowFromPoint(ginfo(0), ginfo(1))
+	htwnd = FindWindow(3)
+	if htwnd == null :return
+*getwindowinfo
+	wtitle = gtext(htwnd)
+	wclass = gclass(htwnd)
+	wstyle = glong(htwnd, -16)
+	wexstyle = glong(htwnd, -20)
+	title winfo(4, htwnd), hlRect
+	title winfo(5, htwnd), htRect
+	title winfo(10, htwnd), hrRect
+	title winfo(11, htwnd), hbRect
+	gosub *draw
+	return
+	
+*change
+	htwnd = int(gtext(hwWnd))
+	if htwnd == null {
+		dialog "ウィンドウが選択されてません。\n選択したいウィンドウのタイトル上で[Enter]キーを押してください", 4, "warning"
+		if stat == 1 :return
+		dialog "新しいウィンドウを作成します。", 0, "window"
+		
+		// クラスが無かった場合は作成
+		dim wce, 12 :wce = 48 :i = 0
+		if GetClassInfoEx(NULL, gtext(hcnWnd), varptr(wce)) == 0 :i = 1
+		if i :if GetClassInfoEx(hinstance, gtext(hcnWnd), varptr(wce)) == 0 {
+			wce = 48
+			if GetClassInfoEx(hinstance, gclass(hMainWnd), varptr(wce)) == 0 :dialog "ウィンドウ作成に失敗しました。", 0, "window" :return
+			
+			wce.2 = varptr(DefWindowProc)
+			wce.10 = r(gtext(hcnWnd))
+			if not(RegisterClassEx(varptr(wce))) :dialog "ウィンドウ作成に失敗しました。", 0, "window" :return
+		}
+		
+		// ウィンドウ作成
+		htwnd = CreateWindowEx(int("$"+gtext(hExStyle)), gtext(hcnWnd), gtext(htiWnd), int("$"+gtext(hStyle)), int(gtext(hlRect)), int(gtext(htRect)), int(gtext(hrRect)), int(gtext(hbRect)), 0, 0, hinstance, 0)
+		if htwnd == NULL :dialog "ウィンドウ作成に失敗しました。", 0, "window" :return
+	}
+	wtitle = gtext(htiWnd)
+	if wtitle == "null" :dialog "ウィンドウタイトルがありません。\nシステムが所有するウィンドウの可能性があります。\n\n変更しますか？", 2, "warning" :else :void 6
+	if stat == 7 :return
+	
+	// 変更履歴保存
+	ci.cc = ""
+	ci.cc += strf("%08X", int(gtext(hwWnd)))
+	ci.cc += strf("%04X%04X", int(gtext(hlRect)), int(gtext(htRect)))
+	ci.cc += strf("%04X%04X", int(gtext(hrRect)), int(gtext(hbRect)))
+	str_ = gtext(hStyle)
+	ci.cc += strf("%08s", strmid(str_, 2, 8))
+	str_ = gtext(hExStyle)
+	ci.cc += strf("%08s", strmid(str_, 2, 8))
+	str_ = gtext(htiWnd)
+	ci.cc += strf("%02X%s", strlen(str_), str_)
+	
+	title wtitle, htwnd
+	smove int(gtext(hlRect)), int(gtext(htRect)), htwnd
+	ssize int(gtext(hrRect)), int(gtext(hbRect)), htwnd
+	str_ = gtext(hStyle)
+	slong htwnd, -16, int("$"+strmid(str_, 2, 8))
+	str_ = gtext(hExStyle)
+	slong htwnd, -20, int("$"+strmid(str_, 2, 8))
+	if GetLastError() == ERROR_ACCESS_DENIED {
+		dialog "ウィンドウの情報が変更されませんでした。\n権限を引き上げて起動し直しますか？", 2, "Window - Error"
+		if stat == 7 :return
+		
+		// File
+		bsave TEMP_FILE_NAME, ci.cc, strlen(ci.cc)
+		
+		*se_retry
+		hInst = ShellExecute(NULL, "runas", ""+dir_exe+"\\window.exe", "execute", "", SW_HIDE)
+		if hInst <= 32 {
+			dialog "権限を引き上げられませんでした。", 8, "Window - Error"
+			if stat == 4 :goto *se_retry
+			delete TEMP_FILE_NAME
+			return
+		}
+		end
+	}
+	
+	// 変更回数加算
+	cc++
+	
+	gosub *draw
+	return
+	
+*message
+	ms = "0x0000"
+	screen 1, 400, 250, 0 :title "Message send table"
+	oncmd gosub *SubWndProc, WM_COMMAND
+	oncmd gosub *SubWndProc, WM_CLOSE
+	objsize 150, 20
+	pos 230,  12 :button gosub "送信", *message_send
+	objmode 2 :font msgothic, 14
+	pos  15,  15 :mes "Window Message:"
+	pos 130,  14 :input ms, 100, 20, 0, 0 :hwmWnd = objinfo(stat, 2)
+	pos  15,  35 :winobj "listbox", "", 0, 0x50700001, 200, 220 :hList = objinfo(stat, 2)
+	pos 225,  40 :mes "lParam:"
+	pos 230,  58 :input lp, 100, 16
+	pos 225, 140 :mes "wParam:"
+	pos 230, 158 :input wp, 100, 16
+	font msgothic, 12
+	sendmsg hList, 0x30, GetFontHandle()
+	sendmsg hList, 0x0194, 35*6
+	// window message
+	notesel@hsp wndmes
+	repeat notemax :sendmsg hList, 0x0180,, noteget(cnt) :loop
+	objsel 0
+	
+	gsel 0, 1
+	
+	return
+	
+*message_send
+	
+	if wp_ptr :wp = varptr(wp_value) :else :wp = wp_value
+	if lp_ptr :lp = varptr(lp_value) :else :lp = lp_value
+	str_ = gtext(hwmWnd)
+	title ""+strmid(str_, 2, 1024)+":"+int("$"+strmid(str_, 2, 1024))
+	sendmsg htwnd, int("$"+strmid(str_, 2, 1024)), wp, lp
+	dialog "sending message\nResult:"+stat, 2, ""
+	return
+	
+*SubWndProc
+	if iparam == WM_CLOSE {
+		gsel 1, -1
+		gsel 0, 1
+		return -1
+	}else :if iparam == WM_COMMAND {
+		if lparam == hList :if hiword(wparam) == LBN_SELCHANGE {
+			notesel nwndmes
+			repeat notemax
+				sendmsg hList, 0x0187, cnt
+				if stat :title strf("0x%04X", int("$"+noteget(cnt))), hwmWnd
+			loop
+		}
+	}
+	return
+	
+	#module HSPsys
+	// 現在のフォントのハンドルを取得
+	#defcfunc GetFontHandle
+		mref BMSCR, 67
+	return BMSCR.38
+	
+	// 文字列のポインタを取得
+	#uselib "Pointer.dll"
+	#cfunc	GetPointer	"GetPointer"	str
+	#defcfunc r str str_
+	return GetPointer(str_)
+	
+	// クラス名取得
+	#uselib "user32.dll"
+	#func	GetClassName	"GetClassNameA"		int, int, int
+	#defcfunc gclass int hWnd_
+		sdim classname, 1024
+		GetClassName hWnd_, varptr(classname), 1023
+	return classname
+	#global

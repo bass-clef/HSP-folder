@@ -1,0 +1,97 @@
+	
+	#packopt name "execute.exe"
+	
+	#uselib "shell32.dll"
+	#cfunc	ShellExecute	"ShellExecuteA"		int, str, str, str, str, int
+	#uselib "user32.dll"
+	#cfunc	GetAncestor		"GetAncestor"		int
+	#cfunc	GetParent		"GetParent"			int
+	#define	GA_PARENT		1
+	#define	GA_ROOT			2
+	#define	GA_ROOTOWNER	3
+	
+	// マウス下のを権限アップで起動
+	title "Enter"
+	if dir_cmdline != "Shell_" {
+		*retry
+		hInst = ShellExecute(NULL, "runas", ""+dir_exe+"\\execute.exe", "Shell_", "", SW_HIDE)
+		if hInst != 2 :end
+		dialog "管理者権限で起動できませんでした。\n以下のことができなくなります。\n\n・他の管理者権限で起動されているウィンドウの感知・移動\n", 8
+		if stat == 4 :goto *retry
+	}
+	
+	sdim filename
+	
+	screen 0, 300, 80, 0
+	title "Enter押せ"
+	onkey gosub *key
+	
+	objmode 2
+	pos 0, 20 :input ms, 300, 20, 0, 0 :hInput = objinfo(stat, 2)
+	title "", hInput
+	stop
+	
+*key
+	if wparam == 13 :gosub *enter
+	
+	return
+*enter
+	lpc = 0
+	htwnd = hwnd(ginfo(0), ginfo(1))
+	
+	*lp
+	lpc ++
+	filename = GetExeFileName(htwnd)
+	if filename == "" {
+		if lpc == 1 :htwnd = GetParent(htwnd) :goto *lp
+		if lpc == 2 :htwnd = GetAncestor(GA_PARENT) :goto *lp
+	}
+	if 0 < strlen(filename) :hInst = ShellExecute(NULL, "runas", filename, "Shell_", "", SW_HIDE)
+	
+	redraw 0
+	colorwhite :boxf 0, 0, ginfo(12), 20 :color
+	pos 0,  0 :if 0 < strlen(filename) :mes "ファイル名見えたぜぇ～" :else :mes "ファイル名が見えないぜぇ～\n再試行 : "+(lpc-1)+"回目"
+	pos 0, 40 :mes "wText : \""+gtext(htwnd)+"\""
+	title filename, hInput
+	redraw 1
+	
+	return
+	
+	#module
+	#uselib "user32.dll"
+	#func	GetWindowThreadProcessId	"GetWindowThreadProcessId"	int, int
+	#uselib "kernel32.dll"
+	#cfunc	OpenProcess			"OpenProcess"			int, int, int
+	#func	CloseHandle			"CloseHandle"			int
+	#uselib "psapi.dll"
+	#cfunc	EnumProcessModules	"EnumProcessModules"	int, int, int, int
+	#cfunc	GetModuleFileNameEx	"GetModuleFileNameExA"	int, int, var, int
+	#define	PROCESS_QUERY_INFORMATION	0x0400
+	#define PROCESS_VM_READ				0x10
+	
+	// HWNDからファイル名取得
+	#defcfunc GetExeFileName int hWnd_
+		size_dest = MAX_PATH+1
+		sdim dest, size_dest+1
+		
+		// プロセスID
+		processID = NULL
+		GetWindowThreadProcessId hWnd_, varptr(processID)
+		
+		// プロセスハンドル
+		hProcess = OpenProcess( PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, processID)
+		if not(hProcess) :return ""
+		
+		// モジュールハンドル
+		hModule = NULL
+		dummy = 0
+		if not(EnumProcessModules( hProcess, varptr(hModule), 4, varptr(dummy))) :return ""
+		
+		// ファイル名(フルパス)
+		memset dest, 0, size_dest
+		if not(GetModuleFileNameEx( hProcess, hModule, dest, size_dest)) :return ""
+		
+		CloseHandle hProcess
+		// hModuleは自分で閉じちゃいけない
+	return dest
+	#global

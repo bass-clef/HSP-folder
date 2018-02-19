@@ -1,0 +1,429 @@
+	
+	#include "targetfind.as"
+	#include "variableToFile.as"
+	#include "BlankIdentifier.as"
+	#include "array.as"
+	
+	#uselib "user32.dll"
+	#func	getClassName	"GetClassNameA"		int, sptr, int
+	#cfunc	getForeground	"GetForegroundWindow"
+	#func	setTimer		"SetTimer"			int, int, int, int
+	#func	killTimer		"KillTimer"			int, int
+	
+	#define initFileDir		"posMemo\\"
+	
+	#packopt name "pos memo"
+	#packopt hide 0
+	
+	#define REGITER_WINDOW_MAX	INT_MAX-1
+	
+	/*
+	 *
+	 * blankid管理
+	 * リストを [ 記憶済み | 現在の表示(記憶済みは含まない) ] に変更
+	 * ファイル保存できるように(blankIdは詰める)
+	 * [mem/4get] button
+	 * タイトルinput
+	 *
+	 * :一致条件:
+	 * -ウィンドウタイトル
+	 * -クラス名
+	 * -exe名
+	 *
+	 */
+	
+	// 記憶しているものだけ変数に保存
+	sdim titleList	// ウィンドウタイトル
+	sdim classList	// クラス名
+	sdim exeList	// exeファイル名
+	dim pointList	// 座標
+	windowCount = 0
+	buttonsMadeFlag = false
+	
+	// 一時的に保存(起動時に判断)
+	dim bootedList	// 起動フラグ
+	
+	
+	// 初期化&作成
+	
+	initBlankId window
+	
+	objMoveImageId = 4
+	buffer objMoveImageId, ginfo(20), ginfo(21), 0
+	colorwhite :boxf 0, 0, ginfo(20), 10
+	color 200, 200, 200 :boxf 0, 10, ginfo(20), 20
+	
+	objRegisteredActiveImageId = 3
+	buffer objRegisteredActiveImageId, ginfo(20), ginfo(21), 0
+	color 200, 200, 255 :boxf 0, 0, ginfo(20), 10
+	color 200, 200, 200 :boxf 0, 10, ginfo(20), 20
+	
+	objRegisteredNonActiveImageId = 2
+	buffer objRegisteredNonActiveImageId, ginfo(20), ginfo(21), 0
+	color 255, 200, 200 :boxf 0, 0, ginfo(20), 10
+	color 200, 127, 127 :boxf 0, 10, ginfo(20), 20
+	
+	objUnregisteredImageId = 1
+	buffer objUnregisteredImageId, ginfo(20), ginfo(21), 0
+	colorwhite :boxf 0, 0, ginfo(20), 10
+	color 200, 200, 255 :boxf 0, 10, ginfo(20), 20
+	
+	width_ = 205
+	screen 0, ginfo(20), ginfo(21), 2,,, width_, 11
+	font msgothic, 10
+	title "pos memo"
+	gsel 0, 1
+	
+	oncmd gosub *lclick, WM_LBUTTONDOWN
+	oncmd gosub *save, WM_RBUTTONDOWN
+	oncmd gosub *save, WM_DESTROY
+	oncmd gosub *timer, WM_TIMER
+	
+	// using for no caret
+	pos -10, -10
+	input a, 10, 10, 0, 0 :objBlankId = stat
+	
+	gosub *load
+	
+*main
+	
+	activeWindow = getForeground()
+	if activeWindow != activedWindow {
+		activedWindow = activeWindow
+		logmes "active windows changed"
+		
+		setTimer hwnd, 1000, 50, 0
+	}
+	
+	wait 10
+	goto *main
+	
+*lclick
+	objsel objBlankId
+	return
+	
+*timer
+	killTimer hwnd, 1000
+	gosub *makeButttonAndWindowText
+	return
+	
+*save
+	
+	// 保存
+	// blankListの空きIdを整理
+	for i, 0, windowCount, 1
+		if isBlankId(i, windowCount, window) {
+			// 非保存対象のスワップ
+			array_delete pointList, i, 1
+			array_delete titleList, i, 1
+			array_delete classList, i, 1
+			array_delete exeList, i, 1
+			array_delete windowIsBlankList, i, 1
+			windowBlankCount--
+			windowCount--
+			i--
+		}
+	next
+	
+	// isBlankId で該当するものは保存しない
+	if isdir(initFileDir) == 0 {
+		mkdir initFileDir
+	}
+	
+	
+	saveArray initFileDir+"positiones.dat", pointList,,, windowCount
+	saveArray initFileDir+"windowtitles.dat", titleList,,, windowCount
+	saveArray initFileDir+"classes.dat", classList,,, windowCount
+	saveArray initFileDir+"exefiles.dat", exeList,,, windowCount
+	
+	return
+	
+*load
+	
+	// 読み込み
+	if isdir(initFileDir) == 0 {
+		return
+	}
+	/**/
+	loadArray initFileDir+"positiones.dat", pointList
+	loadArray initFileDir+"windowtitles.dat", titleList
+	loadArray initFileDir+"classes.dat", classList
+	loadArray initFileDir+"exefiles.dat", exeList
+	if pointList.0 == 0 && titleList.0 == "" && classList.0 == "" :return
+	repeat length(pointList)
+		void getBlankId(windowCount, window, REGITER_WINDOW_MAX)
+		bootedList.cnt = 0
+	loop
+	/**/
+	
+	return
+	
+	
+*makeButttonAndWindowText
+	
+	beginId = -1
+	endId = -1
+	objectCount = 0
+	if buttonsMadeFlag {
+		clrobj loword(buttonsMadeFlag), hiword(buttonsMadeFlag)
+	}
+	
+	objsize 25, 10
+	pos 0, 0
+	
+	// 表示ウィンドウ列挙
+	getVisibleWnd hwndList
+	
+	// 登録済み
+	repeat windowCount
+		if isBlankId(cnt, windowCount, window) :continue
+		regHandle = FindWindow(-1, classList.cnt, titleList.cnt)
+		isBooted = in_array(regHandle, hwndList)
+		if isBooted != bootedList.cnt {
+			bootedList.cnt = isBooted
+			// 自動移動
+			if iswin(regHandle) {
+				smove wordToInt(loword(pointList.cnt)), wordToInt(hiword(pointList.cnt)), regHandle
+			}
+		}
+		objimage objRegisteredNonActiveImageId + bootedList.cnt, 0, 0, 0, 0, 0, 10
+		makeWindowInfo regHandle, 1, cnt
+		if beginId == -1 :beginId = stat
+	loop
+	logmes "unregistered count ["+countRegisteredWindow()+"]"
+	
+	
+	// 表示ウィンドウ - 登録済みウィンドウ
+	array_map *filteringWindow, hwndList, v
+	handleCount = 0
+	repeat length(hwndList)
+		if hwndList.cnt == 0 :continue
+		handleCount++
+	loop
+	
+	// 未登録
+	objimage objUnregisteredImageId, 0, 0, 0, 0, 0, 10
+	
+	repeat length(hwndList)
+		if hwndList.cnt == 0 :continue
+		makeWindowInfo hwndList.cnt
+		if beginId == -1 :beginId = stat
+	loop
+	endId = inputId+1
+	
+	
+	logmes "unregistered count ["+handleCount+"]"
+	buttonsMadeFlag = makelong(beginId, endId)
+	
+	width width_, 1+10 * (handleCount + countRegisteredWindow())
+	logmes ""
+	
+	return
+	
+	
+#deffunc makeWindowInfo int handle, int registered, int tempCount
+
+	if registered {
+		s = titleList.tempCount
+	}else {
+		s = gtext(handle)
+	}
+	y = ginfo_cy
+	pos   0, y :input s, 100, 10, 0, 0 :inputId = stat
+	pos 100, y
+	if registered {
+		button gosub "4get", *forgetButton
+		
+		objimage objMoveImageId, 0, 0, 0, 0, 0, 10
+		pos 125, y
+		button gosub "mov", *moveButton
+		
+		pt = strf("%4dx%4d", wordToInt(loword(pointList.tempCount)), wordToInt(hiword(pointList.tempCount)))
+		pos 150, y
+		input pt, 55, 10, 0, 0
+	}else {
+		button gosub "mem", *memorizeButton
+	}
+	objectCount += 2
+	
+	return inputId
+	
+	
+*memorizeButton
+	
+	// hwndListは単純に重複を0にして会費してるだけだから id == cnt でない
+	
+	// 登録
+	btnId = winfo(5, objinfo(stat, 2))/10 - countRegisteredWindow()
+	count = 0
+	repeat length(hwndList)
+		if hwndList.cnt == 0 :continue
+		if count == btnId :id = cnt :break
+		count++
+	loop
+	logmes "btnId["+btnId+"] id["+id+"]"
+	
+	newWindowId = getBlankId(windowCount, window, REGITER_WINDOW_MAX)
+	logmes "registered memorize windows ["+newWindowId+"]("+windowCount+")"
+	
+	titleList.newWindowId = gtext(hwndList.id)
+	memexpand classList.newWindowId, 64
+	getClassName hwndList.id, varptr(classList.newWindowId), 63
+	exeList.newWindowId   = GetExeFileName(hwndList.id)
+	pointList.newWindowId = makelong(winfo(4, hwndList.id), winfo(5, hwndList.id))
+	bootedList.newWindowId = true
+	
+	logmes "title ["+titleList.newWindowId+"]"
+	logmes "class ["+classList.newWindowId+"]"
+	logmes "exe ["+exeList.newWindowId+"]"
+	
+	gosub *makeButttonAndWindowText
+	
+	return
+	
+	
+*forgetButton
+	
+	// 忘れる
+	count = winfo(5, objinfo(stat, 2))/10
+	logmes "forget ["+id+"]"
+	
+	repeat windowCount
+		if isBlankId(cnt, windowCount, window) :continue
+		if 0 == count {
+			setBlankId cnt, window
+			break
+		}
+		count--
+	loop
+	
+	gosub *makeButttonAndWindowText
+	
+	return
+	
+	
+*moveButton
+	
+	// 登録済みウィンドウを移動
+	count = winfo(5, objinfo(stat, 2))/10
+	logmes "forget ["+id+"]"
+	
+	repeat windowCount
+		if isBlankId(cnt, windowCount, window) :continue
+		if 0 == count {
+			regHandle = FindWindow(-1, classList.cnt, titleList.cnt)
+			smove wordToInt(loword(pointList.cnt)), wordToInt(hiword(pointList.cnt)), regHandle
+			break
+		}
+		count--
+	loop
+	
+	return
+	
+	
+*filteringWindow
+	
+	// 一致するウィンドウがあれば削除
+	sdim className
+	titleText = gtext(v)
+	getClassName v, varptr(className), 63
+	exeFile = GetExeFileName(v)
+	flag = 0
+	
+	repeat windowCount
+		if flag == 0 {
+			if isBlankId(cnt, windowCount, window) :continue
+			if titleText == titleList.cnt :flag++ :continue cnt
+		}else :if flag == 1 {
+			if className == classList.cnt :flag++ :continue cnt
+		}else :if flag == 2 {
+			if exeFile == exeList.cnt :flag++ :break
+		}
+		flag = 0
+	loop
+	if flag < 3 :return
+	
+	logmes "filtering title["+gtext(v)+"]"
+	v = 0
+	
+	return
+	
+	
+#defcfunc countRegisteredWindow
+	
+	n = 0
+	repeat windowCount
+		if isBlankId(cnt, windowCount, window) :continue
+		n++
+	loop
+	
+	return n
+	
+	
+	#module __ENUMWINDOWS__
+	
+	#uselib "EnumWindows.dll"
+	#cfunc	getWindows		"GetWindows"		int, int
+	#uselib "user32.dll"
+	#cfunc	isWindowVisible	"IsWindowVisible"	int
+	#func	getClassName	"GetClassNameA"		int, sptr, int
+	#cfunc	isIconic		"IsIconic"			int
+	#cfunc	getWindow		"GetWindow"			int, int
+	#define	GW_OWNER		4
+	// 現在表示中のウィンドウ列挙
+	#deffunc getVisibleWnd array hwnds
+		dim wnd, 1000
+		dim hwnds
+		i = 0
+		repeat getWindows(varptr(wnd), 1000)
+			if isWindowVisible(wnd.cnt) && isIconic(wnd.cnt)==0 && getWindow(wnd.cnt, GW_OWNER)==NULL {
+				sdim class, 64
+				getClassName wnd.cnt, varptr(class), 63
+				if instr@hsp(class, 0, "Progman") != -1 || gtext(wnd.cnt) == "" {
+					continue
+				}
+				hwnds.i = wnd.cnt
+				i++
+			}
+		loop
+	return
+	
+	
+	#uselib "user32.dll"
+	#func	GetWindowThreadProcessId	"GetWindowThreadProcessId"	int, int
+	#uselib "kernel32.dll"
+	#cfunc	OpenProcess			"OpenProcess"			int, int, int
+	#func	CloseHandle			"CloseHandle"			int
+	#uselib "psapi.dll"
+	#cfunc	EnumProcessModules	"EnumProcessModules"	int, int, int, int
+	#cfunc	GetModuleFileNameEx	"GetModuleFileNameExA"	int, int, var, int
+	#define	PROCESS_QUERY_INFORMATION	0x0400
+	#define PROCESS_VM_READ				0x10
+	
+	// HWNDからファイル名取得
+	#defcfunc GetExeFileName int hWnd_
+		size_dest = MAX_PATH+1
+		sdim dest, size_dest+1
+		
+		// プロセスID
+		processID = NULL
+		GetWindowThreadProcessId hWnd_, varptr(processID)
+		
+		// プロセスハンドル
+		hProcess = OpenProcess( PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, processID)
+		if not(hProcess) :return ""
+		
+		// モジュールハンドル
+		hModule = NULL
+		dummy = 0
+		if not(EnumProcessModules( hProcess, varptr(hModule), 4, varptr(dummy))) :return ""
+		
+		// ファイル名(フルパス)
+		memset dest, 0, size_dest
+		if not(GetModuleFileNameEx( hProcess, hModule, dest, size_dest)) :return ""
+		
+		CloseHandle hProcess
+		// hModuleは自分で閉じちゃいけない
+	return dest
+	
+	#global

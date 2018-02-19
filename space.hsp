@@ -1,0 +1,34 @@
+	
+	#define hw hiword
+	#define lw loword
+	
+	#enum	IMG_SUN		= 1
+	imgs = MAKEWORD(300, 300)
+	
+	
+	chdir ""+dir_desktop+"\\star\\"
+	
+	buffer IMG_SUN
+	picload "sun.bmp"
+	imgs.1 = MAKEWORD(ginfo(12), ginfo(13))
+	
+	bgscr 0, lw(imgs.0), hw(imgs.0)
+	hmwnd = hwnd@hsp
+	
+	gosub *draw
+	stop
+	
+*draw
+	oncmd gosub *WindowProc, WM_LBUTTONDOWN
+	color :boxf
+	
+	gmode 2
+	xx = lw(imgs.0)-lw(imgs.1) :yy = hw(imgs.0)-hw(imgs.1)
+	pos xx/2, yy/2 :gcopy IMG_SUN, 0, 0, lw(imgs.1), hw(imgs.1)
+	return
+
+*WindowProc
+	if iparam == WM_LBUTTONDOWN {
+		sendmsg hmwnd, WM_NCLBUTTONDOWN, 2
+	}
+	return

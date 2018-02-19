@@ -1,0 +1,55 @@
+	
+	#uselib "user32.dll"
+	#func	GetGUIThreadInfo	"GetGUIThreadInfo"		int, int
+	#func	SetForegroundWindow	"SetForegroundWindow"	int
+	#define	GUITHREADINFO(%1)	dim %1, 12 :%1(0) = 48
+	
+	GUITHREADINFO gti
+	sdim str_
+	
+	screen 0, 530, 170, 8
+	title "あいうえおキーボード"
+	gsel 0, 2
+	hMainWnd = hwnd@hap
+	
+	objsize 30, 30
+	repeat 82
+		poke str_, 0, 130
+		poke str_, 1, 160+cnt
+		pos cnt/5*30+ 10, cnt\5*30 + 10
+		button gosub ""+str_, *ButtonJump
+	loop
+	
+	oncmd gosub *WindowProc, WM_NCACTIVATE
+	
+	stop
+*WindowProc
+	if iparam == WM_NCACTIVATE {
+		GetGUIThreadInfo NULL, varptr(gti)
+		if gti.2 != NULL {
+			hPrevWnd = gti.2
+		}else {
+			SetForegroundWindow hPrevWnd
+			title ""+gtext(gti.2)+":"+count
+			count ++
+			return
+		}
+	}
+	return
+	
+*ButtonJump
+	ID = stat
+	GetGUIThreadInfo NULL, varptr(gti)
+	if gti.3 != NULL {
+		
+		getkeycode_s gtext(objinfo(ID, 2))
+	}
+	return
+	
+	#module
+	#deffunc getkeycode_s str p1
+		count = 0
+		cmax = 0
+		if p1 == "あ" :kc1 = 'a' :cmax++
+	return cmax
+	#global

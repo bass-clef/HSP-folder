@@ -1,0 +1,42 @@
+#include "hspsapi.as"
+
+	sdim msg_ms, 1024
+	mes "音声認識の結果"
+	objsize 640, 20 : input msg_ms  : id_ms = stat
+
+	// MS音声認識初期化・オープン
+	oncmd gosub *wm_sapi, SAPI_MESSAGEID
+	// 通知するウィンドウハンドルを指定
+	sapi_SetCallbackHwnd hwnd, SAPI_MESSAGEID
+	
+	// 初期化
+	sapi_Init 0
+	
+	// オープンする
+	sapi_Open
+	if stat != 0 : dialog "MS音声認識がなんか失敗した？" : end
+	
+	onexit gosub *exit
+	
+	title "マイクに向かってしゃべってください"
+
+stop
+
+*wm_sapi
+	// 結果が来た
+	if lparam == 0{
+		dupptr msg, wparam, 256, 2
+		objprm id_ms, str(msg)
+	}
+return
+
+// 終了時の処理
+*exit
+	cls : font "", 20, 16 : mes "開放処理中です。しばらくお待ちください。"
+	wait 12
+	
+	sapi_Close
+	sapi_Exit
+	end
+	end
+return

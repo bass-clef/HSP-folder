@@ -1,0 +1,182 @@
+	
+	
+	#uselib "user32.dll"
+	#func	DrawMenuBar		"DrawMenuBar"	int
+	#func	SetMenu			"SetMenu"		int, int
+	#func	ShowWindow		"ShowWindow"	int, int
+	#cfunc	GetAncestor		"GetAncestor"	int, int
+	#cfunc	GetMenu			"GetMenu"		int
+	#cfunc	GetForeground	"GetForegroundWindow"
+	#define GA_ROOT				2
+	
+	#define APP_NAME	"hideMenu"
+	#include "targetfind.as"
+	
+	#enum	MF_TEMPENABLE	= -2	// 一時的に有効
+	#enum	MF_ENABLE				// 有効
+	#enum	MF_NULL					// ない
+	#enum	MF_DISABLE				// 無効
+	
+	
+	#packopt name APP_NAME
+	#packopt hide 0
+	
+	dim hTarWnd :tarCount = 0
+	dim fTarSysMenu
+	dim timeTarMenuEnable
+	
+	fTarSysMenu = MF_ENABLE
+	addbtnbeginid = -1
+	subid = 2
+	findid = 1
+	mainid = 0
+	screen mainid, 300, ginfo(21), 0,,,, 40
+	title APP_NAME
+	font msgothic, 14
+	
+	objmode 2
+	objsize ginfo(12), 20
+	button gosub "All Release", *allRelease :hARBtn = objinfo(stat, 2)
+	
+	gosub *setAddButton
+	
+	onexit gosub *exit
+	
+*main
+	// マウス監視
+	mx = ginfo(0)
+	my = ginfo(1)
+	hForeground = GetForeground()
+	repeat TarCount
+		if fTarSysMenu.cnt == MF_DISABLE || fTarSysMenu.cnt == MF_TEMPENABLE {
+			if hForeground == hTarWnd.cnt {
+				xx = winfo(4, hTarWnd.cnt)
+				xx2 = winfo(6, hTarWnd.cnt)
+				yy = winfo(5, hTarWnd.cnt)
+				btnID = cnt
+				if xx < mx && mx < xx2 && yy < my && my < yy+100 {
+					if MF_DISABLE <= fTarSysMenu.cnt {
+						// 無効 -> 有効
+						gosub *enableTargetMenu
+						fTarSysMenu.cnt = MF_TEMPENABLE
+					}
+				}else :if MF_TEMPENABLE == fTarSysMenu.cnt {
+					// 有効 ->無効 
+					gosub *disableTargetMenu
+				}
+			}
+		}
+	loop
+	
+	wait 5
+	goto *main
+	
+*draw
+	redraw 0
+	colorwhite :boxf :color
+	repeat TarCount
+		pos 35, cnt*20+3 :mes "["+gtext(hTarWnd.cnt)+"]"
+	loop
+	redraw 1
+	
+	return
+	
+*exit
+	if wparam == mainid {
+		gosub *allRelease
+		end
+	}else :if wparam == findid {
+		hideFindWindow
+	}else {
+		gsel wparam, -1
+	}
+	return
+	
+*setAddButton
+	xx = winfo(31)
+	objsize 35, 20
+	pos 0, TarCount*20 :button gosub "del", *jumpAddBtn
+	addBtnIDList.TarCount = stat
+	if addbtnbeginid == -1 :addbtnbeginid = addBtnIDList.TarCount
+	objsize xx, 20
+	
+	width 300, TarCount*20+40
+	smove 0, ginfo(13)-20, hARBtn
+	return
+	
+*jumpAddBtn
+	btnID = stat-addbtnbeginid
+	if fTarSysMenu.btnID <= MF_ENABLE {
+		if hTarMenu.btnID {
+			gosub *disableTargetMenu
+		}else {
+			gosub *addTargetMenu
+		}
+	}else :if MF_DISABLE <= fTarSysMenu.btnID {
+		gosub *enableTargetMenu
+	}
+	gosub *draw
+	return
+	
+*addTargetMenu
+	// ターゲット追加
+	repeat
+		hTarWnd.tarCount = FindWindow(findid)
+		if hTarWnd.tarCount :break
+	loop
+	if hTarWnd.tarCount != hwnd@hsp {
+		t = GetAncestor(hTarWnd.tarCount, GA_ROOT)
+		if t != null :hTarWnd.tarCount = t
+		hTarMenu.tarCount = GetMenu(hTarWnd.tarCount)
+		fTarSysMenu.tarCount = MF_ENABLE
+		timeTarMenuEnable.tarCount = 0
+		
+		if hTarMenu.tarCount {
+			btnID = tarCount
+			gosub *disableTargetMenu
+			tarCount++
+			hTarMenu.tarCount = 0
+			fTarSysMenu.tarCount = MF_ENABLE
+			timeTarMenuEnable.tarCount = 0
+			gosub *setAddButton
+		}else {
+			dialog "選択されたウィンドウ \""+ gtext(hTarMenu.tarCount) +"\"には\nメニューバーがありません。", 0, APP_NAME
+			hTarMenu.tarCount = 0
+		}
+	}
+	return
+	
+*disableTargetMenu
+	// メニューを無効にする
+	objprm addBtnIDList.btnID, "add"
+	if hTarMenu.btnID :SetMenu hTarWnd.btnID, NULL
+	DrawMenuBar hTarWnd.btnID
+	if fTarSysMenu.btnID < 0 {
+		style = glong(hTarWnd.btnID, GWL_STYLE)
+		if style & WS_BORDER {
+			slong hTarWnd.btnID, GWL_STYLE, style & (style ^ WS_BORDER)
+			fTarSysMenu.btnID = MF_DISABLE
+		}else {
+			fTarSysMenu.btnID = MF_NULL
+		}
+	}
+	return
+	
+*enableTargetMenu
+	// メニューを有効にする
+	objprm addBtnIDList.btnID, "del"
+	if hTarMenu.btnID :SetMenu hTarWnd.btnID, hTarMenu.btnID
+	if 0 < fTarSysMenu.btnID {
+		slong hTarWnd.btnID, GWL_STYLE, glong(hTarWnd.btnID, GWL_STYLE) | WS_BORDER
+		fTarSysMenu.btnID = MF_ENABLE
+	}
+	return
+	
+*allRelease
+	repeat TarCount
+		btnID = cnt
+		gosub *enableTargetMenu
+	loop
+	return
+	
+	

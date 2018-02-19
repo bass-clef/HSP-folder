@@ -1,0 +1,17 @@
+	
+	sushi = "C:\\Users\\Hiro\\Downloads\\susiya.exe"
+	exist sushi
+	if strsize == -1 :end
+	size = strsize
+	
+	sdim buf, size+1
+	bload sushi, buf, size
+	
+	begin = 0x0001BDB2
+	
+	sdim rebuf, size-begin+1
+	memcpy rebuf, buf, size-begin, 0, begin
+	
+	title ""+size+":"+begin+"("+(size-begin)+")"
+	bsave dir_desktop+"\\sushi.bmp", rebuf, size-begin
+	

@@ -1,0 +1,69 @@
+	
+	#include "updatelayeredwindow.as"
+	
+	//--------------------------------------------------------------------
+	//サンプルソース(#if 1 で実行)
+	#if 1
+	
+	
+	#module
+	;--------------------------------
+	; dragwindow x,y,x2,y2
+	; x   = ドラッグウィンドウの範囲 x
+	; y   = ドラッグウィンドウの範囲 y
+	; x2 = ドラッグウィンドウの範囲 x2
+	; y2 = ドラッグウィンドウの範囲 y2
+	;--------------------------------
+	#deffunc dragwindow int p1,int p2,int p3,int p4
+	if (p1<mousex)&(p2<mousey)&(p3>mousex)&(p4>mousey){
+	repeat:if mb=0{mb=1:aa=ginfo(0)-ginfo(4):bb_=ginfo(1)-ginfo(5)}
+	width ,,ginfo(0)-aa,ginfo(1)-bb_
+	getkey@hsp key,1:wait 1:if key=0{break}loop:mb=0}return
+	#global
+	
+	bgscr 2, 200, 100, 6, 0, 0
+	onexit *e
+	pos 5, 5
+	mes "左クリック：移動\n右クリック：終了"
+	gsel 2, 2
+	
+	
+	//画像
+	buffer 1, 464, 95//300, 150
+	picload "D:\\Program Files\\HSP 3.31\\dm3_back2.png"
+	
+	//レイヤードウィンドウ用画像の作成
+	repeat 2
+	//	hbmp(cnt) = lbgscr_CreateImage(1, 150, 150, 0, 150*cnt)
+		hbmp(cnt) = lbgscr_CreateImage(1, 232, 95, 0, 95*cnt)
+	loop
+	
+	//レイヤードウィンドウの作成(これ単体でレイヤードウィンドウ用画像の作成も含む)
+	lbgscr 0, 232, 95, 6, 100, 100, 1, 0, 0
+//	lbgscr 0, 232, 95, 6, ginfo_dispx-232>>1, ginfo_dispy-150>>1, 1, 0, 0
+	//lbgscr 0, 150, 150, 6, ginfo_dispx-150>>1, ginfo_dispy-150>>1, hbmp(0), 0, 0, 1
+	//↑こうやってもOK！
+	gsel 0,2
+	
+	count = 0
+	
+	onclick gosub *m
+//	repeat
+//		//レイヤードウィンドウの更新(予め作成したレイヤードウィンドウ用の画像を使用する (_flag = 1))
+//		lbgscr_Update 0, 232, 95, hbmp(count), 0, 0, 1
+//		wait 1
+//	loop
+	stop
+	
+	*m
+		if iparam = 3 : goto *e
+		dragwindow 0, 0, 232, 95
+		return
+	*e
+	
+		repeat 2
+			lbgscr_DeleteImage hbmp(cnt)		//ビットマップオブジェクトの削除
+		loop
+		end
+	
+	#endif

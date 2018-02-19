@@ -1,0 +1,28 @@
+	
+	#uselib "user32.dll"
+	#cfunc	FindWindow			"FindWindowA"			sptr, sptr
+	
+	screen 0, 45, 10, 8, ginfo(20)-45, 0
+	gsel 0, 2
+	font msgothic, 10
+	title ""
+	smax = 0
+	
+	repeat
+		hTar = FindWindow("HSP3DEBUG", "Debug Window")
+		repeat smax
+			if skip.cnt == hTar :hTar = null :break
+		loop
+		
+		if hTar {
+			smove 0, 0, hTar
+			skip.smax = hTar
+			smax++
+		}
+		redraw 0
+		colorwhite :boxf :color
+		pos 0, 0
+		if hTar :mes "Found" :else :mes "Not found"
+		redraw 1
+		wait 10
+	loop

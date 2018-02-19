@@ -1,0 +1,21 @@
+	
+	
+	
+	#module
+	#deffunc makeLayeredImage int imgId, int width_, int height_, int size
+		buffer imgId, width_+size*2, height_+size*2
+		clr = 255.0/size
+		repeat size
+			color clr*cnt, clr*cnt, clr*cnt
+			boxf cnt, cnt, width_+size+size-1-cnt, height_+size+size-1-cnt, 0
+		loop
+	return
+	#global
+	
+	
+	makeLayeredImage 1, 100, 20, 20
+	
+	screen 0
+	pos 0, 0 :gcopy 1, 0, 0, 140, 60
+	
+	

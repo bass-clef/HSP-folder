@@ -1,0 +1,451 @@
+	
+	#include "DirectXQuaternion.as"
+	#include "hgimg3.as"
+	#include "array.as"
+	#include "mathex.as"
+	
+	#module __CUBECORE__
+	#deffunc wherecube array body, int maxID, array position
+		repeat maxID
+			getpos body.cnt, position.0, position.1, position.2
+			xid = 1+position.0/9.0
+			yid = 1+position.1/9.0
+			zid = 1+position.2/9.0
+			cube@(9*zid + 3*yid + xid) = cnt
+		loop
+	return
+	/*
+	#deffunc wherecentercube
+		cbody = 4, 10, 12, 14, 16, 22	// is center cube when cube version 3x3
+		centerface = -1 :cofc = 0
+		for i, 0, 9, 1
+			repeat 6
+				if tbody(i) == cbody(cnt) :centerface = cbody(cnt) :cofc++
+			loop
+		next
+		if cofc == 4 :centerface = center@
+	return*/
+	#deffunc whereLR array body, array position, array position_
+		selpos body(center@)
+		objgetfv position
+		
+		// 縦を省く (Yが同じ = 横)
+		dim side, 4 :sidecnt = 0
+		repeat length(cbody@)
+			selpos body(cube@(cbody@(cnt)))
+			objgetfv position_
+			if abs(position.1) == abs(position_.1) :side(sidecnt) = cube@(cbody@(cnt)) :sidecnt++
+		loop
+		left = -1 :right = -1
+		
+		sdim buf
+		// 角度で左右決定
+		selcpos@
+		objgetfv position_
+		a = atan(position.2-position_.2, position.0-position_.0)
+		buf += ""+strf("%f", a)+", "
+		H_PI = M_PI/2.0
+		repeat sidecnt
+			selpos body(side(cnt))
+			objgetfv position_
+			tempa = atan(position.2-position_.2, position.0-position_.0)
+			
+			if (-H_PI <= a-tempa) && (a-tempa <= 0) :left = side(cnt)
+			if (0 <= a-tempa) && (a-tempa <= H_PI) :right = side(cnt)
+			
+			buf += ""+strf("%d:%0.1f", side(cnt), tempa)+", "
+		loop
+		title ""+buf
+	
+	return makelong(left, right)
+	
+	#define global cuberot(%1, %2, %3, %4=-1, %5=-1, %6=-1) cuberot__ %1, %2, %3, %4, %5, %6
+	#deffunc cuberot__ array body, int frotmax, array position, int xline, int yline, int zline
+		if frot :return
+		if xline == -1 && yline == -1 && zline == -1 :return
+		dim tbody, 9 :bodycnt = 0
+		for j, 0, 3, 1 :for i, 0, 3, 1 :repeat 3
+			if j == zline {
+				id = 9*j +3*i +cnt
+				tbody(bodycnt) = cube@(id)
+				bodycnt++
+			}
+			if i == yline {
+				id = 9*j +3*i +cnt
+				tbody(bodycnt) = cube@(id)
+				bodycnt++
+			}
+			if cnt == xline {
+				id = 9*j +3*i +cnt
+				tbody(bodycnt) = cube@(id)
+				bodycnt++
+			}
+		loop :next :next
+//		wherecentercube
+		getpos body.center, position.0, position.1, position.2
+//		xcen = position.0
+//		ycen = position.1
+//		zcen = position.2
+		if zline != -1 :way = 3
+		if yline != -1 :way = 2
+		if xline != -1 :way = 1
+		frot = frotmax
+		add = M_PI/2.0 / double(frotmax)
+	return way
+	
+	#deffunc cube90rot array body, int frotmax, array position
+		if frot == 0 :return
+		ddim addrot,3
+		//way-1の要素に回転量を代入（way-1=0がxline）
+		addrot(way-1) = sin(M_PI*2.0 / double(frotmax) * double(frotmax-frot-frotmax/5)) * add + add
+
+		ddim Axis,3
+		//ワールド空間の回転軸指定（addrotと同じようにway-1=0がxline）
+		Axis(way-1) = 1.0
+
+		// sin( PI*2 / 周期 * Count ) * 振幅
+		repeat 9
+			id=body(tbody(cnt))
+			//オブジェクトIDと同じIDでクォータニオンを作ってるのでそのまま指定
+			QAddWorldAxisRot id,Axis(0),Axis(1),Axis(2),-addrot(way-1)	//1.0が入ってるワールド空間の軸で回転される
+			QGetAngXYZ id,brx,bry,brz	//回転させたクォータニオンから角度を取得
+			setang id,brx,bry,brz
+
+			getpos id,bpx,bpy,bpz
+			fvset position,-addrot(0),-addrot(1),-addrot(2)	//way-1の要素に入ってる回転量が設定され、それ以外は0に
+			fvdir position,bpx,bpy,bpz	//座標回転
+
+			selpos id
+			objsetfv position
+		loop
+		frot--
+		if frot == 0 :wherecube body, aaBox@, position
+		return frot
+	#global
+	
+	#module
+	//		set2ary3 position, 0, 0, 5.0, 0.0, 0.0
+	#deffunc set2ary3 array ary, int iBegin, int iBegin2, double p1, double p2, double p3
+		ary(iBegin, iBegin2) = p1
+		ary(iBegin, iBegin2+1) = p2
+		ary(iBegin, iBegin2+2) = p3
+	return
+	#deffunc addary3 array ary, int iBegin, double p1, double p2, double p3
+		ary(iBegin) += p1
+		ary(iBegin+1) += p2
+		ary(iBegin+2) += p3
+	return
+	#deffunc subary3 array ary, int iBegin, double p1, double p2, double p3
+		ary(iBegin) -= p1
+		ary(iBegin+1) -= p2
+		ary(iBegin+2) -= p3
+	return
+	#global
+	
+	rBox = 9.0	// 半径
+	xBox = 3.0	// x個数
+	yBox = 3.0	// y個数
+	zBox = 3.0	// z個数
+	aBox = xBox*yBox	// 一面個数
+	aaBox = aBox*zBox	// 全体個数
+	mBox = 0.2	// 隙間 0.3
+	pmBox = 0.5	// 板間
+	pbmBox = M_PI/(2.0*rBox)
+	center = int(aBox+xBox+1)
+	camang = 0.0, 0.0, 0.0, 50.0	// x, y, z, 距離
+	frotmax = 15	// 回転周期
+	frot = 0
+	cbody = 4, 10, 12, 14, 16, 22	// 3x3の場合の各面の中央
+	
+	dim cube, aaBox	// 位置記憶用
+	dim bTop, aBox
+	dim bLeft, aBox
+	dim bRight, aBox
+	dim bBottom, aBox
+	dim bFront, aBox
+	dim bBack, aBox
+	ddim euler, 3
+	ddim position, 6, 3
+	ddim position_, 3
+	ddim addeuler, 6, 3
+	
+	D3DXQ_init	//モジュール初期化
+	
+	screen 1, 100, 450, 8
+	title "cube操作"
+	objsize 100, 20
+	mes "横回転"
+	button gosub "１段目 右回転", *Jump
+	button gosub "１段目 左回転", *Jump
+	button gosub "２段目 右回転", *Jump
+	button gosub "２段目 左回転", *Jump
+	button gosub "３段目 右回転", *Jump
+	button gosub "３段目 左回転", *Jump
+	mes "左 縦回転"
+	button gosub "左列 上回転", *Jump
+	button gosub "左列 下回転", *Jump
+	button gosub "中央列 上回転", *Jump
+	button gosub "中央列 下回転", *Jump
+	button gosub "右列 上回転", *Jump
+	button gosub "右列 下回転", *Jump
+	mes "右 縦回転"
+	button gosub "左列 上回転", *Jump
+	button gosub "左列 下回転", *Jump
+	button gosub "中央列 上回転", *Jump
+	button gosub "中央列 下回転", *Jump
+	button gosub "右列 上回転", *Jump
+	button gosub "右列 下回転", *Jump
+	
+	screen 0, 480, 480
+	title "Cube"
+	hgini
+	
+	// 情報用
+	texmake 100, 20 :texID = stat
+	font msgothic, 16
+	
+	// 貼り付ける板
+	// 上面
+	setcolor 255, 255, 255
+	addbox white_plate, 0.2, rBox-pmBox
+	repeat aBox :regobj bTop(cnt), white_plate :loop
+	// 右面
+	setcolor 255, 255, 0
+	addbox yellow_plate, 0.2, rBox-pmBox
+	repeat aBox :regobj bRight(cnt), yellow_plate :loop
+	// 正面
+	setcolor 255, 128, 0
+	addbox orange_plate, 0.2, rBox-pmBox
+	repeat aBox :regobj bFront(cnt), orange_plate :loop
+	// 左面
+	setcolor 44, 175, 44
+	addbox green_plate, 0.2, rBox-pmBox
+	repeat aBox :regobj bLeft(cnt), green_plate :loop
+	// 下面
+	setcolor 44, 44, 175
+	addbox blue_plate, 0.2, rBox-pmBox
+	repeat aBox :regobj bBottom(cnt), blue_plate :loop
+	// 裏面
+	setcolor 255, 0, 0
+	addbox red_plate, 0.2, rBox-pmBox
+	repeat aBox :regobj bBack(cnt), red_plate :loop
+	
+	// 貼り付けられる本体
+	setcolor 30, 30, 30
+	addbox box, rBox, rBox
+	
+	setcolor 255, 255, 255
+	addbox cenBox, rBox, rBox
+	for j, 0, 3, 1 :for i, 0, 3, 1 :repeat 3
+		id = 9*j +3*i +cnt
+		if id == center {	regobj body(id), cenBox
+		}else :				regobj body(id), box
+		
+		r = rBox+mBox
+		position = double(cnt-(3/2))*r, double(i-(3/2))*r, double(j-(3/2))*r
+		setpos body(id), position.0, position.1, position.2
+		//オブジェクトIDと同じIDでクォータニオンを作成
+		QSetRotXYZ body(id), 0.0, 0.0, 0.0
+
+	loop :next :next
+	// ライト
+//	reglight light
+//	setscale light, 255, 255, 255
+//	setang light, -M_PI/4.0
+
+//	objlight body.0, light
+	
+	// カメラ
+	cammode CAM_MODE_LOOKAT
+	camang = -45.0, -45.0, -45.0
+	
+	// 初回処理
+	gosub *pasteplate
+	gosub *setcamerapos
+	hgdraw
+	gosub *setlightpos
+	hgsync 20
+	
+	wherecube body, aaBox, position
+	whereLR body, position, position_ :lr = stat
+	
+*main
+	clscolor $FFFFFF
+	
+	if frot :cube90rot body, frotmax, position :if stat == 0 :frot = 0
+	
+	getkey@hsp ky, 'Z' :if ky :fzky = 1 :else {
+		if fzky {
+			fzky = 0
+			zcolumn = zcolumned
+			if active == 3 :zcolumn = (zcolumn+1)\3 :else :active = 3
+			zcolumned = zcolumn
+			title "Z : "+zcolumn
+		}
+	}
+	
+	getkey@hsp ky, 'Y' :if ky :fyky = 1 :else {
+		if fyky {
+			fyky = 0
+			ycolumn = ycolumned
+			if active == 2 :ycolumn = (ycolumn+1)\3 :else :active = 2
+			ycolumned = ycolumn
+			title "Y : "+ycolumn
+		}
+	}
+	
+	getkey@hsp ky, 'X' :if ky :fxky = 1 :else {
+		if fxky {
+			fxky = 0
+			xcolumn = xcolumned
+			if active == 1 :xcolumn = (xcolumn+1)\3 :else :active = 1
+			xcolumned = xcolumn
+			title "X : "+xcolumn
+		}
+	}
+	
+	if active != 1 :xcolumn = -1
+ 	if active != 2 :ycolumn = -1
+	if active != 3 :zcolumn = -1
+	stick@hsp ky, 15+64+16+256
+	if frot == 0 :if not(ginfo_act) :if ky & 288 {
+		title "clicked "+xcolumn+" : "+ycolumn+" : "+zcolumn
+		wherecube body, aaBox, position
+		cuberot body, frotmax, position, xcolumn, ycolumn, zcolumn :frot = stat
+	}
+	
+	// カメラ位置移動
+	if ky & 15 {
+		if ky & 64 {
+			if ky & 2 :camang.3 -= 2.0
+			if ky & 8 :camang.3 += 2.0
+		}else :if ky & 16 {
+			if ky & 1 :adddir HGOBJ_CAMERA, 1.0
+			if ky & 4 :adddir HGOBJ_CAMERA, -1.0
+			if ky & 2 :adddir HGOBJ_CAMERA,, -1.0
+			if ky & 8 :adddir HGOBJ_CAMERA,, 1.0
+		}else {
+			if ky & 1 :camang.0 -= 2.0
+			if ky & 4 :camang.0 += 2.0
+			if ky & 2 :camang.1 -= 2.0
+			if ky & 8 :camang.1 += 2.0
+		}
+		whereLR body, position, position_ :lr = stat
+		gosub *setcamerapos
+		gosub *setlightpos
+	}
+	
+	
+	hgdraw
+	
+	texcls texID, 0xFFFFFF
+	color 0, 0, 0
+	texmes "左"+loword(lr)+" 右"+hiword(lr), texID, 0, 0
+	
+	gmode 2, 100, 20
+	pos 50+5, 10+5
+	hgrotate texID, 0, 0, 0, 100, 20
+	
+	hgsync 20
+	goto *main
+	
+*pasteplate
+	bTopMax = 0
+	bRightMax = 0
+	bFrontMax = 0
+	bLeftMax = 0
+	bBottomMax = 0
+	bBackMax = 0
+	for j, 0, 3, 1 :for i, 0, 3, 1 :repeat 3
+		id = 9*j +3*i +cnt
+		
+		plateMax = 0
+		gosub *platefix
+		if plateMax == 0 :continue
+	
+		repeat plateMax
+			// 回転角取得
+			selang body.id
+			objgetfv euler
+			objchild body.id, plateID.cnt	//ジョイント(子設定すれば親からの角度と距離を設定するだけで親と同じ動きになる)
+			selang plateID.cnt
+			fvadd euler, addeuler(cnt, 0), addeuler(cnt, 1), addeuler(cnt, 2)//fv用の加算命令 fvadd euler(3),x,y,z のような使い方は出来ないが・・・
+			objsetfv euler
+			
+			euler(1) *= -1.0	//fvdirのY軸回転が逆になるので符号反転しとく
+			fvdir euler, position(cnt, 0), position(cnt, 1), position(cnt, 2)
+			selpos plateID.cnt
+			objsetfv euler
+		loop
+	loop :next :next
+	return
+
+*platefix
+	if i == 0 {// 上面
+		plateID.plateMax = bTop.bTopMax
+		set2ary3 position, plateMax, 0, rBox/2.0+pbmBox, 0.0, 0.0
+		set2ary3 addeuler, plateMax, 0, 0.0, 0.0, M_PI/2.0
+		bTopMax++
+		plateMax++
+	}
+	if j == 0 {// 右面
+		plateID.plateMax = bRight.bRightMax
+		set2ary3 position, plateMax, 0, rBox/2.0+pbmBox, 0.0, 0.0
+		set2ary3 addeuler, plateMax, 0, 0.0, M_PI/2.0, 0.0
+		bRightMax++
+		plateMax++
+	}
+	if cnt == 2 {// 正面
+		plateID.plateMax = bFront.bFrontMax
+		set2ary3 position, plateMax, 0, rBox/2.0+pbmBox, 0.0, 0.0
+		set2ary3 addeuler, plateMax, 0, 0.0, 0.0, 0.0
+		bFrontMax++
+		plateMax++
+	}
+	if j == 2 {// 左面
+		plateID.plateMax = bLeft.bLeftMax
+		set2ary3 position, plateMax, 0, -rBox/2.0-pbmBox, 0.0, 0.0
+		set2ary3 addeuler, plateMax, 0, 0.0, M_PI/2.0, 0.0
+		bLeftMax++
+		plateMax++
+	}
+	if i == 2 {// 下面
+		plateID.plateMax = bBottom.bBottomMax
+		set2ary3 position, plateMax, 0, -rBox/2.0-pbmBox, 0.0, 0.0
+		set2ary3 addeuler, plateMax, 0, 0.0, 0.0, M_PI/2.0
+		bBottomMax++
+		plateMax++
+	}
+	if cnt == 0 {// 裏面
+		plateID.plateMax = bBack.bBackMax
+		set2ary3 position, plateMax, 0, -rBox/2.0-pbmBox, 0.0, 0.0
+		set2ary3 addeuler, plateMax, 0, 0.0, 0.0, 0.0
+		bBackMax++
+		plateMax++
+	}
+	return
+	
+*setcamerapos
+	position.0 = cos(M_PI/180.0*camang.0)*camang.3
+	position.1 = sin(M_PI/180.0*camang.1)*camang.3
+	position.2 = sin(M_PI/180.0*camang.0)*camang.3
+	selpos HGOBJ_CAMERA
+	objsetfv position
+	return
+	
+*setlightpos
+	// カメラとライトを同じ位置・角度に設定
+	selpos HGOBJ_CAMERA
+	objgetfv position
+	selpos HGOBJ_LIGHT
+	objsetfv position
+	
+	selang HGOBJ_CAMERA
+	objgetfv euler
+	selang HGOBJ_LIGHT
+	objsetfv euler
+	return
+	
+*Jump
+	
+	return

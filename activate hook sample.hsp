@@ -1,0 +1,20 @@
+	
+	#uselib "MessageHook.dll"
+	#func	RegActivate		"RegActivate"		int
+	#func	UnRegActivate	onexit	"UnRegActivate"
+	
+	oncmd gosub *Activate, WM_APP+WM_ACTIVATE
+	oncmd gosub *Quit, WM_CLOSE
+	RegActivate hwnd
+	
+	stop
+	
+*Activate
+	mes "Activate"
+	return
+	
+*Quit
+	UnRegActivate
+	return
+	
+	

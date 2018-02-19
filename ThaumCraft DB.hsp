@@ -1,0 +1,976 @@
+	
+	#module
+		#undef line
+		#include "gdi32.as"
+	
+		#const global PS_SOLID 0	//実線
+		#const global PS_DASH 1		//破線
+		#const global PS_DOT 2		//点線
+		#const global PS_DASHDOT 3	//一点鎖線
+		#const global PS_DASHDOTDOT 4	//二点鎖線
+	
+		#define global line(%1, %2, %3=ginfo_cx, %4=ginfo_cy, %5=0, %6=4) line__ %1, %2, %3, %4, %5, %6
+		#deffunc line__ int endx, int endy, int begx, int begy, int linetype, int lnwidth
+			pos begx, begy
+			createPen linetype,lnwidth,ginfo(16)|ginfo(17)<<8|ginfo(18)<<16
+			pen=stat
+	
+			selectObject hdc,pen
+	
+			moveToEx hdc,ginfo(22),ginfo(23),0
+			lineTo hdc,endx,endy
+	
+			deleteObject pen
+		return
+	
+	#global
+	
+	INI_FILE = ""+dir_mydoc+"\\tcdb.ini"
+	
+	all = 0
+	sdim name
+	sdim prm
+	dim pt
+	dim clr
+	
+	randomize 0
+	fontsize = 10
+	
+	r = 8
+	lock = -1
+	at = -1
+	
+	chk = 1, 1, 1, 0, 0
+	ncrmaxlimit = -1
+	MinLen = -1
+	MaxLen = -1
+	Duplication = 0
+	Through = ""
+	Rejection = ""
+	
+	sdim buf0
+	sdim buf1
+	sdim buf2
+	sdim buf3
+	sdim buf4
+	
+	buffer 2, ginfo(20), ginfo(21)
+	color :boxf
+	
+	screen 1, ginfo(20), ginfo(21), 2,,, 400, 600
+	title "検索結果"
+	oncmd gosub *click, WM_LBUTTONDOWN
+	oncmd gosub *exit, WM_CLOSE
+	boxf
+	font msgothic, fontsize
+	crmaxlimit = ginfo(13)/fontsize-3
+	
+	screen 0, 1024, 600, 0
+	title "ThaumCraft DB"
+	pos 0, 0
+	objsize ginfo(12)/2, 20
+	button gosub "登録", *Jump :RegID = stat
+	
+	objmode 2 :font msgothic, 16
+	owdh = ginfo(12)/8
+	objsize owdh, 20
+	
+	input buf0 :NameID = stat :objbegID = stat
+	pos owdh, 20 :input buf1 :Prm1ID = stat
+	pos owdh*2, 20 :input buf2 :Prm2ID = stat
+	pos owdh*3, 20 :chkbox "extra", extra
+	
+	objmode 1
+	pos owdh*4+owdh/2,  0 :button gosub "ルート探索", *Jump :SearchID = stat
+	pos owdh*4+owdh/2, 20 :button gosub "検索条件を付与...", *Jump :SerachIfID = stat
+	pos owdh*5+owdh/2, 20 :button gosub "中断", *Jump :CancelID = stat
+	objenable cancelID, 0
+	
+	objmode 2
+	pos owdh*5+owdh/2,  0 :input buf3 :RootFromID = stat
+	pos owdh*6+owdh/2,  0 :input buf4 :RootToID = stat
+	objendID = stat
+	
+	font msgothic, fontsize
+	oncmd gosub *exit, WM_CLOSE
+	onkey gosub *key
+	oncmd gosub *click, WM_LBUTTONDOWN
+	
+	gosub *draw
+	
+	dialog "前回のファイルを読み込みますか？", 2, ""
+	if stat == 7 :nsavef = 1 :goto *main
+	exist INI_FILE
+	if strsize != -1 {
+		size = strsize
+		sdim buf, size+1
+		bload INI_FILE, buf, size
+		
+		sdim inf
+		notesel@hsp buf
+		repeat
+			if notemax <= cnt :break
+			noteget@hsp inf, cnt
+			
+			sdim nprm, 4
+			split inf, ";", nprm
+			if nprm.0 == "" :continue
+			reg nprm.0, ""+nprm.1+";"+nprm.2, int(nprm.3)
+		loop
+	}
+	
+*main
+	if buf0 != oldbuf0 {
+		oldbuf0 = buf0
+		at = -1
+		repeat all
+			if name.cnt == buf0 :at = cnt
+		loop
+		gosub *draw
+	}
+	
+	if getkey(1) & 0x8000 {
+		if lock == -1 {
+			i = -1
+			repeat all
+				if r > sqrt(powf(mousex-loword(pt.cnt), 2)+powf(mousey-hiword(pt.cnt), 2)) {
+					lock = cnt
+					break
+				}
+			loop
+		}
+		if lock != -1 {
+			pt.lock = makelong(mousex, mousey)
+			at = lock
+			gosub *draw
+		}
+	}else :if lock != -1 {
+		pt.lock = makelong(loword(pt.lock), hiword(pt.lock))
+		lock = -1
+		at = -1
+		gosub *draw
+	}
+	
+	wait 5
+	goto *main
+	
+	
+*draw
+	redrawf = 0
+	redraw 0
+	color :boxf :color 255, 255, 255
+	pos 0, 40 :mes "要素数 "+all
+	
+	// 相関線
+	allLineDraw
+	
+	atsLineDraw
+	
+	gmode 3, 0, 0, 128
+	// 名
+	repeat all
+		selcolor cnt, 10
+		circle loword(pt.cnt)-r, hiword(pt.cnt)-r, loword(pt.cnt)+r, hiword(pt.cnt)+r, 1
+		
+		if at != -1 && at != -2 {
+			if at == cnt :colorwhite :else :color 175, 175, 175
+		}else :colorwhite
+		x = loword(pt.cnt)-strlen(name.cnt)*(fontsize/2)/2
+		y = hiword(pt.cnt)-r-10
+		pos x, y :gcopy 2, 0, 0, strlen(name.cnt)*(fontsize/2), fontsize
+		mes name.cnt
+		circle loword(pt.cnt)-r, hiword(pt.cnt)-r, loword(pt.cnt)+r, hiword(pt.cnt)+r, 0
+		
+		if cnt\((ginfo(13)-60-fontsize*2)/fontsize) == 0 :mostlengthed = mostlength
+		str_ = ""+name.cnt+" "+prm.cnt
+		strrep str_, " ", "  "
+		strrep str_, ";", " "
+		if mostlength-fontsize/2*5 < strlen(str_)*fontsize/2 :mostlength = strlen(str_)*fontsize/2+fontsize/2*5
+		
+		x = cnt/((ginfo(13)-60-fontsize*2)/fontsize)*mostlengthed
+		y = 60+((cnt\((ginfo(13)-60-fontsize*2)/fontsize))*fontsize)
+		pos x, y
+		mes name.cnt
+		x += strlen(name.cnt+2)*fontsize/2
+		
+		if prm.cnt == ";" :continue
+		sdim nprm
+		split prm.cnt, ";", nprm
+		repeat length(nprm)
+			j = cnt
+			i = isnumber(nprm.j)
+			if at != -1 {
+				if at == i :colorwhite :else :color 175, 175, 175
+			}else :colorwhite
+			
+			pos x, y :mes nprm.cnt
+			x += strlen(nprm.cnt+1)*fontsize/2
+		loop
+	loop
+	if redrawf :goto *draw
+	redraw 1
+	return
+	
+#deffunc allLineDraw
+	// 相関線
+	repeat all
+		sdim nprm
+		split prm.cnt, ";", nprm
+		count = 0
+		j = cnt
+		repeat length(nprm)
+			i = isnumber(nprm.count)
+			
+			if i != -1 {
+				if i == at {
+					color RR(clr.j), GG(clr.j), BB(clr.j)
+				}else {
+					selcolor j, 10
+				}
+				if atsmax :selcolor j, 10, 1
+				prmline j, i
+				
+				selcolor j, 10
+			}
+			count++
+		loop
+	loop
+	return
+	
+#deffunc atsLineDraw
+	// 目的地までの相関線
+	if 0 < atsmax {
+		conf = 0
+		repeat atsmax
+			if prm(ats.cnt) == ";" :conf++ :continue
+			selcolor ats.cnt, 1
+			if cnt < atsmax-1 {
+				sdim nprm
+				split prm(ats.cnt), ";", nprm
+				
+				i = 0
+				if nprm.0 != name(ats(cnt+1)) && nprm.1 != name(ats(cnt+1)) :i = 1
+				if i == 0 :prmline ats.cnt, ats(cnt+1)
+			}
+			if conf {
+				conf--
+				prmline ats.cnt, ats(cnt-1)
+			}
+			if i :i = 0 :conf++
+		loop
+	}
+	return
+	
+	// 目的点まで線を描画
+#deffunc prmline int from_, int to_
+	if extra {
+		a = atan(hiword(pt.to_)-hiword(pt.from_), loword(pt.to_)-loword(pt.from_))
+		a += deg2rad(90 +cnt*-180)
+		
+		x = loword(pt.from_) +cos(a)*r
+		y = hiword(pt.from_) +sin(a)*r
+		
+		line x, y, loword(pt.to_), hiword(pt.to_)
+	}else {
+		line loword(pt.from_), hiword(pt.from_), loword(pt.to_), hiword(pt.to_)
+	}
+	return
+	
+#deffunc selcolor int act, int mar, int ifn
+	if at != -1 {
+		a = 0
+		if atsmax {
+			repeat atsmax
+				if act == ats.cnt :a = 1 :break
+			loop
+		}
+		if (at == act || a) && (ifn == 0) {
+			color RR(clr.act), GG(clr.act), BB(clr.act)
+		}else {
+			color RR(clr.act)/mar, GG(clr.act)/mar, BB(clr.act)/mar
+		}
+	}else {
+		color RR(clr.act), GG(clr.act), BB(clr.act)
+	}
+	return
+	
+*click
+	logmes "Click ["+ginfo_intid+"]"
+	mox = loword(lparam)
+	moy = hiword(lparam)
+	
+	if ginfo_intid == 0 {
+		gosub *prmselect
+	}else :if ginfo_intid == 1 {
+		gosub *rootselect
+	}
+	
+	gsel 0
+	gosub *draw
+	return
+	
+*prmselect
+	at = -1
+	
+	repeat all
+		if cnt\((ginfo(13)-60-fontsize*2)/fontsize) == 0 :mostlengthed = mostlength
+		// 0 - name from nameview
+		x = loword(pt.cnt)-strlen(name.cnt)*(fontsize/2)/2
+		y = hiword(pt.cnt)-r-10
+		if CollDetecName(name.cnt, x, y, mox, moy, fontsize) {
+			at = cnt
+		}
+		
+		str_ = ""+name.cnt+" "+prm.cnt
+		strrep str_, " ", "  "
+		strrep str_, ";", " "
+		x = cnt/((ginfo(13)-60-fontsize*2)/fontsize)*mostlengthed
+		y = 60+((cnt\((ginfo(13)-60-fontsize*2)/fontsize))*fontsize)
+		if mostlength-fontsize/2*5 < strlen(str_)*fontsize/2 :mostlength = strlen(str_)*fontsize/2+fontsize/2*5
+	
+		// 0 - name from namelist
+		if CollDetecName(name.cnt, x, y, mox, moy, fontsize) {
+			if at == cnt :break :else :at = cnt
+		}
+		x += strlen(name.cnt+2)*fontsize/2
+	
+		// prm
+		if prm.cnt == ";" :continue
+		sdim nprm
+		split prm.cnt, ";", nprm
+		repeat length(nprm)
+			if CollDetecName(nprm.cnt, x, y, mox, moy, fontsize) {
+				j = cnt :i = -1
+				repeat all
+					if name.cnt == nprm.j :i = cnt :break
+				loop
+				if at == i :break :else :at = i
+			}
+			x += strlen(nprm.cnt+1)*fontsize/2
+		loop
+		
+		// prm2
+	loop
+	
+	gosub *atchanged
+	
+	return
+	
+	#module
+	#defcfunc CollDetecName str name_, double x_, double y_, double x2_, double y2_, int fontsize_
+		if x_ <= x2_ && x2_ <= x_+strlen(name_)*fontsize_/2 {
+			if y_ <= y2_ && y2_ <= y_+fontsize_ {
+				return 1
+			}
+		}
+	return 0
+	#global
+	
+*atchanged
+	gsel 0
+	if at != -1 {
+		objsel -1
+		if Prm1ID == stat {
+			objprm Prm1ID, name.at
+		}else :if Prm2ID == stat {
+			objprm Prm2ID, name.at
+		}else :if RootFromID == stat {
+			objprm RootFromID, name.at
+		}else :if RootToID == stat {
+			objprm RootToID, name.at
+		}else {
+			objprm NameID, name.at
+		}
+	}else {
+		objsel regID
+	}
+	return
+	
+*rootselect
+	dim ats
+	atsmax = 0
+	if cr == 0 :nvroot = -1 :goto *rs_end
+	nvroot = moy/fontsize
+	if cr <= nvroot :nvroot = -1 :goto *rs_end
+*rs_beg
+	dim ats
+	atsmax = 0
+	nroot = comproot(nvroot)
+	logmes "ID["+nroot+"] Max["+croot(nroot)+"] Begin["+name(peek(root.nroot, 0))+"]"
+	
+	repeat croot(nroot)
+		ats.cnt = peek(root.nroot, cnt)
+		atsmax++
+	loop
+	at = -2
+	
+*rs_end
+	gsel 1
+	redraw 0
+	color :boxf :color
+	pos 0, 0
+	notesel@hsp allroottext
+	repeat cr
+		if nvroot != -1 {
+			if nvroot == cnt :colorwhite :else :color 175, 175, 175
+		}else :colorwhite
+		mes noteget(cnt)
+	loop
+	redraw 1
+	gsel 0
+	
+	return
+	
+*key
+	if ginfo_act == 0 :gosub *mainkey
+	if ginfo_act == 1 :gosub *subkey
+	return
+	
+*subkey
+	if nvroot != -1 && cr != 0 {
+		if wparam == 38 :nvroot = (nvroot+(cr-1))\cr
+		if wparam == 40 :nvroot = (nvroot+1)\cr
+		gosub *rs_beg
+		gosub *draw
+	}
+	return
+	
+*mainkey
+	if wparam == 13 :gosub *Jump
+	
+	objsel -1
+	if objbegID <= stat && stat <= objendID :gosub *draw :return
+	
+	if at != -1 {
+		if wparam == 38 :at = (at+(all-1))\all	:gosub *atchanged
+		if wparam == 40 :at = (at+1)\all		:gosub *atchanged
+	}
+	
+	if wparam == 32 :gosub *center
+	if wparam == 'C' :gosub *move_circle
+	if wparam == 'R' :gosub *move_reference
+	if wparam == 'P' :gosub *move_polygon
+	if wparam == 'L' :gosub *move_repellence
+	if wparam == 'B' :gosub *move_bigger
+	
+	gosub *draw
+	return
+	
+	// 中央に整列
+*center
+	repeat all
+		pt.cnt = makelong((ginfo(12))/2-all*r/4 + r+r/2*cnt, (ginfo(13))/2-r +r+40)
+	loop
+	return
+	
+	// 円形に表示
+*move_circle
+	xr = (ginfo(12)-r*2-mostlength)/2
+	yr = (ginfo(13)-r*2-60)/2
+	repeat all
+		a = deg2rad(360.0/all*cnt)
+		pt.cnt = makelong(cos(a)*xr+r+xr+mostlength, sin(a)*yr+r+yr+60)
+	loop
+	return
+	
+	// 参照先の間に入る
+*move_reference
+	repeat all
+		if prm.cnt == ";" :continue
+		sdim nprm
+		split prm.cnt, ";", nprm
+	
+		dim to, 2 :count = 0
+		repeat 2 :to.cnt = -1 :loop
+		
+		repeat all
+			for i, 0, 2, 1
+				if name.cnt == nprm.i :to.i = cnt :count++
+			next
+			if count == 2 :break
+		loop
+		
+		if count == 2 {
+			// ２つの参照先がどちらも存在する
+			fpx = loword( pt(to.0) )
+			fpy = hiword( pt(to.0) )
+			tpx = loword( pt(to.1) )
+			tpy = hiword( pt(to.1) )
+			
+			a = atan(tpy-fpy, tpx-fpx)
+			r_ = sqrt(powf(tpx-fpx, 2) + powf(tpy-fpy, 2)) /2
+			pt.cnt = makelong( cos(a)*r_+fpx, sin(a)*r_+fpy )
+		}
+	loop
+	return
+	
+	// 親でしかないものを列挙整列
+*move_polygon
+	dim poly
+	count = 0
+	repeat all
+		if prm.cnt != ";" :continue
+		sdim nprm
+		split prm.cnt, ";", nprm
+		poly.count = cnt
+		count++
+	loop
+	
+	xr = (ginfo(12)-r*2-mostlength)/2
+	yr = (ginfo(13)-r*2-60)/2
+	repeat count
+		a = deg2rad(360.0/count*cnt)
+		pt(poly.cnt) = makelong(cos(a)*xr+r+xr+mostlength, sin(a)*yr+r+yr+60)
+	loop
+	return
+	
+	// 節と子だけを反発して表示
+*move_repellence
+	repeat all
+		if prm.cnt == ";" :continue
+		sdim nprm
+		split prm.cnt, ";", nprm
+		
+		dim to, 2 :count = 0
+		repeat 2 :to.cnt = -1 :loop
+		
+		repeat all
+			for i, 0, 2, 1
+				if name.cnt == nprm.i :to.i = cnt :count++
+			next
+			if count == 2 :break
+		loop
+		
+		if count == 2 {
+			// ２つの参照先がどちらも存在する
+			fpx = loword( pt(to.0) )
+			fpy = hiword( pt(to.0) )
+			tpx = loword( pt(to.1) )
+			tpy = hiword( pt(to.1) )
+			
+			a = atan(tpy-fpy, tpx-fpx)
+			r_ = sqrt(powf(tpx-fpx, 2) + powf(tpy-fpy, 2))
+			x = cos(a)*(r_/2)+fpx
+			y = sin(a)*(r_/2)+fpy
+			
+			a += deg2rad(90)
+			x += cos(a)*(r_/8)
+			y += sin(a)*(r_/8)
+			pt.cnt = makelong( x, y )
+			
+		}
+	loop
+	return
+	
+	// 多い物だけ列挙整列
+*move_bigger
+	// ３個以上
+	dim num, all
+	repeat all
+		sdim nprm
+		split prm.cnt, ";", nprm
+		num.cnt += length(nprm)
+		for i, 0, 2, 1
+			repeat all
+				if nprm.i == name.cnt :num.cnt++ :break
+			loop
+		next
+	loop
+	
+	count = 0
+	dim big
+	repeat all
+		if 5 < num.cnt :big.count = cnt :count++
+	loop
+	
+	xr = (ginfo(12)-r*2-mostlength)/2
+	yr = (ginfo(13)-r*2-60)/2
+	repeat count
+		a = deg2rad(360.0/count*cnt)
+		pt(big.cnt) = makelong(cos(a)*xr+r+xr+mostlength, sin(a)*yr+r+yr+60)
+	loop
+	
+	return
+	
+	// 参照されている回数が多いものだけ列挙、間に整列
+*move_bigger_pull
+	repeat all
+		sdim nprm
+		split prm.cnt, ";", nprm
+		
+		
+		
+	loop
+	return
+	
+*Jump
+	if RegID == stat {
+		gosub *add
+	}else :if SearchID == stat {
+		gosub *search
+	}else :if SerachIfID == stat {
+		gosub *searchif
+	}else :if CancelID == stat {
+		
+		cancelf = 1
+	}
+	gosub *draw
+	return
+	
+	// 要素追加
+*add
+	// 重複cheack
+	i = 1
+	repeat all
+		if name.cnt == buf0 :i = 0 :break
+	loop
+	if i :reg buf0, ""+buf1+";"+buf2, makelong(ginfo(12)/2, ginfo(13)/2)
+	return
+	
+*searchif
+	sdim tempbuf
+	tempvalue = 0
+	
+	objsize 400, 200
+	dialog "", 64, "Search 条件"
+	
+	objmode 2 :font msgothic, 16
+	objsize 100, 20
+	
+	tempLimit = ncrmaxlimit
+	pos   5,  5 :chkbox "検索数", chk.0
+	pos 110,  5 :input tempLimit :LimitID = stat
+	
+	tempMin = MinLen
+	tempMax = MaxLen
+	pos   5, 30 :chkbox "道順の範囲", chk.1
+	pos 213, 33 :mes "～"
+	pos 110, 30 :input tempMin :MinID = stat
+	pos 230, 30 :input tempMax :MaxID = stat
+	
+	tempDuplication = Duplication
+	pos   5, 55 :chkbox "重複許可", chk.2
+	pos 110, 55 :input tempDuplication :DuplicationID = stat
+	
+	tempThrough = Through
+	pos   5, 80 :chkbox "経由地点", chk.3
+	pos 110, 80 :input tempThrough :ThroughID = stat
+	
+	temoRejection = Rejection
+	pos   5, 105 :chkbox "除外地点", chk.4
+	pos 110, 105 :input temoRejection :RejectionID = stat
+	
+	objsize ginfo(12)-10, 30
+	pos   5, ginfo(13)-35
+	button gosub "決定", *SearchApply :SearchApplyID = stat
+	
+	dlgfor
+		objenable LimitID, chk.0
+		objenable MinID, chk.1
+		objenable MaxID, chk.1
+		objenable DuplicationID, chk.2
+		objenable throughID, chk.3
+		objenable RejectionID, chk.4
+		wait 2
+	loop
+	gsel 0
+	return
+	
+*SearchApply
+	ncrmaxlimit = tempLimit
+	if chk.0 == 0 || ncrmaxlimit == -1 {
+		gsel 1
+		font msgothic, fontsize
+		crmaxlimit = ginfo(13)/fontsize-3
+		gsel 0
+	}else :crmaxlimit = ncrmaxlimit
+	
+	MinLen = tempMin
+	MaxLen = tempMax
+	
+	if tempDuplication < 0 :tempDuplication = INT_MAX
+	Duplication = tempDuplication
+	
+	Through = tempThrough
+	if chk.3 {
+		// 経由地点の有無を検索
+		i = 1
+		repeat all
+			if name.cnt == Through :nThrough = cnt :i = 0 :break
+		loop
+		if i :dialog "経由地点が見つかりませんでした。", 0, "" :return
+	}
+	dlgdel
+	return
+	
+	// ルート探索
+*search
+	actsel = ginfo_sel
+	gsel 1, 1
+	color
+	boxf
+	gsel 0
+	repeat 4, SearchID
+		objenable cnt, 0
+	loop
+	objenable cancelID, 1
+	gsel actsel
+	
+	from = -1
+	to = -1
+	repeat all
+		if from == -1 :if name.cnt == buf3 :from = cnt
+		if to == -1 :if name.cnt == buf4 :to = cnt
+		if from != -1 && to != -1 :break
+	loop
+	if from == -1 :dialog ""+buf3+"が見つかりませんでした。", 0, "" :goto *Search_end
+	if to == -1 :dialog ""+buf4+"が見つかりませんでした。", 0, "" :goto *Search_end
+	if from == to :dialog "探索元と探索先が同じです", 0, "" :goto *Search_end
+	logmes "From["+name.from+"] To["+name.to+"]"
+	
+	sdim allroottext
+	sdim mes_
+	sdim buf	// 中身はID
+	sdim root
+	sdim counter, all+1
+	dim croot
+	dim comproot		:cr = 0
+	dim continuef		:cfmax = 0
+	dim parentcroot
+	
+	sdim inf
+	cancelf = 0
+	nroot = -1
+	rmax = 1
+	nrc = 0
+	croot.0 = 0
+	continuef.0 = 1
+	nBranch = 0
+	buf = ""+from+".0"
+	
+	// 自身の子と自身が子になっている親・節を列挙
+	sdim children, all+1 :dim nchildren, all
+	repeat all
+		j = cnt
+		if prm.j != ";" {
+			// 子を追加
+			sdim nprm
+			split prm.j, ";", nprm
+			repeat all
+				if name.cnt == nprm.0 :poke children(j), nchildren(j), cnt :nchildren(j)++
+				if name.cnt == nprm.1 :poke children(j), nchildren(j), cnt :nchildren(j)++
+			loop
+		}
+		
+		// 自身が子にされている節を追加
+		repeat all
+			if prm.cnt == ";" :continue
+			sdim nprm
+			split prm.cnt, ";", nprm
+			for i, 0, 2, 1
+				if nprm.i == name.j :poke children(j), nchildren(j), cnt :nchildren(j)++
+			next
+		loop
+	loop
+	
+	repeat
+		await
+		if cancelf :nroot = -1 :mes_ += "中断しました。\n" :break
+		if 100000 < nBranch :nroot = -1 :mes_ += "ルート分岐数が100000を超えました。安全のため停止します。\n" :break
+		notesel@hsp buf
+		if notemax == 0 :nroot = -1 :mes_ +=  "これ以上の結果は出ませんでした。\n" :break
+		noteget@hsp inf, 0
+		notedel 0
+		
+		sdim nprm
+		split inf, ".", nprm
+		n = int(nprm.0)
+		nroot = int(nprm.1)		// 今探索しているルートID
+		
+		// 検索条件Max監視
+		if chk.1 :if 0 < MaxLen && MaxLen != -1 :if MaxLen <= croot(nroot) {
+			continuef.cfmax = nroot
+			cfmax++
+			continue
+		}
+		
+		nrc = 0
+		addCounter nroot, n
+		if n == to {
+			// ルート記録
+			memexpand root(nroot), croot(nroot)+1
+			poke root(nroot), croot(nroot), n
+			croot(nroot)++
+			logmes "endding prev ["+name.n+"]"
+			
+			i = 1
+			
+			// 検索条件Min監視
+			if chk.1 :if 0 < MinLen && MinLen != -1 {
+				if croot(nroot) < MinLen :i = 0
+			}
+	
+			// 経由地点監視
+			if chk.3 {
+				j = 1
+				repeat croot(nroot)
+					if peek(root(nroot), cnt) == nThrough :j = 0 :break
+				loop
+				if j :i = 0
+			}
+			
+			if i {
+				// 目的地に着いた記録
+				comproot.cr = nroot
+				cr++
+				gosub *showroot
+			}else {
+				continuef.cfmax = nroot
+				cfmax++
+			}
+			if crmaxlimit <= cr :mes_ += "目的の検索数上限を超えました。\n" :break
+		}else {
+			// 分岐
+			repeat nChildren(n)
+				i = peek(children(n), cnt)
+				if chk.2 :if Duplication < peek( counter(nroot), i ) :continue
+				addroot i
+			loop
+			
+			// ルート記録
+			memexpand root(nroot), croot(nroot)+1
+			poke root(nroot), croot(nroot), n
+			croot(nroot)++
+			
+			if nrc == 0 {
+				logmes "delete? : "+nroot
+//				continuef.cfmax = nroot
+//				cfmax++
+			}
+		}
+	loop
+	if cr == 0 :if nroot == -1 :if cancelf == 0 :mes_ += "ルートが見つかりませんでした。\n"
+	
+	if i == -1 :mes_ = allroottext
+	allRootCount
+	
+	gsel 1, 1
+	allRootView
+*Search_end
+	gsel 0
+	repeat 4, SearchID
+		objenable cnt, 1
+	loop
+	objenable cancelID, 0
+	
+	return
+	
+*showroot
+	gsel 1
+	allrootcount
+	allrootview
+	sdim allroottext
+	gsel 0
+	return
+	
+#deffunc allrootcount
+	repeat cr
+		compnroot = comproot(cnt)
+		allroottext += ""+strf("%3d", compnroot)+"("+croot(compnroot)+") "
+//		allroottext += "("+croot(compnroot)+") "
+		repeat croot(compnroot)
+			ID = peek(root(compnroot), cnt)
+			allroottext += name( ID )
+			if cnt != croot(compnroot)-1 :allroottext += " -> "
+		loop
+		allroottext += "\n"
+	loop
+	allroottext += mes_
+	allroottext += "約"+nBranch+"件 分岐を行いました。\n"
+	
+	allroottext += "節約数 "+(nBranch-rmax)+"\n"
+	return
+	
+#deffunc allrootview
+	redraw 0
+	color :boxf@hsp :colorwhite
+	pos 0, 0
+	mes ""+allroottext
+	redraw 1
+	return
+	
+#deffunc addroot int act
+	if nrc {
+		if cfmax {
+			newid = continuef(cfmax-1)
+			cfmax--
+		}else {
+			newid = rmax
+		}
+		
+		// ルート継承
+		memexpand root(newid), croot(nroot)+1
+		memcpy root(newid), root(nroot), croot(nroot)
+		croot(newid) = croot(nroot)
+		
+		// 現在を記録
+		memexpand root(newid), croot(newid)+1
+		poke root(newid), croot(newid), n
+		croot(newid)++
+	
+		// カウンター継承
+		memexpand counter(newid), all+1
+		memcpy counter(newid), counter(nroot), all
+		
+		continuef.newid = 1
+		buf += ""+act+"."+newid+"."+nroot+"\n"
+		if newid == rmax :rmax++	// ２回目以降は他ルートに決定
+		nBranch++
+	}else {
+		buf += ""+act+"."+nroot+"\n"
+		continuef.nroot = 1
+	}
+	if 0 < nBranch :if nBranch\10000 == 0 :gosub *showroot
+	nrc++
+	return
+	
+#deffunc addCounter int nroot_, int act
+	memexpand counter(nroot_), all+1
+	poke counter(nroot_), act, peek(counter(nroot_), act)+1
+	logmes "ID["+nroot_+"] name["+name(act)+"] counter["+peek(counter(nroot_), act)+"]"
+	return
+	
+#defcfunc isnumber str name_
+	id = -1
+	repeat all
+		if name.cnt == name_ :id = cnt :break
+	loop
+	return id
+	
+#deffunc reg str name_, str prms_, int pts_
+	name.all = name_
+	prm.all = prms_
+	pt.all = pts_
+
+	repeat
+		await
+		clr.all = RGB(rnd(255), rnd(255), rnd(255))
+		if RR(clr.all) < 50 && GG(clr.all) < 50 && BB(clr.all) < 50 :continue
+		break
+	loop
+	
+	all++
+	return
+	
+*exit
+	if ginfo_intid != 0 :gsel ginfo_intid, -1 :return -1
+	if nsavef == 0 {
+		sdim buf
+		repeat all
+			buf += ""+name.cnt+";"+prm.cnt+";"+pt.cnt+"\n"
+		loop
+		bsave INI_FILE, buf, strlen(buf)
+	}
+	
+	return
+	

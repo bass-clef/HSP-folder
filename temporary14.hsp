@@ -1,0 +1,69 @@
+	
+	#include "mathex.as"
+	
+	xbox = 100.0
+	ybox = 100.0
+	wdh = 50
+	hgt = 50
+	prevmax = 10
+	dim prevrbox, prevmax :prevcnt = 0
+	ddim prevabox, prevmax :prevcnt = 0
+	
+	oncmd gosub *click_down, WM_LBUTTONDOWN
+	oncmd gosub *click_up, WM_LBUTTONUP
+	gosub *draw
+	
+	stop
+*draw
+	redraw 0
+	colorwhite :boxf :color
+	boxf xbox, ybox, xbox+wdh, ybox+hgt
+	redraw 1
+	
+	return
+	
+*click_down
+	downf = 1
+	oldxbox = xbox
+	oldybox = ybox
+	mx = mousex
+	my = mousey
+	
+	repeat
+		xbox = mousex-mx+oldxbox
+		ybox = mousey-my+oldybox
+		if loldxbox != xbox || loldybox != ybox {
+			oldprevcnt = prevcnt
+			prevrbox.prevcnt = dis2pt(loldxbox, loldybox, xbox, ybox)
+			prevabox.prevcnt = atan(ybox-loldybox, xbox-loldxbox)
+			prevcnt = (prevcnt+1)\prevmax
+			
+			loldxbox = xbox
+			loldybox = ybox
+			gosub *draw
+		}
+		if downf == 0 :break
+		wait 1
+	loop
+	
+	r = double (prevrbox (int (underto (oldprevcnt-1, 0, prevmax-1) ) ) ) - double(prevrbox(oldprevcnt))
+	rmax = r
+	title ""+r
+	if 0 < r {
+		// sin( PI*2 / ŽüŠú * Count ) * U•
+		repeat 25
+			xbox += cos(prevabox(oldprevcnt))*r
+			ybox += sin(prevabox(oldprevcnt))*r
+			r = sin(M_PI*2.0/25.0*double(cnt))*rmax
+			if r <= 1 :break
+			gosub *draw
+			wait 1
+		loop
+	}
+	
+	return
+*click_up
+	downf = 0
+	return
+	
+	

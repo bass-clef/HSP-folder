@@ -1,0 +1,91 @@
+	
+	
+	// 常駐ソフト
+	
+	
+	gosub *init_all
+	
+	
+*main
+	repeat main_gosubs_max
+		if main_flags.cnt :gosub main_gosubs.cnt
+	loop
+	
+	redraw 0
+	colorwhite :boxf :color
+	pos 0, 0 :mes log
+	redraw 1
+	
+	wait 10
+	goto *main
+	
+*lclick
+	sendmsg hwnd, WM_NCLBUTTONDOWN, 2
+	return
+	
+*mclick
+	end :end
+	return
+	
+*init_all
+	ldim main_gosubs, 0
+	main_gosubs_max = 0
+	sdim log
+	
+	init_gosubs = *init_mouse
+	init_gosubs_max = length(init_gosubs)
+	repeat init_gosubs_max
+		gosub init_gosubs.cnt
+	loop
+	
+	bgscr 0, 100, 12+12*init_gosubs_max, 0, ginfo(20)-100, 0
+	oncmd gosub *lclick, WM_LBUTTONDOWN
+	oncmd gosub *mclick, WM_MBUTTONDOWN
+	gsel 0, 2
+	font msgothic, 10
+	objmode 2
+	objsize ginfo(12), 12
+	pos 0, 12
+	repeat init_gosubs_max
+		chkbox ""+main_names.cnt, main_flags.cnt
+	loop
+	return
+	
+	
+	/* おかしい動きのマウスを検出すると停止 */
+*init_mouse
+	main_gosubs(main_gosubs_max) = *main_mouse
+	main_flags(main_gosubs_max) = 1
+	main_names(main_gosubs_max) = "マウス監視"
+	main_gosubs_max++
+	mouse_posed = -1, -1
+	mouse_warning = 0
+	
+	return
+*main_mouse
+	if flag {
+		flag--
+		log = "拘束中 "+flag
+		mouse ginfo(4)+ginfo(12)/2, ginfo(5)+6
+		return
+	}
+	mouse_pos = ginfo(0), ginfo(1)
+	if mouse_posed == -1 :repeat 2 :mouse_posed.cnt = mouse_pos.cnt :loop
+	if mouse_pos.0 != mouse_posed.0 || mouse_pos.1 != mouse_posed.1 {
+		x = mouse_posed.0-mouse_pos.0
+		y = mouse_posed.1-mouse_pos.1
+		r = sqrt(powf(x, 2)+powf(y, 2))
+		if ginfo(21)/2 < r {
+			mouse_warning++
+			if mouse_warning == 3 {
+				mouse_warning = 0
+				flag = 10000
+				return
+			}
+		}
+		repeat 2 :mouse_posed.cnt = mouse_pos.cnt :loop
+	}
+	
+	return
+	/**/
+	

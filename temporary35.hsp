@@ -1,0 +1,55 @@
+	
+	#include "maphash.as"
+	
+	str_ = "óŒ", "êÖ", "çï", "ã‡", "??"
+	len = length(str_)
+	dim num, len
+	dim max, len
+	xx = 70
+	yy = 25
+	objsize xx, yy
+	objmode 2
+	font msgothic, 16
+	
+	repeat len
+		pos xx*cnt, 0 :input v
+	loop
+	repeat len
+		pos xx*cnt, yy :button gosub ""+ str_.cnt, *add
+	loop
+	repeat len
+		pos xx*cnt, yy*2 :input v
+	loop
+	repeat len
+		pos xx*cnt, yy*3 :input v
+	loop
+	
+	
+	stop
+*add
+	id = stat
+	id2 = id - len
+	id3 = id + len
+	num.id2 = int(gtext(objinfo(id2, 2)) )+1
+	objprm id2, ""+ num.id2
+	
+	al = 0
+	repeat len
+		al += num.cnt
+	loop
+	
+	repeat len
+		par = (1.0 / al) * (num.cnt) * 100
+		partext = strf("%03.2f", par)
+		objprm len*2+cnt, partext
+		
+		i = 0
+		getHash ""+ cnt +"_"+ partext, i, 4
+		i++
+		setHash ""+ cnt +"_"+ partext, i, 4
+		if max.cnt < i {
+			max.cnt = i
+			objprm len*3+cnt, partext
+		}
+	loop
+	return

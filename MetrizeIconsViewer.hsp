@@ -1,0 +1,71 @@
+	
+	#define	global	DIR_METRIZE_ICONS	"D:\\Program Files\\HSP 3.31\\Metrize_Icons\\"
+	
+	subId = 1
+	loadMetrizeIcons subId
+	max = stat
+	
+	n = 18
+	size = 32
+	
+	screen 0, 576, 576
+	
+	buffer subId+max, ginfo(12), ginfo(13)
+	
+	redraw 0
+	repeat max
+		pos cnt\n*size, cnt/n*size :gzoom size, size, subId+cnt, 0, 0, 512, 512, 1
+	loop
+	redraw 1
+	
+	gsel 0
+	pos 0, 0 :gcopy subId+max, 0, 0, n*size, n*size
+	
+	onclick gosub *click
+	
+	stop
+	
+*click
+	flag = (flag+1)\2
+	if flag {
+		mx = mousex/size
+		my = mousey/size
+		id = my*n+mx
+		if n <= mx || n <= my :flag = 0 :return
+		if max <= id :flag = 0 :return
+		title ""+getFileName(id)
+		colorwhite :boxf :color
+		pos (ginfo(12)-512)/2, (ginfo(13)-512)/2 :gcopy subId+id, 0, 0, 512, 512
+	}else {
+		title ""
+		colorwhite :boxf :color
+		pos 0, 0 :gcopy subId+max, 0, 0, n*size, n*size
+	}
+	
+	return
+	
+	
+	#module
+	#deffunc loadMetrizeIcons int beginId
+		sel_id = ginfo_sel
+		chdir DIR_METRIZE_ICONS
+		dirlist files, "*.png", 3
+		notesel files
+		repeat notemax
+			buffer beginId+cnt
+			redraw 0
+			picload noteget(cnt)
+			redraw 1
+		loop
+		gsel sel_id
+	return notemax
+	
+	#defcfunc getFileName int id
+		notesel files
+	return noteget(id)
+	#global
+	
+	
+	
+	
+	

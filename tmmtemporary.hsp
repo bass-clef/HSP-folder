@@ -1,0 +1,29 @@
+	
+	#module __TMM__
+	#uselib "tmm.dll"
+	#cfunc	vmget__		"vmget"			int, int
+	#func	global	vminit		"vminit"		int, int
+	#func	global	vmset		"vmset"			int, int, sptr
+	#cfunc	global	vmf_size	"vmf_size"
+	#cfunc	global	vms_size	"vms_size"		int
+	#cfunc	global	vmd_size	"vmd_size"		int, int
+	
+	#defcfunc vmget int first, int second
+		dsize_ = vmd_size(first, second)
+		if dsize_ == 0 :return ""
+		dupptr ref, vmget__(first, second), dsize_, 2
+	return ref
+	#global
+	
+	
+	sdim buf
+	vmset 1, cnt, "String "+strf("%"+(rnd(15)+1)+"d", cnt)
+	buf += "("+vmd_size(0, cnt)+")["+ vmget(0, cnt) +"]\n"
+	
+	mes "first size  : "+vmf_size()
+	mes "second size  : "+vms_size(0) +"\n"
+	
+	objmode 2
+	pos ginfo_cx, ginfo_cy-20
+	mesbox buf, ginfo(12), ginfo(13)-ginfo_cy, 5, 0
+	

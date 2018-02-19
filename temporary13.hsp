@@ -1,0 +1,56 @@
+	
+	#include "mathex.as"
+	
+	
+	a = -2.775073
+	as = M_PI/2.0, 0.0, M_PI, -M_PI/2.0
+	H_PI = M_PI/2.0
+	r = 50.0
+	px = 100
+	py = 100
+	tempa = 0.0
+	
+	font msgothic, 10
+	
+*main
+	left = -4.0
+	right = left
+	
+	redraw 0
+	colorwhite :boxf :color
+	
+	repeat length(as)
+		tempa = as.cnt
+		if -H_PI <= a-tempa && a-tempa <= 0 :left = as(cnt)
+		if a < 0.0 {
+			if 0 <= a+tempa && a+tempa <= H_PI :right = as(cnt) :lid = cnt
+		}else {
+			if 0 <= a-tempa && a-tempa <= H_PI :right = as(cnt) :rid = cnt
+		}
+	
+		xx = cos(as.cnt)*r +px
+		yy = sin(as.cnt)*r +py
+		
+		circle xx-3, yy-3, xx+3, yy+3
+		pos xx, yy :mes ""+cnt+"{"+tempa+"\n- "+(a-tempa)+"\n+ "+(a+tempa)
+	loop
+	
+	color 255
+	xx = cos(a)*r +px
+	yy = sin(a)*r +py
+	circle xx-10, yy-10, xx+10, yy+10
+	
+	color
+	pos 0, 0
+	mes "a     "+a
+	mes "left  "+lid+" : "+left
+	mes "right "+rid+" : "+right
+	redraw 1
+	
+	stick@hsp ky, 15
+	if ky & 1 :a = underto(a-0.02, -M_PI, M_PI)
+	if ky & 4 :a = overto(a+0.02, M_PI, -M_PI)
+	
+	wait 1
+	goto *main
+	

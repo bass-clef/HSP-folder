@@ -1,0 +1,265 @@
+	
+	
+	/**
+	çUåÇ
+	ñhå‰
+	ìÆÇ≠
+	*/
+	
+	#packopt name "Ç¶ÇºÇ‡Ç‡ÇÒÇ™Å["
+	
+	#define	global		GLOBAL_DEFINE
+	#include "BlankIdentifier.as"
+	
+	#include "keys.as"
+	
+	
+	#enum	M_NONE = -1
+	#enum	M_MY
+	#enum	M_ENEMY
+	#enum	M_ATTACK
+	#enum	M_DODGE
+	#enum	M_RECEIVED
+	#enum	M_ESCAPE
+	#enum	M_DIE
+	
+	#enum	MT_TERN = 0
+	#enum	MT_ATTACK
+	#enum	MT_DODGE
+	#enum	MT_RECEIVED
+	#enum	MT_ESCAPE
+	#enum	MT_DIE
+	
+	#enum	K_UP	= 0
+	#enum	K_DOWN
+	#enum	K_OK
+	
+	dim xpos
+	dim ypos
+	dim imgId
+	dim hp
+	
+	initKeys
+	keys.K_UP = 'W'
+	keys.K_DOWN = 'S'
+	keys.K_OK = VK_SPACE
+	repeat length(keys)
+		registoryKey keys.cnt, 1, 10
+	loop
+	
+	windowWidth = 640
+	windowHeight = 480
+	
+	mode = -1
+	commandText = "%sÇ≠", "ÇÊÇØÇÈ", "Ç…Ç∞ÇÈ"
+	commandMode = M_ATTACK, M_DODGE, M_ESCAPE
+	selCommand = 0
+	commandLength = length(commandText)
+	
+	attackName		= "ÇΩÇΩ", "Ç–Ç¡Ç©"	, "Ç©Ç›Ç¬"
+	attackDamage	= 1		, 2			, 4
+	
+	messageHeight = 100
+	messageText = "%sÇÃÇŒÇÒ", "%sÇÕ%sÇ¢ÇΩ", "%sÇÕÇÊÇØÇΩ", "%sÇÕ%dÇÃÇ±Ç§Ç∞Ç´ÇÇ§ÇØÇΩ", "%sÇÕÇ…Ç∞ÇΩ", "%sÇÕÇµÇÒÇæ"
+	tempMessage = ""
+	messageWait = 50
+	messageTime = 0
+	
+	my = 0
+	enemy = 1
+	moveSpeed = 10
+	attackProbability = 0
+	receiveProbability = 0
+	
+	gosub *imgload
+	
+	hp.my = 6
+	name.my = "Ç†Ç»ÇΩ"
+	move.my = -1
+	xpos.my = 400
+	ypos.my = 100
+	attackKind.my = 0
+	
+	hp.enemy = 3
+	name.enemy = "Ç¶ÇºÇ‡Ç‡ÇÒÇ™"
+	move.enemy = 1
+	xpos.enemy = 100
+	ypos.enemy = 100
+	attackKind.enemy = 0
+	
+	screen 0, windowWidth, windowHeight, 0, (ginfo(20)-windowWidth)/2, (ginfo(21)-windowHeight)/2
+	title "Ç¶ÇºÇ‡Ç‡ÇÒÇ™Å["
+	
+	fontSize = 15
+	font msgothic, fontSize
+	
+	mode = M_MY
+	nextmode = mode
+	
+*main
+	
+	calcKeys
+	
+	if 0 < messageTime {
+		messageTime--
+	} else {
+		gosub *calc
+	}
+	gosub *draw
+	
+	wait 1
+	goto *main
+	
+*calc
+	oldmode = mode
+	
+	if nextmode != mode {
+		time = 0
+		mode = nextmode
+		messageTime = messageWait
+		return
+	}
+	
+	switch mode
+	case M_MY
+		tempMessage = strf(messageText.MT_TERN, name.my)
+		gosub *mycalc
+		swbreak
+		
+	case M_ENEMY
+		tempMessage = strf(messageText.MT_TERN, name.enemy)
+		nextmode = commandMode.0//commandMode.rnd(length(commandMode))
+		receiveTarget = my
+		attackTarget = enemy
+		swbreak
+	
+	case M_ATTACK
+		tempMessage = strf(messageText.MT_ATTACK, name.attackTarget, attackName.attackKind(attackTarget))
+		if time < 5 {
+			xpos.attackTarget += move.attackTarget * moveSpeed
+		} else {
+			xpos.attackTarget -= move.attackTarget * moveSpeed
+		}
+		time++
+		if 10 == time {
+			nextmode = M_RECEIVED
+		}
+		swbreak
+	
+	case M_RECEIVED
+		if 0 == time && M_RECEIVED == mode {
+			damage = attackDamage.attackKind(attackTarget)
+			hp.receiveTarget -= damage
+		}
+		tempMessage = strf(messageText.MT_RECEIVED, name.receiveTarget, damage)
+		
+		if time < 5 {
+			xpos.receiveTarget -= move.receiveTarget * moveSpeed/2
+		} else {
+			xpos.receiveTarget += move.receiveTarget * moveSpeed/2
+		}
+		time++
+		if 10 == time {
+			if 0 == hp.receiveTarget {
+				nextmode = M_DIE
+			} else {
+				nextmode = receiveTarget
+			}
+		}
+		swbreak
+	
+	case M_DODGE
+		tempMessage = strf(messageText.MT_DODGE, name.attackTarget)
+		receiveProbability = 50
+		nextmode = receiveTarget
+		swbreak
+	
+	case M_ESCAPE
+		tempMessage = strf(messageText.MT_ESCAPE, name.attackTarget)
+		swbreak
+	
+	case M_DIE
+		tempMessage = strf(messageText.MT_DIE, name.receiveTarget)
+		swbreak
+	swend
+	
+	return
+	
+*mycalc
+	if keyDowned(keys.K_UP)		|| keyJustBeforeDown(keys.K_UP)		{
+		selCommand = (selCommand + (commandLength-1)) \ commandLength
+	}
+	if keyDowned(keys.K_DOWN)	|| keyJustBeforeDown(keys.K_DOWN)	{
+		selCommand = (selCommand + 1) \ commandLength
+	}
+	if keyDowned(keys.K_OK)	|| keyJustBeforeDown(keys.K_OK)	{
+		nextmode = commandMode.selCommand
+		receiveTarget = enemy
+		attackTarget = my
+	}
+	return
+	
+*draw
+	
+	redraw 0
+	
+	colorwhite :boxf
+	color
+	
+	repeat length(imgId)
+		if 0 == hp.cnt :continue
+		pos xpos.cnt, ypos.cnt :gcopy imgId.cnt, 0, 0, loword(imgSize.cnt), hiword(imgSize.cnt)
+		pos xpos.cnt, ypos.cnt-fontSize :mes "HP:"+hp.cnt
+	loop
+	
+	switch mode
+	case M_MY
+		gosub *mydraw
+		swbreak
+	case M_ENEMY
+		swbreak
+	swend
+	
+	if strlen(tempMessage) {
+		xx = 0 :yy = windowHeight-messageHeight
+		color
+		boxf xx, yy, xx+windowWidth, yy+messageHeight
+		colorwhite
+		boxf xx+5, yy+5, xx+windowWidth-5, yy+messageHeight-5
+		color
+		pos xx+10, yy+10 :mes tempMessage
+	}
+	
+	redraw 1
+	
+	return
+	
+*mydraw
+	x = xpos.my
+	y = ypos.my+hiword(imgSize.my)+fontSize*selCommand
+	color 127, 127, 127
+	xx = fontSize*strlen(commandText.selCommand)
+	boxf x, y, x+xx, y+fontSize
+	
+	color
+	pos xpos.my, ypos.my+hiword(imgSize.my)
+	mes strf(commandText.cnt, attackName.attackKind(my))
+	repeat commandLength-1, 1
+		mes commandText.cnt
+	loop
+	
+	return
+
+
+*imgload
+	imgId.my = 2
+	buffer imgId.my
+	picload "catmodoki.jpg"
+	imgSize.my = makelong(ginfo(12), ginfo(13))
+	
+	imgId.enemy = 1
+	buffer imgId.enemy
+	picload "ezomomonga_yellow.jpg"
+	imgSize.enemy = makelong(ginfo(12), ginfo(13))
+	return
+	

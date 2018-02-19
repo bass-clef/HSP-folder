@@ -1,0 +1,84 @@
+	
+	
+	#uselib "user32.dll"
+	#func	mouse_event			"mouse_event"			int, int, int, int, int
+	#func	SetForegroundWindow	"SetForegroundWindow"	int
+	#define MOUSEEVENTF_LEFTDOWN    0x0002 /* left button down */
+	#define MOUSEEVENTF_LEFTUP      0x0004 /* left button up */
+	
+	#uselib "gdi32.dll"
+	#func	BitBlt	"BitBlt"	int, int, int, int, int,  int, int, int, int
+	#uselib "user32.dll"
+	#func	ReleaseDC	"ReleaseDC"		int, int
+	#cfunc	GetDC		"GetDC"			int
+	
+	
+	x = 910
+	y = 539
+	
+	size = 48
+	hsize = size/2
+	xwhite = x-52
+	ywhite = y-2
+	xblue = x-13
+	yblue = y+18
+	mx = xwhite, xblue, xwhite,      xblue,      xwhite
+	my = ywhite, yblue, ywhite+size, yblue+size, ywhite+size*2
+	
+	xbar = 1
+	ybar = 11
+	size = 22
+	xsize = 17
+	lp = 4
+	wt = 0
+	
+	wdh = 300//xsize*lp+10
+	hgt = 110
+	
+	buffer 1, wdh, hgt
+	screen 0, hgt, wdh, 8
+	font msgothic, 10
+	gsel 0, 2
+	title "anti"
+	
+*main
+	gosub *calcdraw
+	await
+	goto *main
+	
+*calcdraw
+	gsel 1
+	htdc = GetDC(NULL)
+	BitBlt hdc@hsp, 0, 0, wdh, hgt, htdc, x, y, SRCCOPY
+	ReleaseDC NULL, htdc
+	redraw 1
+		
+	gsel 0
+	redraw 0
+	pos 0, wdh :celput 1, 0, 1, 1, deg2rad(-90)
+	redraw 1
+		
+	sel = -1
+	if getkey('D') & 0x8000 :sel = 0
+	if getkey('F') & 0x8000 :sel = 1
+	if getkey('G') & 0x8000 :sel = 2
+	if getkey('H') & 0x8000 :sel = 3
+	if getkey('J') & 0x8000 :sel = 4
+	if sel != -1 {
+		gosub *movemouse
+		gosub *lclick
+		SetForegroundWindow hwnd
+	}
+	return
+	
+*movemouse
+	mouse mx.sel, my.sel
+	return
+	
+*lclick
+	mouse_event MOUSEEVENTF_LEFTDOWN, 0, 0, 0, NULL
+	await
+	mouse_event MOUSEEVENTF_LEFTUP, 0, 0, 0, NULL
+	return
+	
+	

@@ -1,0 +1,16 @@
+	
+	imgw = 1920
+	imgh = 1200
+	size = imgw*imgh
+	
+	buffer 1, imgw, imgh
+	mref vram, 66
+	repeat size
+		poke vram, cnt, int("$"+strmid(d, cnt*2, 2))
+		await
+	loop
+	redraw 1
+	
+	gsel 0
+	pos 0, 0 :gcopy 1, 0, 0, imgw, imgh
+	

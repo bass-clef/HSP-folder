@@ -1,0 +1,62 @@
+	
+	/**
+ボタン BUTTON WC_BUTTON 
+スタティックコントロール STATIC WC_STATIC 
+エディットコントロール EDIT WC_EDIT 
+リストボックス LISTBOX WC_LISTBOX 
+コンボボックス COMBOBOX WC_COMBOBOX 
+スクロールバー SCROLLBAR WC_SCROLLBAR 
+ヘッダーコントロール SysHeader32 WC_HEADER 
+ツールバー ToolbarWindow32 TOOLBARCLASSNAME 
+レバー ReBarWindow32 REBARCLASSNAME 
+ツールチップ tooltips_class32 TOOLTIPS_CLASS 
+ステータスバー msctls_statusbar32 STATUSCLASSNAME 
+トラックバー msctls_trackbar32 TRACKBAR_CLASS 
+アップダウンコントロール msctls_updown32 UPDOWN_CLASS 
+プログレスバー msctls_progress32 PROGRESS_CLASS 
+ホットキー msctls_hotkey32 HOTKEY_CLASS 
+SysLink SysLink WC_LINK 
+リストビュー SysListView32 WC_LISTVIEW 
+ツリービュー SysTreeView32 WC_TREEVIEW 
+拡張コンボボックス ComboBoxEx32 WC_COMBOBOXEX 
+タブコントロール SysTabControl32 WC_TABCONTROL 
+アニメーション SysAnimate32 ANIMATE_CLASS 
+カレンダー SysMonthCal32 MONTHCAL_CLASS 
+DTP SysDateTimePick32 DATETIMEPICK_CLASS 
+IPアドレスコントロ－ル SysIPAddress32 WC_IPADDRESS 
+ページャー SysPager WC_PAGESCROLLER 
+
+	/**/
+	
+	#define		TTM_UPDATE		WM_USER+29
+	
+	SetToolTips 
+	
+	repeat 
+		AddTooltips hwnd@hsp, "ウィンドウ "+cnt
+		sendmsg hTooltips, TTM_UPDATA
+		wait 10
+	loop
+	
+	stop
+	
+	#uselib "user32"
+	#func GetClientRect "GetClientRect" int, int
+
+	#deffunc SetToolTips int style
+		winobj "tooltips_class32", "",, style
+		hTooltips = objinfo(stat, 2)
+		
+		dim rc, 4
+	return stat
+	
+	#deffunc AddToolTips int hObject, str text, int style
+		GetClientRect hObject, varptr(rc)
+		
+		sdim lpszText
+		lpszText = text
+		
+		ti = 40, 0x10 | style, hObject, 0, 0, 0, rc.2, rc.3, 0, varptr(lpszText)
+		sendmsg hTooltips, 0x0404, , varptr(ti)
+		
+	return

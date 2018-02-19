@@ -1,0 +1,112 @@
+	
+	#include "hspsapi.as"
+	
+	#uselib "user32.dll"
+	#func	mouse_event			"mouse_event"		int, int, int, int, int
+	#define MOUSEEVENTF_LEFTDOWN    0x0002 /* left button down */
+	#define MOUSEEVENTF_LEFTUP      0x0004 /* left button up */
+	
+	#module
+	#uselib "hspsock.dll"
+	#func sockopen sockopen 4
+	#func sockclose sockclose 0
+	#func sockput sockput 6
+	#func sockputb sockputb 1
+	#define PORT 50001
+	#deffunc bouyomicyan str text
+		sockopen 0, "localhost", PORT
+		speed = -1	;標準の設定
+		tone = -1	;標準の設定
+		volume = -1	;標準の設定
+		voice = 0	;0:棒読みちゃん画面上の設定、1:女性1、2:女性2、3:男性1、4:男性2、5:中性、6:ロボット、7:機械1、8:機械2、10001～:SAPI5 だそう。
+		code = 2	;0:UTF-8, 1:Unicode, 2:Shift-JIS
+		
+		sdim buf, 15 ;ってもHSPの仕様上64byte確保されるけど。
+		wpoke buf, 0, $0001
+		wpoke buf, 2, speed
+		wpoke buf, 4, tone
+		wpoke buf, 6, volume
+		wpoke buf, 8, voice
+		poke  buf,10, code
+		lpoke buf,11, strlen(text)
+		
+		sockputb buf, 0, 15, 0
+		sockput text, 0
+		
+		sockclose
+	return
+	#global
+	
+	screen 0, 150, 30, 0 :title "handless clicker"
+	
+	font msgothic, 10
+	objsize ginfo(10), 10
+	pos 0, 20 :button gosub "pause", *pause
+	
+	oncmd gosub *wm_sapi, SAPI_MESSAGEID
+
+	// 通知するウィンドウハンドルを指定
+	sapi_SetCallbackHwnd hwnd, SAPI_MESSAGEID
+	
+	// 初期化
+	sapi_Init 0
+	
+	// オープンする
+	sapi_Open
+	if stat != 0 : dialog "MS音声認識がなんか失敗した？" : end
+	
+	onexit gosub *exit
+	
+	btn = 1
+	lim = 0
+	
+*main
+	redraw 0
+	colorwhite :boxf :color
+	pos 0, 0
+	if btn {
+		if lim {
+			mes "クリックしました。"
+			pos 0, 10 :mes "["+ms+"]"
+			lim--
+		}
+	}else {
+		mes "無効中"
+		pos 0, 10 :mes "["+ms+"]"
+	}
+	redraw 1
+	
+	wait 1
+	goto *main
+
+*wm_sapi
+	// 結果が来た
+	if lim == 0 :if lparam == 0{
+		dupptr msg, wparam, 256, 2
+		ms = str(msg)
+		bouyomicyan ms
+		if btn {
+			lim = 100
+			wait 1
+			mouse_event MOUSEEVENTF_LEFTDOWN, 0, 0, 0, NULL
+			wait 10
+			mouse_event MOUSEEVENTF_LEFTUP, 0, 0, 0, NULL
+		}
+	}
+	return
+
+*pause
+	btn = (btn+1)\2
+	
+	return
+
+// 終了時の処理
+*exit
+	gsel 0, -1
+	wait 12
+	
+	sapi_Close
+	sapi_Exit
+	end
+	end
+	return	

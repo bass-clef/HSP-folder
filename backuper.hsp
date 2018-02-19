@@ -1,0 +1,53 @@
+	
+	
+	
+	screen 0, 300, 60, 0
+	
+	folder = "red stone world"
+	src = "C:\\Users\\Hiro\\AppData\\Roaming\\.minecraft\\saves\\"
+	dst = "C:\\Users\\Hiro\\Documents\\minecraft\\world backup\\"
+	backuper = "backup.bat"
+	
+	sdim dstbuf
+	
+	font msgothic, 10
+	objmode 2
+	pos 0,  0 :input folder, ginfo(12), 20, 0
+	pos 0, 20 :mesbox dstbuf, ginfo(12), ginfo(13), 5, 0 :hEdit = objinfo(stat, 2)
+	
+	
+	
+*main
+	
+	sdim buf
+	buf = "XCOPY \"" + src+folder + "\" \"" + dst+folder+"\\" + "\" /d /e /h /r /y"
+	filename = dst + backuper
+	
+	bsave filename, buf, strlen(buf)
+	pipe filename, dstbuf
+	
+	title ""+dstbuf, hEdit
+	title ""+gettime(4)+":"+gettime(5)+" "+gettime(6)
+	
+	wait 600//*5 // 5分間隔でバックアップ
+	goto *main
+	
+	
+	#module
+	#uselib "hspext.dll"
+	#func pipeexec	pipeexec	5
+	#func pipeput	pipeput		0
+	#func pipeget	pipeget		$83
+	// 送信
+	#deffunc pipe str cmd, var ln
+		sdim buf :sdim ln
+		pipeexec buf, cmd, 1
+		if stat == 0 {
+			repeat
+				pipeget ln
+				if stat == 0 :break
+				wait 1
+			loop
+		}
+	return buf
+	#global

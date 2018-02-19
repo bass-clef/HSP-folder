@@ -1,0 +1,133 @@
+	
+	#include "hsp3dish.as"
+	
+	#enum	XO_STATE_NONE = 0
+	#enum	XO_STATE_X
+	#enum	XO_STATE_O
+	#enum	XO_PLAYER_MAX
+	
+	max = 3				// 縦横の数,奇数しか対応してないれす
+	buttonWidth = 50	// ボタンの大きさ
+	buttonHeight = 50
+	xoText = "", "×", "○"	// 表示する文字
+	playerXO = XO_STATE_X	// 最初の状態
+	playerWon = 0	
+	
+	dim xPlayerCount, max, XO_PLAYER_MAX	// x が押された数
+	dim yPlayerCount, max, XO_PLAYER_MAX	// y が押された数
+	dim xoXYFromButtonId, max * max	// x と y からボタンIDを取得
+	dim xoButtonIdList, max, max	// ボタンIDから y*max+x を取得
+	dim xoState, max, max			// ボタンの状態
+	
+	screen 0, buttonWidth * max, buttonHeight * max + buttonHeight
+	objsize buttonWidth, buttonHeight
+	redraw 0
+	for i, 0, max, 1
+		repeat max
+			pos cnt*buttonWidth, i*buttonHeight +buttonHeight/2
+			button gosub xoText.0, *pushedButton
+			xoButtonIdList( cnt, i ) = stat
+			xoXYFromButtonId(stat) = i*max + cnt
+		loop
+	next
+	
+	objsize buttonWidth*max, buttonHeight/2
+	pos 0
+	button gosub "最初から", *init
+	pos 0, 0
+	button gosub ""+ xoText.playerXO +"の番です", *dummy :displayId = stat
+	objenable displayId, 0
+	redraw 1
+	
+	stop
+*dummy
+	return
+	
+*init
+	// 初期化
+	for i, 0, max, 1
+		repeat XO_PLAYER_MAX-1
+			xPlayerCount(i, 1+cnt) = 0
+			yPlayerCount(i, 1+cnt) = 0
+		loop
+		
+		repeat max
+			objprm xoButtonIdList( cnt, i ), xoText.XO_STATE_NONE
+			objenable xoButtonIdList( cnt, i ), 1
+			xoState( cnt, i ) = XO_STATE_NONE
+		loop
+	next
+	objprm displayId, ""+ xoText.playerXO +"の番です"
+	allCount = 0
+	
+	return
+	
+*pushedButton
+	
+	buttonId = stat
+	objprm buttonId, xoText.playerXO
+	objenable buttonId, 0
+	
+	allCount++
+	
+	// プレイヤーの押した場所を記録
+	x = xoXYFromButtonId(buttonId)\max
+	y = xoXYFromButtonId(buttonId)/max
+	xoState( x, y ) = playerXO
+	
+	// プレイヤーがその列を押した回数を記録
+	xPlayerCount( x, playerXO )++
+	yPlayerCount( y, playerXO )++
+	
+	checkWin playerXO
+	if stat {
+		objprm displayId, ""+ xoText(playerXO) +" の勝ち"
+		repeat max*max
+			objenable xoButtonIdList(cnt\max, cnt/max), 0
+		loop
+		return
+	}
+	
+	if allCount == max*max {
+		objprm displayId, "引き分けです"
+		return
+	}
+	
+	playerXO = ((playerXO-1)+1)\(XO_PLAYER_MAX-1)+1
+	objprm displayId, ""+ xoText.playerXO +"の番です"
+	
+	return
+	
+#deffunc checkWin int checkState
+	
+	playerWon = 0
+	// 縦横の判定 (プレイヤーがその列を押した回数で判定)
+	repeat max
+		if max == xPlayerCount(cnt, checkState) || max == yPlayerCount(cnt, checkState) {
+			playerWon = 1
+			break
+		}
+	loop
+	if playerWon :return 1
+	
+	// 斜めの判定 (中央と斜めの反対を見るだけでいい)
+	// プレイヤーが中央を取ってない場合は判定すらしない
+	if checkState == xoState( max/2, max/2 ) {
+		// 一つは x と y が同じ場所
+		slantCount = 0
+		repeat max/2
+			if checkState == xoState( cnt, cnt ) :slantCount++
+			if checkState == xoState( max-1-cnt, max-1-cnt ) :slantCount++
+		loop
+		if max-1 == slantCount :return 1
+		
+		// もう一つは x と y を足して max-1 の場所、かつ x と y が反転している場所
+		slantCount = 0
+		repeat max/2
+			if checkState == xoState( cnt, max-1-cnt ) :slantCount++
+			if checkState == xoState( max-1-cnt, cnt ) :slantCount++
+		loop
+		if max-1 == slantCount :return 1
+	}
+	
+	return 0

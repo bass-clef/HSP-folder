@@ -1,0 +1,34 @@
+	
+	// youtube & niconico URL 自動立ち上げ
+	
+	#uselib "user32.dll"
+	#func	SetForegroundWindow		"SetForegroundWindow"	int
+	#cfunc	GetForegroundWindow		"GetForegroundWindow"
+	
+	#packopt name "musicOnChrome"
+	#packopt hide 1
+	
+	hActhived = GetForegroundWindow()
+	mes "アクティブ前ウィンドウ:"+ gtext(hActhived)
+	
+	v = dir_cmdline
+	if "" == dir_cmdline :end
+	
+	execFlag = false
+	
+	execFlag |= (-1 != instr(v, 0, "www.youtube.com/"))
+	execFlag |= (-1 != instr(v, 0, "youtu.be/"))
+	execFlag |= (-1 != instr(v, 0, "www.nicovideo.jp/watch/"))
+	execFlag |= (0 == instr(v, 0, "sm"))
+	
+	if execFlag {
+		v = "http"+ v
+		mes v
+		exec v, 16
+	}
+	
+	wait 100
+	
+	SetForegroundWindow hActhived
+	
+	end

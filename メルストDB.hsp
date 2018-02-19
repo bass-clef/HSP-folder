@@ -1,0 +1,240 @@
+	
+	#include "hspinet.as"
+	
+	sdim word, 256
+	sdim inf
+	sdim buf
+	
+	gsel 0, -1
+	screen 1, ginfo(20), ginfo(21), 0,,, 640, 480
+	
+	objsize 40, 20
+	pos  0, 0 :button gosub "検索", *find
+	
+	objmode 2
+	font msgothic, 16
+	pos 40,  0 :input word, ginfo(12)-40, 20
+	WordID = stat
+	font msgothic, 12
+	pos  0, 20 :mesbox inf, ginfo(12), ginfo(13)-20, 5, 0
+	EditID = stat
+	
+	stop
+	
+*find
+	lp = 0
+	objprm EditID, ""
+	fFind = 0
+	
+	*rewant
+	gosub *gotocharactor
+	title ""
+	if stat != -1 {
+		gosub *getparameter
+		if stat :lp++ :if lp == 1 {
+			gosub *findword
+			if stat :goto *rewant
+		}
+	}
+	
+	if strlen(html) == 0 {
+		dialog "見つかりませんでした。", 0
+		return -1
+	}
+	title ""
+	return
+	
+*gotocharactor
+	// URLエンコード (Shift-JIS -> UTF-8)
+	count = 0
+	sdim html
+	*reget
+	nword = word
+	nkfcnv nword, nword, "Sw", strlen(nword), 256
+	urlencode v1, nword
+	
+	// 取得
+	sdim html
+	url = "http://メルクストーリア.gamerch.com/"+v1
+	title "接続中..."
+	if getHTML(html, url) {
+		if stat != -400 {
+			dialog "エラー["+stat+"]", 0
+		}
+		return -1
+	}
+	
+	return 0
+	
+*findword
+	// データベースから正式名検索
+	title "類似の名前検索中..."
+	tos = "http://メルクストーリア.gamerch.com/%E2%98%852"+"\n"
+	tos += "http://メルクストーリア.gamerch.com/%E2%98%853"+"\n"
+	tos += "http://メルクストーリア.gamerch.com/%E2%98%854"+"\n"
+	tos += "http://メルクストーリア.gamerch.com/%E2%98%855"+"\n"
+	sdim names
+	sdim dst
+	repeat
+		notesel@hsp tos
+		if notemax <= cnt :break
+		title ""+noteget(cnt)+"..."
+		sdim shtml
+		if getHTML(shtml, noteget(cnt)) == 0 {
+			gosub *findword__
+//			if fFind :break
+		}
+	loop
+	if fFind {
+		i = 0
+		notesel@hsp dst
+		if 1 < notemax {
+			objsize 200, notemax*16+20
+			dialog "", 64, "検索結果"
+			objsize 200, notemax*16
+			listbox i, 0, dst
+			dlgfor
+				wait 1
+			loop
+			
+		}
+		word = noteget(i)
+		objprm WordID, word
+	}
+	return fFind
+	
+*findword__
+	strrep shtml, "<br>", "\n"
+	strrep shtml, "</td>", "</td>\n"
+	strrep shtml, "/>", "/>\n"
+	notesel@hsp shtml
+	repeat notemax
+		noteget@hsp buf, cnt
+		if instr(buf, 0, "◆") != -1 {
+			index = instr(buf, 0, word)
+			if index != -1 {
+				// 開始index探索
+				repeat
+					if index-cnt < 0 :break
+					if peek(buf, index-cnt) == '>' :index -= cnt-1 :break
+				loop
+				repeat
+					if strlen(buf) <= index+cnt :break
+					if peek(buf, index+cnt) == '<' :dst += ""+strmid(buf, index, cnt)+"\n" :break
+				loop
+				fFind = 1
+//				break
+			}
+		}
+	loop
+	return fFind
+	
+*getparameter
+	// 解析
+	html = url+"\n"+html
+	strrep html, "<br>", "\n"
+	strrep html, "/>", "/>\n"
+	status = -1
+	retry = 0
+	
+	*refind
+	notesel@hsp html
+	repeat notemax
+		noteget@hsp buf, cnt
+		if instr(buf, 0, "キャラ名") != -1 :status = cnt :break
+	loop
+	if status == -1 || retry == 0 {
+		retry++
+		if retry == 1 :goto *refind
+		return -1
+	}else {
+		// ステータス付近抜粋
+		sdim inf
+		repeat 19, status
+			noteget@hsp buf, cnt
+			inf += buf+"\n"
+		loop
+		
+		// データ読み取り
+		buf = inf
+		sdim inf
+		space = 0 :index = 0 :old = 0
+		repeat strlen(buf)
+			token = peek(buf, cnt)
+			if token == '<' {
+				if space == 0 :if 0 < old {
+					old = 0
+					memexpand inf, index+2+1
+					poke inf, index, "\n"
+					index += 2
+				}
+				space++
+			}else :if token == '>' {
+				space--
+			}else :if space == 0 {
+				old = 1
+				memexpand inf, index+1+1
+				poke inf, index, peek(buf, cnt)
+				index++
+			}
+		loop
+		poke inf, index, 0
+		strrep inf, "　", ""
+		strrep inf, "\n\n", "\n"
+		
+		objprm EditID, inf
+	}
+	
+	return 0
+	
+*event
+	return
+	
+	/* URLデコード (UTF-8 -> Shift-JIS) *
+	v2 = "%E3%80%8C%E7%A0%B2%E5%8F%B0%E4%B8%8A%E3%81%AE%E9%85%92%E8%B1%AA%E3%80%8D%E3%83%B4%E3%82%A3%E3%83%AB%E3%83%99%E3%83%AB"
+	urldecode v1, v2
+	nkfcnv v1, v1, "Ws", strlen(v1), 64
+	mes v1
+	/**/
+	
+	
+	#module
+	#define adTypeBinary            1
+	#define adSaveCreateNotExist    1
+	#define adSaveCreateOverWrite   2
+	#defcfunc getHTML var html, str sURL
+		// ▼CharCodeを指定
+		charcode = "UTF-8"
+//		charcode = "SHIFT-JIS"
+
+		newcom objXMLHTTP, "Microsoft.XMLHTTP"
+		objXMLHTTP->"Open" "GET", sURL, 0
+		objXMLHTTP->"Send"
+
+		;▼status OKならHTMLテキストファイルを指定のCharCodeで取得
+		
+		//xmlHttp.readyState == 4
+		while objXMLHTTP("readyState") != 4 :wait 1 :wend
+		
+		if objXMLHTTP("status") == 200 {
+			newcom objRS, "ADODB.Stream"
+			if stat != 0 :dialog "ADODB.Streamがサポートされていません。", 0 :return -1
+			objRS("Type") = 1
+			objRS->"Open"
+			sHtml = objXMLHTTP("ResponseBody")
+			objRS->"Write" sHtml
+			objRS("Position") = 0
+			objRS("Type") = 2
+			objRS("Charset") = charcode
+			html = objRS("ReadText")
+			objRS->"Close"
+			ret = 0
+		}else{
+			ret = -objXMLHTTP("status")
+		}
+		
+		if vartype(objRS) == 6 :if varuse(objRS) == 1 :delcom objRS
+		delcom objXMLHTTP
+	return ret
+	#global
+	

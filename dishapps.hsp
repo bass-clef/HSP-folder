@@ -1,0 +1,33 @@
+	
+	#include "hsp3dish.as"
+	
+	width_ = ginfo(20)
+	height_ = ginfo(21)
+	
+	screen 0, width_, height_
+	
+	
+	text = "‚Ù‚°‚¥‚¥‚—‚—"
+	len = strlen(text)
+	
+	fSize = width_ / len
+	font msgothic, fSize
+	
+	flag = 
+	
+*main
+	
+	cx = (width_ - fSize * len/2) / 2
+	cy = (height_ - fSize) / 2
+	
+	redraw 0
+	
+	color 255, 255, 255 :boxf
+	color
+	pos cx, cy :mes text
+	
+	redraw 1
+	
+	await 16
+	goto *main
+	

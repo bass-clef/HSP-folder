@@ -1,0 +1,307 @@
+	
+	// 時計
+	
+	#packopt name "Clock"
+	#packopt hide 1
+	
+	#uselib "user32.dll"
+	#func	TrackPopupMenu	"TrackPopupMenu"	int, int, int, int, int, int, sptr
+	#func	SetTimer		"SetTimer"			int, int, int, int
+	#func	KillTimer		"KillTimer"			int, int
+	
+	#enum	global	MI_QUIT = 10
+	#enum	global	MI_OPT
+	#enum	global	MI_BVIEW
+	#enum	global	MI_MOUSE
+	#define	x	LOWORD
+	#define y	HIWORD
+	
+	WX = 130
+	WY = 30
+	DX = ginfo(20)
+	DY = ginfo(21)
+	mov = 15
+	mgm = 50
+	ptimax = 0
+	ComStr = "追加"
+	com = 0
+	dim now, 3 :dim nowed, 3
+	dim m, 2 :dim med, 2
+	dim pt	// 
+	dim pts	// マウスジェスチャー座標
+	dim pti	// マウスジェスチャー個々の開始index
+	dim ptc	// マウスジェスチャー判断用
+	
+	bgscr 1, DX, DY, 2
+	objsize 50, 18
+	pos 168, 132 :combox com, 0, ComStr :ComID = stat
+	objmode 2
+	pos 168, 114 :input mgm, 50, 18, 2, 0
+	
+	bgscr 0, WX, WY, 2, 2, 0
+	title "時計"
+	slong hwnd(), -20, 0x180
+	gsel 0, 2
+	hMWnd = hwnd()
+	font msgothic, WY-4
+	PopupMenuIni hMWnd, hMenu
+	
+	onclick gosub *click
+	oncmd gosub *WindowProc, WM_MOVING
+	oncmd gosub *WindowProc, WM_MOVE
+	oncmd gosub *WindowProc, WM_TIMER
+	oncmd gosub *WindowProc, WM_DESTROY
+	SetTimer hMWnd, 1000, 16, 0
+	stop
+	
+*calc
+	now = gettime(4), gettime(5), gettime(6)
+	
+	// マウスジェスチャー
+	MouseGestureCalc
+	
+	gosub *draw
+	return
+	
+*draw
+	redraw 0
+	gradf 0, 0, WX, WY, 1, 0xEEEEEE, 0x606060
+	boxf 0, 0, WX, WY, 0
+	boxf 1, 1, WX-1, WY-1, 0
+	if now.2 == 0 {
+		pos 13, 3 :mes strf("%2d:%02d", now.0, now.1)
+	}else {
+		pos 13, 3 :mes strf("%2d:%02d %2d", now.0, now.1, now.2)
+	}
+	redraw 1
+	return
+	
+*click
+	if ginfo_act != 0 :return
+	if wparam == 1 {
+		sendmsg hMWnd, WM_NCLBUTTONDOWN, 2
+	}elseif wparam == 2 {
+		fuFlag = $1100
+		mx = ginfo(0) :my = ginfo(1)
+		
+		TrackPopupMenu hMenu, fuFlag, mx, my, 0, hMWnd, 0
+		
+		switch stat
+		case MI_OPT
+			swbreak
+			
+		case MI_MOUSE
+			oncmd 0
+			MouseGesture
+			oncmd 1
+			swbreak
+			
+		case MI_QUIT
+			end :end
+		swend
+	}
+	return stat
+	
+*WindowProc
+	if iparam == WM_DESTROY {
+		KillTimer hwnd(), 1000
+	}elseif (iparam == WM_MOVING) || (iparam == WM_MOVE) {
+		if winfo(4, hMWnd) < mov :smove 0, winfo(5, hMWnd), hMWnd
+		if winfo(5, hMWnd) < mov :smove winfo(4, hMWnd), 0, hMWnd
+		if winfo(6, hMWnd) > DX-mov :smove DX-WX, winfo(5, hMWnd), hMWnd
+		if winfo(7, hMWnd) > DY-mov :smove winfo(4, hMWnd), DY-WY, hMWnd
+	}elseif iparam == WM_TIMER {
+		gosub *calc
+	}
+	return
+	
+	// マウスジェスチャー登録
+#deffunc MouseGesture
+	
+	gsel 1, 1
+	objprm ComID, ptimax
+	objprm ComID, ComStr
+	gosub *MGDraw
+	repeat
+		stick@hsp key
+		if key & 512 {	// クリア
+			med = -mgm, -mgm
+			dim pt :ptmax = 0 :gosub *MGDraw
+		}
+		if key & 1 :if ptmax {	// 一つ戻る
+			ptmax --
+			if ptmax :med = x(pt(ptmax-1)), y(pt(ptmax-1)) :else :med = -mgm, -mgm
+			gosub *MGDraw
+		}
+		if key & 4 :if ptmax < length(pt) :ptmax ++ :gosub *MGDraw	// 一つ進む
+		if getkey(1) :if not(In(168, 114, 218, 150, ginfo(0), ginfo(1))) {
+			m = ginfo(0), ginfo(1)
+			if sqrt(powf(m.0-med.0, 2) + powf(m.1-med.1, 2)) > mgm {
+				med.0 = m.0 :med.1 = m.1
+				pt.ptmax = MAKEWORD(ginfo(0), ginfo(1))
+				ptmax ++
+				gosub *MGDraw
+				
+			}
+		}
+		if ginfo_act != 1 :break 0
+		if getkey(13) :break 1// 完了
+		if getkey(27) :break 0// キャンセル
+		wait 1
+	loop
+	goto *MGExit
+	
+	*MGDraw
+	redraw 0
+	colorwhite :boxf :color
+	pos 5, 5
+	mes "左クリックで線を描いてください。"
+	mes "黒い丸が多いほど精度が上がります"
+	mes "右クリックでクリア、"
+	mes "設定を完了するは Enterキー、\nキャンセルはEscキーで"
+	mes ""+count
+	count++
+	mes "判定を修正する半径 : "
+	mes "現在編集中のｵﾌﾞｼﾞｪｸﾄ"
+	repeat ptmax
+		xx = x(pt.cnt)
+		yy = y(pt.cnt)
+		pos xx, yy
+		if cnt == 0 :mes "始点" :else :mes "点 "+(cnt+1) :line xx, yy, x(pt(cnt-1)), y(pt(cnt-1))
+		circle xx-mgm, yy-mgm, xx+mgm, yy+mgm, 0
+	loop
+	redraw 1
+	return
+	
+	*MGExit
+	if stat {// 内容登録
+		gsel 1, -1
+		if ptmax > 0 {
+			repeat ptmax
+				pts(pti( c(ptimax > 0, ptimax, 0) )+cnt ) = pt.cnt
+			loop
+			ptc(ptimax) = -1
+			pti(ptimax) = ptmax
+			ptimax ++
+		}
+	}else :gsel 1, -1
+	
+	gsel 0, 2
+	
+	return
+	
+	// マウスジェスチャー監視
+#deffunc MouseGestureCalc
+	if mgcFlag :return
+	mgcFlag = 1
+	m = ginfo(0), ginfo(1)
+	
+	repeat ptimax
+		if ptc.cnt < pti.cnt-1 {
+			// マウス監視
+			if ptc.cnt == -1 {
+				if In(x(pts.0)-mgm, y(pts.0)-mgm, x(pts.0)+mgm, y(pts.0)+mgm, m.0, m.1) :ptc(cnt) ++
+			}else{
+				cr = sqrt(powf(x(pts.ptc(cnt))-x(pts(ptc(cnt)+1)), 2) + powf(y(pts.ptc(cnt))-y(pts(ptc(cnt)+1)), 2))
+				ca = atan(y(pts(ptc(cnt)+1))-y(pts.ptc(cnt)), x(pts(ptc(cnt)+1))-x(pts.ptc(cnt)))
+				r = sqrt(powf(x(pts.ptc(cnt))-m.0, 2) + powf(y(pts.ptc(cnt))-m.1, 2))
+				xx = cos(ca)*r + x(pts.ptc(cnt)) :yy = sin(ca)*r + y(pts.ptc(cnt))
+				if r < cr+mgm :if In(xx-mgm*2, yy-mgm, xx+mgm, yy+mgm, m.0, m.1) {
+					if In(x(pts(ptc(cnt)+1))-mgm, y(pts(ptc(cnt)+1))-mgm, x(pts(ptc(cnt)+1))+mgm, y(pts(ptc(cnt)+1))+mgm, m.0, m.1) :ptc(cnt) ++
+				}else :ptc(cnt) = -1
+			}
+		}else {
+			// 実行
+			count ++
+			if count > 10 :end
+			dialog "実行"
+			ptc(cnt) = 0
+		}
+	loop
+	
+	mgcFlag = 0
+	return
+
+	// モジュール
+	#module
+	#uselib "user32.dll"
+	#cfunc	CreateMenu				"CreateMenu"
+	#cfunc	CreatePopupMenu			"CreatePopupMenu"
+	#func	InsertMenuItem			"InsertMenuItemA"	int, int, int, var
+	#func	SetMenuItemInfo			"SetMenuItemInfoA"	int, int, int, var
+	#func	SetMenu					"SetMenu"			int, int
+	#func	GetClientRect			"GetClientRect"		int, int
+	
+	#enum	cbSize = 0
+	#enum	fMask
+	#enum	fType
+	#enum	fState
+	#enum	wID
+	#enum	hSubMenu
+	#enum	hbmpChecked
+	#enum	hbmpUnchecked
+	#enum	dwItemData
+	#enum	dwTypeData
+	#enum	cch
+	#enum	hbmpItem
+	
+	//メニュー作成
+	#deffunc PopupMenuIni int hWnd_, var hMenu
+		hMenu = CreatePopupMenu()
+		if hMenu == 0 :return FALSE
+		AddMenuItem hMenu, "--時計--", MI_BVIEW, 0, "__MenuDisabled__"
+		AddMenuItem hMenu, "設定 (&O)", MI_OPT, 0, "設定を変更します"
+		AddMenuItem hMenu, "マウス (&M)", MI_MOUSE, 0, "マウスジェスチャーを設定します"
+		AddMenuItem hMenu, "", 0, 0, ""
+		AddMenuItem hMenu, "終了 (&Q)", MI_QUIT, 0, "終了します"
+		
+	return TRUE
+	// メニューアイテム追加
+	#deffunc AddMenuItem int hMenu, str ItemName, int nId, int hSMenu, str ItemDate
+		dim mii, 12	//MENUITEMINFO
+		
+		mii.cbSize		= 48		//sizeof(MENUITEMINFO)
+		mii.fMask		= $32		//MIIM_TYPE | MIIM_ID | MIIM_DATA
+		mii.wID			= nId
+		dwItemDate		= ItemDate
+		mii.dwItemData	= varptr(dwItemDate)
+	
+		if ItemDate == "__MenuDisabled__" {
+			mii.fMask	|= $1		//MIIM_STATE
+			mii.fState	= $3
+			mii.fType	= 0			//MFT_STRING
+			dwTypeDate	= ItemName
+			mii.dwTypeData	= varptr(dwTypeDate)
+		}elseif ItemName != "" {			// NULL = セパレーター
+			mii.fType	= 0			//MFT_STRING
+			dwTypeDate	= ItemName
+			mii.dwTypeData	= varptr(dwTypeDate)
+		}else :mii.fType	= $800	//MFT_SEPARATOR
+		
+		if hSMenu != NULL {			// サブメニュー
+			mii.fMask	   |= $4	//MIIM_SUBMENU
+			mii.hSubMenu	= hSMenu
+		}
+		
+		InsertMenuItem hMenu, nId, FALSE, mii
+	return
+	
+	// メニューアイテム変更
+	#deffunc ChangeMenuItem int hMenu, int nId, int uState, str ItemName
+		dim mii, 12	//MENUITEMINFO
+		
+		mii.cbSize = 48
+		mii.fMask  = $3	//MIIM_ID | MIIM_STATE
+		mii.fState = uState
+		mii.wID    = nId
+		
+		if ItemName != "" {
+			mii.fMask	   |= $10	//MIIM_TYPE
+			mii.fType		= 0
+			dwTypeDate		= ItemName
+			mii.dwTypeData	= varptr(dwTypeDate)
+		}
+	
+		SetMenuItemInfo hMenu, nId, FALSE, mii
+	return
+	#global

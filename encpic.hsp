@@ -1,0 +1,148 @@
+	
+	#uselib "gdi32.dll"
+	#cfunc	GetPixel	"GetPixel"	int, int, int
+	#uselib "user32.dll"
+	#func	SetTimer	"SetTimer"	int, int, int, int
+	#func	KillTimer	"KillTimer"	int, int	
+	
+	enc = 0
+	
+	screen 0, 300, 20, 8
+	oncmd gosub *timer, WM_TIMER
+	font msgothic, 14
+	
+	gosub *fload
+	if stat == -1 :end
+	
+	stop
+*timer
+	redraw 0
+	
+	redraw 1
+	return
+	
+*fload
+	dialog "", 16
+	if stat == 0 :return -1
+	fName = refstr
+	if enc :gosub *encrypt :else :gosub *decrypt
+	return 0
+	
+*decrypt
+	buffer 1
+	picload fName
+	w = ginfo(12)
+	h = ginfo(13)
+	sdim buf, w*h
+	sdim str_
+	sdim dst
+	
+	j = 0 :size = 0
+	for i, 0, w, 1
+		repeat h
+			clr = RR(GetPixel(hdc@hsp, cnt, i))
+			if clr < 127 {		str_ += "0"
+			}elif 127 < clr {	str_ += "1"
+			}elif clr == 127 {
+				n = int(cnvbase_(str_, 2))
+				dst += strf("%02X", n)
+				if n == 0x0A :dst += "\n" :else :dst += " "
+				poke buf, j, n :size++
+				str_ = ""
+				j++
+			}else :s = -1 :break
+			await
+		loop
+		if s == -1 :_break
+	next
+	
+	dialog "", 17, ""
+	if stat :bsave refstr, buf, size
+	
+	gsel 0, 1
+	objmode 2
+	wcyh = ginfo(13)/2
+	pos 0,    0 :mesbox buf, ginfo(12), wcyh, 5, 0
+	pos 0, wcyh :mesbox dst, ginfo(12), wcyh, 5, 0
+	return
+	
+*encrypt
+	exist fName :fsize = strsize
+	if fsize == -1 :return
+	sdim buf, fsize
+	bload fName, buf, fsize
+	
+	albit = 0
+	repeat fsize
+		str_ = cnvbase(peek(buf, cnt), 2)
+		albit += strlen(str_)+1
+	loop
+	hw = int(sqrt(albit))+1
+	xx = 0 :yy = 0
+	
+	buffer 1, hw, hw
+	repeat fsize
+		str_ = cnvbase(peek(buf, cnt), 2)
+		repeat strlen(str_)
+			if peek(str_, cnt) == '0' :i = rnd(127) :else :i = 128+rnd(127)
+			color i, i, i
+			pset xx, yy
+			xx++
+			if xx >= hw :xx = 0 :yy++
+		loop
+		color 127, 127, 127
+		pset xx, yy
+		xx++
+		if xx >= hw :xx = 0 :yy++
+		await
+	loop
+	dialog "bmp", 17, ""
+	if stat :bmpsave refstr
+	
+	gsel 0, 1
+	pos   0, 0 :mes "size "+hw
+	pos 100, 0 :gcopy 1, 0, 0, hw, hw
+	
+	return
+	
+	#module __BASE__
+	// nêiêîåå›ïœä∑
+	#defcfunc cnvbase int prm, int base
+		sdim buf, 128 :ans = prm :str_ = ""
+		repeat
+			if ans == 0 :break
+			rem = (ans \ base)
+			ans = ans / base
+			if rem < 10 {
+				str_ = str(rem)
+			}else {
+				rem -= 10
+				if rem <= 'Z'-'A' {
+					poke str_, 0, rem+'A'
+				}else {
+					rem -= 'Z'-'A'
+					if rem <= 'z'-'a' {
+						poke str_, 0, rem+'a'
+					}
+				}
+			}
+			buf = str_ + buf
+		loop
+		if buf == "" :return "0"
+	return buf
+	#defcfunc cnvbase_ str string, int base
+		ans = 0.0 :i = strlen(string)-1
+		str_ = string
+		repeat i+1
+			rem = peek(str_, cnt)
+			if ('0' <= rem) && (rem <= '9') {
+				ans += (rem-'0')*powf(base, i)
+			}elif ('A' <= rem) && (rem <= '9') {
+				ans += (rem-'A'+10)*powf(base, i)
+			}elif ('a' <= rem) && (rem <= 'z') {
+				ans += (rem-'a'+36)*powf(base, i)
+			}
+			i--
+		loop
+	return ans
+	#global

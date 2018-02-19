@@ -1,0 +1,47 @@
+	
+	// key
+	
+	#uselib "user32.dll"
+	#func	keybd_event		"keybd_event"		int, int, int, int
+	#func	mouse_event		"mouse_event"		int, int, int, int, int
+	#define	KEYEVENTF_KEYUP			0x0002
+	#define MOUSEEVENTF_MOVE        0x0001 /* mouse move */
+	#define MOUSEEVENTF_LEFTDOWN    0x0002 /* left button down */
+	#define MOUSEEVENTF_LEFTUP      0x0004 /* left button up */
+	#define MOUSEEVENTF_RIGHTDOWN   0x0008 /* right button down */
+	#define MOUSEEVENTF_RIGHTUP     0x0010 /* right button up */
+	#define MOUSEEVENTF_MIDDLEDOWN  0x0020 /* middle button down */
+	#define MOUSEEVENTF_MIDDLEUP    0x0040 /* middle button up */
+	#define MOUSEEVENTF_XDOWN       0x0080 /* x button down */
+	#define MOUSEEVENTF_XUP         0x0100 /* x button down */
+	#define MOUSEEVENTF_WHEEL       0x0800 /* wheel button rolled */
+	#define MOUSEEVENTF_HWHEEL      0x01000 /* hwheel button rolled */
+	#define MOUSEEVENTF_MOVE_NOCOALESCE 0x2000 /* do not coalesce mouse moves */
+	#define MOUSEEVENTF_VIRTUALDESK 0x4000 /* map to entire virtual desktop */
+	#define MOUSEEVENTF_ABSOLUTE    0x8000 /* absolute move */
+	
+	#define	WX	120
+	kf = 0
+	
+	screen 0, WX, 60, 8 :title "Ctrl‚ÅSomething"
+	gsel 0, 2
+	
+	repeat
+		if getkey(17) {
+			if kf == 0 {
+				mouse_event MOUSEEVENTF_LEFTDOWN, 0, 0, 0, NULL
+				kf = 1
+			}
+		}elif kf == 1 {
+			kf = 0
+			mouse_event MOUSEEVENTF_LEFTUP, 0, 0, 0, NULL
+		}
+		redraw 0
+		colorwhite :boxf :color
+		pos 0, 0
+		if kf {
+			mes "ƒNƒŠƒbƒN‚µ‚Ä‚Ü‚·"
+		}
+		redraw 1
+		wait 1
+	loop

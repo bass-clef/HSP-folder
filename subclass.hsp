@@ -1,0 +1,67 @@
+	
+	#module __SUBCLASS__
+	#define InitSubClass(%1, %2) label@__SUBCLASS__ = %1 :InitSubClass__ label@__SUBCLASS__, %2
+	#define ifnt(%1)	if %1 :else
+	#deffunc InitSubClass__ int wndhandle, var newlabel, int number
+		if scmax < number :return
+		
+		if number < scmax {
+			slong oldhwnd.number, GWL_WNDPROC, oldproc.number
+		}
+		
+		sc.number = newlabel
+		oldhwnd.number = wndhandle
+		oldproc.number = glong(wndhandle, GWL_WNDPROC)
+		
+		// ウィンドウプロージャの変更
+		ChangeProc wndhandle, WM_APP+number
+		oncmd gosub *newlabel, WM_APP+number
+		
+		if scmax <= number {
+			scmax++
+		}
+	return 0
+	
+	#deffunc ReleaseSubClass onexit
+		repeat scmax
+			if sc.cnt {
+				SetWindowLong 
+			}
+		loop
+	return
+	#global
+	
+	
+	#uselib "imm32.dll"
+	#func	ImmGetCompositionString		"ImmGetCompositionStringA"	int, int, int, int
+	#cfunc	ImmGetContext				"ImmGetContext"				int
+	#func	ImmReleaseContext			"ImmReleaseContext"			int, int
+	#define	GCS_RESULTREADSTR	0x200
+	
+	sdim buf
+	
+	objmode 2
+	font msgothic, 16
+	input buf, 100, 20
+	hInput = objinfo(stat, 2)
+	
+	onkey gosub *key
+	stop
+*key
+	if buf != bufold {
+		bufold = buf
+		
+		hIMC = ImmGetContext(hInput)
+		ImmGetCompositionString hIMC, GCS_RESULTREADSTR, 0, 0
+		size = stat
+		
+		sdim rebuf, size+1
+		ImmGetCompositionString hIMC, GCS_RESULTREADSTR, varptr(rebuf), size+1
+		ImmReleaseContext hInput, hIMC
+		
+		redraw 0
+		colorwhite :boxf :color
+		pos 0, 20 :mes ""+buf+" 読み:"+rebuf
+		redraw 1
+	}
+	return

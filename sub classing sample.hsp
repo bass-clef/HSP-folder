@@ -1,0 +1,22 @@
+	
+	// サブクラス化サンプル
+	
+	
+	#uselib "subclassing.dll"
+	#func	registryWindow		"registryWindow"		int, int, int, int
+	#func	unregistryWindow	onexit	"unregistryWindow"
+	
+	
+	input buf :hInputWnd = objinfo(stat, 2)
+	registryWindow hInputWnd, WM_CHAR, hwnd, WM_APP+WM_CHAR
+	
+	oncmd gosub *char, WM_APP+WM_CHAR
+	stop
+	
+*char
+	
+	mes ""+wparam+":"+lparam
+	if VK_ESCAPE == wparam :return true
+	
+	return false
+	

@@ -1,0 +1,10 @@
+	
+	#uselib "user32.dll"
+	#cfunc	FindWindow	"FindWindowA"	sptr, sptr
+	#define EM_SETTABSTOPS 0x00CB
+	
+	exec "notepad.exe"
+	wait 100
+	tsize = 4*4
+	postmsg FindWindow("Notepad", 0), EM_SETTABSTOPS, 1, varptr(tsize)
+	end

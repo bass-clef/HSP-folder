@@ -1,0 +1,70 @@
+	
+	// client
+	
+	#uselib "user32.dll"
+	#func	SetTimer	"SetTimer"		int, int, int, int
+	#func	KillTimer	"KillTimer"		int, int
+	
+	#include "dwatch.as"
+	
+	contact = 0
+	time = 500
+	
+*init
+	contact++
+	if 5 < contact :void "contact max" :goto *error
+	tmp = 0
+	size = 0
+	c = 0
+	wdx = ginfo(20) :wdy = ginfo(21)
+	
+	screen 0, 300, 14, 0, (wdx-300)/2, (wdy-20)/2
+	title "client"
+	font msgothic, 14
+	
+	ipget
+	adr = refstr
+	port = 1122
+	title "client"
+	clsmes "connecting to host..."
+	sockopen 0, adr, port
+	if stat :void "sockopen" :goto *error :end
+	
+	onexit *exit
+	oncmd gosub *main, WM_TIMER
+	title "client"
+	SetTimer hwnd@hsp, 1000, 10, 0
+	stop
+	
+*main
+	KillTimer hwnd@hsp, 1000
+	
+	clsmes "tmp send..."
+	tmp = makeword(wdx, wdy)
+	size = wdx*wdy*3
+	wait 3
+	sockputbc tmp, 0, 4, 0
+	
+	clsmes "receiving check code (first)..."
+	sockccrece time
+	
+	clsmes "sending desktop..."
+	GetVramData vram, 1, 0
+	wait 3
+	sockputbc vram, 0, size, 0
+	
+	clsmes "receiving check code (second)..."
+	sockccrece time
+	
+	SetTimer hwnd@hsp, 1000, 10, 0
+	return
+	
+*error
+	if refstr != "contact max" :sockclose
+//	if refstr == "timeout" :goto *init
+	if refstr != "not error" :dialog "socket error\n"+refstr, 1, "client"
+	end
+	
+*exit
+	void "not error"
+	goto *error

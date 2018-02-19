@@ -1,0 +1,326 @@
+	
+	#packopt name "graymode"
+	
+	#uselib "user32.dll"
+	#func	GetClientRect		"GetClientRect"			int, int
+	#func	GetWindowRect		"GetWindowRect"			int, int
+	#func	SetLayered		"SetLayeredWindowAttributes"	int, int, int, int
+	#func	SetForegroundWindow	"SetForegroundWindow"	int
+	#func	SetActiveWindow		"SetActiveWindow"		int
+	#func	BringWindowToTop	"BringWindowToTop"		int
+	#func	AdjustWindowRect	"AdjustWindowRect"		int, int, int
+	#func	ShowWindow			"ShowWindow"			int, int
+	#cfunc	IsIconic			"IsIconic"				int
+	#cfunc	IsZoomed			"IsZoomed"				int
+	#cfunc	GetAncestor			"GetAncestor"			int, int
+	#cfunc	GetForegroundWindow	"GetForegroundWindow"
+	#cfunc	GetMenu				"GetMenu"				int
+	#cfunc	FindWindow			"FindWindowA"			sptr, sptr
+	#uselib "GetLastErrorMessage.dll"
+	#func	MessageErrorBox		"MessageErrorBox"
+	#uselib "getwindow.dll"
+	#func	MakeGetWindowHandleObject	"MakeGetWindowHandleObject"		int, int, int, int, int
+	
+	#define LWA_COLORKEY	0x0001
+	#define LWA_ALPHA		0x0002
+	#define SWP_NOSIZE          0x0001
+	#define SWP_NOMOVE          0x0002
+	#define SWP_NOZORDER        0x0004
+	#define SWP_NOREDRAW        0x0008
+	#define SWP_NOACTIVATE      0x0010
+	#define SWP_FRAMECHANGED    0x0020  /* The frame changed: send WM_NCCALCSIZE */
+	#define SWP_SHOWWINDOW      0x0040
+	#define SWP_HIDEWINDOW      0x0080
+	#define SWP_NOCOPYBITS      0x0100
+	#define SWP_NOOWNERZORDER   0x0200  /* Don't do owner Z ordering */
+	#define SWP_NOSENDCHANGING  0x0400  /* Don't send WM_WINDOWPOSCHANGING */
+	#define HWND_TOP        0
+	#define HWND_TOPMOST    -1
+	#define HWND_NOTOPMOST	-2
+	#define SW_HIDE             0
+	#define SW_SHOWNORMAL       1
+	#define SW_NORMAL           1
+	#define SW_SHOWMINIMIZED    2
+	#define SW_SHOWMAXIMIZED    3
+	#define SW_MAXIMIZE         3
+	#define SW_SHOWNOACTIVATE   4
+	#define SW_SHOW             5
+	#define SW_MINIMIZE         6
+	#define SW_SHOWMINNOACTIVE  7
+	#define SW_SHOWNA           8
+	#define SW_RESTORE          9
+	#define SW_SHOWDEFAULT      10
+	#define SW_FORCEMINIMIZE    11
+	#define SW_MAX              11
+	#define WM_GETWINDOW		WM_APP+100
+	#define GA_ROOT				2
+	
+	gosub *gettarget
+	
+	t = GetAncestor(htWnd, GA_ROOT)
+	if t != NULL :htWnd = t
+	
+	dim trc, 4
+	dim rc, 4
+	GetClientRect htWnd, varptr(rc)
+	wdh = rc.2
+	hgt = rc.3
+	
+	GetWindowRect htWnd, varptr(rc)
+	marw = ((rc.2-rc.0)-wdh) / 2
+	marh = (rc.3-rc.1)-hgt
+	
+	xx = rc.0+marw
+	yy = rc.1+(marh-marw)
+	myposf = 0	// rectの順番
+	
+	trc = 0, 0, ginfo(20), ginfo(21)
+	AdjustWindowRect varptr(trc), glong(hwnd@hsp, GWL_STYLE), GetMenu(htWnd)
+	if GetMenu(htWnd) :trc.1 += 20 :yy -= 20 :hgt += 20
+	
+	totmax = 150
+	totc = 0
+	
+	GetTaskBarRect barrc
+	
+	spos htWnd, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE
+	
+	screen 0, trc.2, trc.3, 2, trc.0, trc.1
+	slong hwnd@hsp, GWL_EXSTYLE, glong(hwnd@hsp, GWL_EXSTYLE) | WS_EX_LAYERED
+//	slong hwnd@hsp, GWL_STYLE, glong(hwnd@hsp, GWL_STYLE)^WS_MINIMIZEBOX
+	SetLayered hwnd@hsp, RGB(250, 250, 250), 204, LWA_COLORKEY | LWA_ALPHA
+	title "gray mode"
+	objmode 2 :font msgothic, 16
+	pos ginfo(20)-205, ginfo(21)-25 :input cmd, 200, 20, 0 :hBBEdit = objinfo(stat, 2)
+	gsel 0, 1
+	
+	font msgothic, 10
+	
+	gosub *draw
+	
+*mainlp
+	gmx = ginfo(0)
+	gmy = ginfo(1)
+	
+	// タスクバー監視
+	if swf == 0 :if gmx < barrc.2 {
+		if mx0f == 0 {
+			GetTaskBarRect barrc
+			
+			myrc = 0, 0, ginfo(20), ginfo(21)
+			AdjustWindowRect varptr(myrc), glong(hwnd@hsp, GWL_STYLE), GetMenu(htWnd)
+			if GetMenu(htWnd) :myrc.1 += 20
+			
+			smove barrc.2, ginfo(5), hwnd@hsp
+			mymarw = barrc.2-myrc.0
+			xx -= mymarw
+			mx0f = 1
+			gosub *draw
+		}
+	}else :if mx0f {
+		mx0f = 0
+		smove myrc.0, myrc.1, hwnd@hsp
+		xx += mymarw
+		gosub *draw
+	}
+	
+	// システムメニュー表示監視
+	if gmy == 0 {
+		if my0f == 0 {
+			myrc = 0, 0, ginfo(20), ginfo(21)
+			AdjustWindowRect varptr(myrc), glong(hwnd@hsp, GWL_STYLE), GetMenu(htWnd)
+			if GetMenu(htWnd) :myrc.1 += 20
+			
+			SetLayered hwnd@hsp, RGB(250, 250, 250), 204, LWA_COLORKEY | LWA_ALPHA
+			smove ginfo(4), 0, hwnd@hsp
+			mymarh = 0-myrc.1
+			yy -= mymarh
+			my0f = 1
+			gosub *draw
+		}
+	}else :if 32 < gmy :if my0f {
+		my0f = 0
+		SetLayered hwnd@hsp, RGB(250, 250, 250), 204, LWA_COLORKEY | LWA_ALPHA
+		smove myrc.0, myrc.1, hwnd@hsp
+		yy += mymarh
+		gosub *draw
+	}
+	
+	// 最小化監視
+	if IsIconic(htWnd) || IsZoomed(htWnd) {
+		if not(IsIconic(hwnd@hsp)) :swf = 1 :ShowWindow hwnd@hsp, SW_MINIMIZE :gosub *draw
+	}else :if not(IsIconic(htWnd)) || IsZoomed(htWnd) {
+		if IsIconic(hwnd@hsp) :if swf {
+			swf = 0
+			ShowWindow hwnd@hsp, SW_RESTORE
+			rc.0 = not(rc.0)
+			rc.1 = not(rc.1)
+		}
+	}
+	
+	if iswin(htWnd) == null {
+		// 終了監視
+		end
+	}
+	
+	GetWindowRect htWnd, varptr(trc)
+	// 表示枠監視
+	if (trc.0 != rc.0) || (trc.1 != rc.1) {
+		rc.0 = trc.0, trc.1
+		xx = rc.0+marw
+		yy = rc.1+(marh-marw)
+		if GetMenu(htWnd) :yy -= 20
+		gosub *draw
+	}
+	// ウィンドウ上マウス監視
+	if (trc.0 <= gmx) && (gmx <= trc.2) && (trc.1 <= gmy) && (gmy <= trc.3){
+		if GetForegroundWindow() == htWnd {
+			wait 10
+			//SetForegroundWindow hwnd@hsp
+			//SetActiveWindow hwnd@hsp
+			//BringWindowToTop hwnd@hsp
+			spos hwnd@hsp, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE
+			flag = 1
+			update = 1
+		}
+		gosub *mydraw
+	}else {
+		if flag {
+			flag = 0
+			spos hwnd@hsp, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE
+		}
+	}
+	
+	// マウス監視
+	if (gmx == mxold) && (gmy == myold) {
+		if 0 <= totc {
+			if totmax <= totc {
+				totc = -1
+				mouse -1, -1
+				gosub *draw
+			}else :totc++
+		}
+	}else {
+		mxold = gmx :myold = gmy
+		if totc == -1 {
+			mouse
+			totc = 0
+			update = 1
+			gosub *mydraw
+		}else :totc = 0
+	}
+	
+	// BB 監視
+	if (ginfo(20)-210 < gmx && ginfo(21)-30 < gmy) {
+		if iswinvis(hBBEdit) == 0 :slong hBBEdit, GWL_STYLE, glong(hBBEdit, GWL_STYLE) | WS_VISIBLE
+	}else {
+		if iswinvis(hBBEdit) :slong hBBEdit, GWL_STYLE, glong(hBBEdit, GWL_STYLE) ^ WS_VISIBLE
+	}
+	
+	wait 1
+	goto *mainlp
+	
+*mydraw
+	if update == 0 :return
+	if totc == -1 :return
+	update = 0
+	GetWindowRect htWnd, varptr(trc)
+	
+	redraw 0
+	if myposf == 0 {// 左
+		color :boxf 0, 0, rc.0, rc.3
+		color 128, 128, 128
+		pos 5, 5
+		mes "監視ウィンドウ   : "+gtext(htWnd)
+		mes "ウィンドウサイズ : "+(trc.2-trc.0)+" x "+(trc.3-trc.1)
+	}
+	redraw 1
+	
+	return
+	
+*draw
+	gmx = ginfo(0)
+	gmy = ginfo(1)
+	
+	redraw 0
+	color
+	boxf
+	
+	color 250, 250, 250
+	// クライアントエリア
+	boxf xx, yy, xx+wdh, yy+hgt
+	
+	// タイトルアイコン
+	boxf xx-1, yy-24, xx+17, yy-6
+	
+	// タイトルテキスト
+	boxf xx+20, yy-23, xx+wdh-111, yy-9
+	
+	// _, □, x ボタン
+	boxf xx+wdh-102, yy-30, xx+wdh+1, yy-10
+	
+	redraw 1
+	return
+
+*gettarget
+	sdim cmd
+	sdim text
+	htWnd = NULL
+	
+	screen 1, 300, 200, 0, (ginfo(20)-300)/2, (ginfo(21)-200)/2
+	title "gray mode"
+	pos  25,   5 :mes "監視するウィンドウを検索"
+	objsize 40, 20
+	pos 255,  30 :button gosub "検索", *find
+	objmode 2 :font msgothic, 16
+	pos   5,  30 :input text, 250, 20, 0
+	
+	pos 25, 155 :mes "監視するウィンドウを指定"
+	boxf 5, 135, 295, 195, 0
+	boxf 235, 135, 295, 195
+	colorwhite :boxf 240, 140, 290, 190
+	MakeGetWindowHandleObject hwnd@hsp, 240, 140, 50, 50 :hgwho = stat
+	oncmd gosub *getwindow, WM_GETWINDOW
+	
+*pause
+	repeat
+		if htWnd != NULL :break
+		wait 1
+	loop
+	return
+	
+*find
+	if text != "" :htWnd = FindWindow(null, text)
+	if htWnd == NULL {
+		htWnd = FindWindow(text, null)
+		if htWnd == NULL :dialog "該当するウィンドウが見つかりませんでした。\n\n検索のヒント\n・半角/全角はあってますか？\n・余計な文字は入れてませんか？", 0, "Gray mode"
+	}
+	if htWnd :sendmsg hgwho, WM_DESTROY, 0, 0
+	return
+	
+*getwindow
+	htWnd = lparam
+	if htWnd == hwnd@hsp :htWnd = null
+	return
+
+	#module
+	#uselib "shell32.dll"
+	#func	SHAppBarMessage		"SHAppBarMessage"	int, int
+	#define ABM_GETSTATE		0x00000004
+	#define ABM_GETTASKBARPOS	0x00000005
+	#define	global	ABS_AUTOHIDE		0x0000001
+	#define global	ABS_ALWAYSONTOP		0x0000002
+	#deffunc GetTaskBarRect array rc
+		dim abd, 9	// APPBARDATA
+		abd.0 = 36
+		SHAppBarMessage ABM_GETTASKBARPOS, varptr(abd)	// 位置サイズを求める
+		
+		dim rc, 4
+		memcpy rc, abd, 16, 0, 16
+		hAppBarWnd = abd.1
+		
+		//printf ("AutoHide %s\n", bstat & ABS_AUTOHIDE ? "ON" : "OFF")
+		//printf ("AlwaysOnTop %s\n", bstat & ABS_ALWAYSONTOP ? "ON" : "OFF")
+		SHAppBarMessage ABM_GETSTATE, varptr(abd)		// 表示状態を求める
+	return stat
+	#global

